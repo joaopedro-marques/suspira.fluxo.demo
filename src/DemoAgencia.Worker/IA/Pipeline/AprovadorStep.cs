@@ -36,6 +36,12 @@ public class AprovadorStep : IPipelineStep
 
         var instrucoesAprovacao = $"Briefing original:\n{context.Briefing}\n\nOutput do agente:\n{context.OutputProducao}\n\nVeredito da qualidade: {context.VereditoQualidade}\nFeedback: {context.FeedbackQualidade}";
 
+        if (context.CriteriosQa.Count > 0)
+        {
+            var criteriosTexto = string.Join("\n", context.CriteriosQa.Select((c, i) => $"{i + 1}. {c}"));
+            instrucoesAprovacao += $"\n\nCriterios objetivos definidos pelo estrategista:\n{criteriosTexto}";
+        }
+
         var aprovacaoEstrategista = await _openRouter.ChamarAgenteAsync(
             context.ChatId,
             estrategistaAprovador.Persona,
