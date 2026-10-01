@@ -6,6 +6,7 @@ public class AgenteLoader : IHostedService
     private readonly IConfiguration _configuration;
     private readonly Dictionary<string, AgenteDefinicao> _agentesPorComando = new();
     private readonly Dictionary<string, AgenteDefinicao> _agentesPorNome = new();
+    private readonly Dictionary<string, AgenteDefinicao> _agentesPorPapel = new();
     private readonly string? _customPath;
 
     public AgenteLoader(ILogger<AgenteLoader> logger, IConfiguration configuration, string? customPath = null)
@@ -44,7 +45,9 @@ public class AgenteLoader : IHostedService
                         _agentesPorComando[cmd.ToLowerInvariant()] = agente;
                     }
                     _agentesPorNome[agente.Nome.ToLowerInvariant()] = agente;
-                    _logger.LogInformation("Agente carregado: {Nome} ({Comandos})", agente.Nome, string.Join(", ", agente.Comandos));
+                    _agentesPorPapel[agente.Papel.ToLowerInvariant()] = agente;
+                    _logger.LogInformation("Agente carregado: {Nome} (papel: {Papel}, comandos: {Comandos})", 
+                        agente.Nome, agente.Papel, string.Join(", ", agente.Comandos));
                 }
             }
             catch (Exception ex)
@@ -84,6 +87,10 @@ public class AgenteLoader : IHostedService
                     agente.Descricao = trimmed.Substring(10).Trim();
                 else if (trimmed.StartsWith("modelo_alvo:", StringComparison.OrdinalIgnoreCase))
                     agente.ModeloAlvo = trimmed.Substring(12).Trim();
+                else if (trimmed.StartsWith("papel:", StringComparison.OrdinalIgnoreCase))
+                    agente.Papel = trimmed.Substring(6).Trim().ToLowerInvariant();
+                else if (trimmed.StartsWith("interno:", StringComparison.OrdinalIgnoreCase))
+                    agente.Interno = trimmed.Substring(8).Trim().ToLowerInvariant() == "true";
                 else if (trimmed.StartsWith("- /", StringComparison.OrdinalIgnoreCase))
                     agente.Comandos.Add(trimmed.Substring(2).Trim());
             }
@@ -111,8 +118,23 @@ public class AgenteLoader : IHostedService
         return _agentesPorComando.TryGetValue(comando.ToLowerInvariant(), out var agente) ? agente : null;
     }
 
+    public virtual AgenteDefinicao? ObterPorNome(string nome)
+    {
+        return _agentesPorNome.TryGetValue(nome.ToLowerInvariant(), out var agente) ? agente : null;
+    }
+
+    public virtual AgenteDefinicao? ObterPorPapel(string papel)
+    {
+        return _agentesPorPapel.TryGetValue(papel.ToLowerInvariant(), out var agente) ? agente : null;
+    }
+
     public virtual IReadOnlyCollection<AgenteDefinicao> ListarAgentes()
     {
-        return _agentesPorNome.Values.ToList().AsReadOnly();
+        return _agentesPorNome.Values.Where(a => !a.Interno).ToList().AsReadOnly();
+    }
+
+    public virtual IReadOnlyCollection<AgenteDefinicao> ListarAgentesProducao()
+    {
+        return _agentesPorNome.Values.Where(a => a.Papel == "producao" && !a.Interno).ToList().AsReadOnly();
     }
 }

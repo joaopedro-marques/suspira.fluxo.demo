@@ -2,6 +2,7 @@
 nome: Dev
 descricao: Especialista em desenvolvimento de software e arquitetura de código
 modelo_alvo: anthropic/claude-3.5-sonnet
+papel: producao
 comandos:
   - /dev
 ---
