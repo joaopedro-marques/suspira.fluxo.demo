@@ -15,7 +15,7 @@ public class HistoricoChat
                 _historicos[chatId] = new List<ChatMessage>();
             }
 
-            _historicos[chatId].Add(new ChatMessage { Role = role, Content = content });
+            _historicos[chatId].Add(new ChatMessage(role, content));
 
             if (_historicos[chatId].Count > MaxMensagensPorChat)
             {
@@ -41,10 +41,4 @@ public class HistoricoChat
             _historicos.Remove(chatId);
         }
     }
-}
-
-public class ChatMessage
-{
-    public string Role { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
 }

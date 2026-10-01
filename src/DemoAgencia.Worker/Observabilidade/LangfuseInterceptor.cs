@@ -1,14 +1,22 @@
+using DemoAgencia.Worker.Contracts;
+using DemoAgencia.Worker.Seguranca;
+
 namespace DemoAgencia.Worker.Observabilidade;
 
 public class LangfuseInterceptor
 {
     private readonly ILogger<LangfuseInterceptor> _logger;
     private readonly LangfuseClient _langfuseClient;
+    private readonly AnonimizadorService _anonimizador;
 
-    public LangfuseInterceptor(ILogger<LangfuseInterceptor> logger, LangfuseClient langfuseClient)
+    public LangfuseInterceptor(
+        ILogger<LangfuseInterceptor> logger,
+        LangfuseClient langfuseClient,
+        AnonimizadorService anonimizador)
     {
         _logger = logger;
         _langfuseClient = langfuseClient;
+        _anonimizador = anonimizador;
     }
 
     public LangfuseTraceContext IniciarTrace(long chatId, string operacao, string modelo)
@@ -30,13 +38,16 @@ public class LangfuseInterceptor
     {
         contexto.EndTime = DateTime.UtcNow;
 
+        var inputAnonimizado = _anonimizador.Anonimizar(input);
+        var outputAnonimizado = _anonimizador.Anonimizar(output);
+
         var trace = new LangfuseTrace
         {
             Name = contexto.Operacao,
             UserId = contexto.ChatId.ToString(),
             Model = contexto.Modelo,
-            Input = new { message = input },
-            Output = new { response = output },
+            Input = new { message = inputAnonimizado },
+            Output = new { response = outputAnonimizado },
             StartTime = contexto.StartTime,
             EndTime = contexto.EndTime,
             Metadata = new Dictionary<string, object>
@@ -54,13 +65,4 @@ public class LangfuseInterceptor
 
         await _langfuseClient.EnviarTraceAsync(trace, ct);
     }
-}
-
-public class LangfuseTraceContext
-{
-    public long ChatId { get; set; }
-    public string Operacao { get; set; } = "";
-    public string Modelo { get; set; } = "";
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
 }
