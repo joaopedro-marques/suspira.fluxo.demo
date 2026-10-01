@@ -234,4 +234,223 @@ Voce e um agente de teste.
         agente!.Persona.Should().Contain("agente de teste");
         agente.Persona.Should().Contain("Criativo");
     }
+
+    [Fact]
+    public async Task StartAsync_WithPapelField_ShouldParsePapel()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+papel: qualidade
+comandos:
+  - /test
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorPapel("qualidade");
+        agente.Should().NotBeNull();
+        agente!.Nome.Should().Be("TestAgent");
+        agente.Papel.Should().Be("qualidade");
+    }
+
+    [Fact]
+    public async Task StartAsync_WithInternoTrue_ShouldSetInterno()
+    {
+        var markdownContent = @"---
+nome: InternalAgent
+descricao: Internal
+modelo_alvo: openai/gpt-4
+papel: orquestrador
+interno: true
+---
+
+# InternalAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "internal.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("InternalAgent");
+        agente.Should().NotBeNull();
+        agente!.Interno.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ListarAgentes_ShouldFilterInternalAgents()
+    {
+        var publicAgent = @"---
+nome: PublicAgent
+descricao: Public
+modelo_alvo: model1
+papel: producao
+comandos:
+  - /public
+---
+
+# PublicAgent
+
+Persona";
+
+        var internalAgent = @"---
+nome: InternalAgent
+descricao: Internal
+modelo_alvo: model2
+papel: orquestrador
+interno: true
+---
+
+# InternalAgent
+
+Persona";
+
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "public.md"), publicAgent);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "internal.md"), internalAgent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agentes = loader.ListarAgentes();
+        agentes.Should().HaveCount(1);
+        agentes.First().Nome.Should().Be("PublicAgent");
+    }
+
+    [Fact]
+    public async Task ListarAgentesProducao_ShouldReturnOnlyProductionAgents()
+    {
+        var producaoAgent = @"---
+nome: Redator
+descricao: Redator
+modelo_alvo: model1
+papel: producao
+comandos:
+  - /redator
+---
+
+# Redator
+
+Persona";
+
+        var estrategistaAgent = @"---
+nome: Estrategista
+descricao: Estrategista
+modelo_alvo: model2
+papel: estrategista
+comandos:
+  - /estrategista
+---
+
+# Estrategista
+
+Persona";
+
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "redator.md"), producaoAgent);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "estrategista.md"), estrategistaAgent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agentesProducao = loader.ListarAgentesProducao();
+        agentesProducao.Should().HaveCount(1);
+        agentesProducao.First().Nome.Should().Be("Redator");
+    }
+
+    [Fact]
+    public async Task ObterPorNome_ShouldReturnAgentByName()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+papel: producao
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("TestAgent");
+        agente.Should().NotBeNull();
+        agente!.Nome.Should().Be("TestAgent");
+    }
+
+    [Fact]
+    public async Task ObterPorNome_WithInvalidName_ShouldReturnNull()
+    {
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("NonExistent");
+        agente.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task StartAsync_WithoutPapelField_ShouldDefaultToProducao()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+comandos:
+  - /test
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("TestAgent");
+        agente.Should().NotBeNull();
+        agente!.Papel.Should().Be("producao");
+    }
+
+    [Fact]
+    public async Task StartAsync_WithoutInternoField_ShouldDefaultToFalse()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+papel: producao
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("TestAgent");
+        agente.Should().NotBeNull();
+        agente!.Interno.Should().BeFalse();
+    }
 }

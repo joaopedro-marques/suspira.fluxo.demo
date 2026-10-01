@@ -66,7 +66,14 @@ public class PipelineService
         string? briefing = null;
         string? respostaDireta = null;
 
-        if (!string.IsNullOrEmpty(jsonOrquestrador))
+        if (string.IsNullOrEmpty(jsonOrquestrador))
+        {
+            // No JSON found, fallback to direta with raw response
+            _logger.LogWarning("Orquestrador nao retornou JSON valido, usando fallback para direta");
+            acao = "direta";
+            respostaDireta = respostaOrquestrador;
+        }
+        else
         {
             try
             {
@@ -357,7 +364,7 @@ public class PipelineService
         }
 
         // Se saiu do loop sem aprovar
-        if (refacoes > maxRefacoes)
+        if (refacoes >= maxRefacoes)
         {
             _logger.LogWarning("Pipeline excedeu maximo de refacoes");
             resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"] 
