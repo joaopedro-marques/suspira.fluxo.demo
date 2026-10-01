@@ -1,5 +1,6 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA.Pipeline;
+using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA;
 
@@ -20,6 +21,7 @@ public class PipelineService
         ILoggerFactory loggerFactory,
         OpenRouterService openRouter,
         AgenteLoader agenteLoader,
+        ReferenciaClienteLoader referenciaLoader,
         HistoricoChat historico,
         IConfiguration configuration)
     {
@@ -27,7 +29,7 @@ public class PipelineService
         _configuration = configuration;
         _orquestradorStep = new OrquestradorStep(
             loggerFactory.CreateLogger<OrquestradorStep>(),
-            openRouter, agenteLoader, historico);
+            openRouter, agenteLoader, referenciaLoader, historico);
         _diretaStep = new DiretaStep(
             loggerFactory.CreateLogger<DiretaStep>(),
             openRouter, agenteLoader, historico);

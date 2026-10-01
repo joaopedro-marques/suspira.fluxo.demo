@@ -2,6 +2,7 @@ using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipeline;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ public class OrquestradorStepTests
     private readonly Mock<ILogger<OrquestradorStep>> _loggerMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
+    private readonly Mock<ReferenciaClienteLoader> _referenciaLoaderMock;
     private readonly HistoricoChat _historico;
     private readonly OrquestradorStep _step;
 
@@ -46,10 +48,16 @@ public class OrquestradorStepTests
             Mock.Of<IConfiguration>(),
             (string?)null);
 
+        _referenciaLoaderMock = new Mock<ReferenciaClienteLoader>(
+            Mock.Of<ILogger<ReferenciaClienteLoader>>(),
+            Mock.Of<IConfiguration>(),
+            (string?)null);
+
         _step = new OrquestradorStep(
             _loggerMock.Object,
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
             _historico);
     }
 
@@ -224,5 +232,98 @@ public class OrquestradorStepTests
         capturedInstrucoes.Should().Contain("mensagem anterior");
         capturedInstrucoes.Should().Contain("resposta anterior");
         capturedInstrucoes.Should().Contain("mensagem de teste");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithClienteField_ShouldSetContextCliente()
+    {
+        var orquestrador = CriarOrquestrador();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao())
+            .Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes())
+            .Returns(new List<string> { "acme", "beta" }.AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"pipeline\", \"briefing\": \"Criar post\", \"cliente\": \"acme\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        context.Cliente.Should().Be("acme");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutClienteField_ShouldSetNullCliente()
+    {
+        var orquestrador = CriarOrquestrador();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao())
+            .Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes())
+            .Returns(new List<string> { "acme" }.AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"pipeline\", \"briefing\": \"Criar post\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        context.Cliente.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithUnknownCliente_ShouldSetNullCliente()
+    {
+        var orquestrador = CriarOrquestrador();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao())
+            .Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes())
+            .Returns(new List<string> { "acme" }.AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"pipeline\", \"briefing\": \"Criar post\", \"cliente\": \"unknown\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        context.Cliente.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ShouldIncludeClientListInPrompt()
+    {
+        var orquestrador = CriarOrquestrador();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao())
+            .Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes())
+            .Returns(new List<string> { "acme", "beta" }.AsReadOnly());
+
+        string? capturedInstrucoes = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+            .ReturnsAsync("{\"acao\": \"fora_contexto\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        capturedInstrucoes.Should().Contain("Clientes disponiveis");
+        capturedInstrucoes.Should().Contain("acme");
+        capturedInstrucoes.Should().Contain("beta");
     }
 }

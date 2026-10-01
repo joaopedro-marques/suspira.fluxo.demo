@@ -37,6 +37,10 @@ Exemplos: "o que e marketing de conteudo?", "qual a diferenca entre B2B e B2C?",
 Quando a mensagem e uma tarefa de producao que requer um agente especializado (redator, dev, editor de imagens, estrategista de campanha, etc.).
 Exemplos: "crie um post para Instagram", "escreva um email marketing", "gere uma imagem para campanha", "desenvolva uma landing page"
 
+## Identificacao de Cliente
+
+Quando a rota for `pipeline`, identifique se a mensagem menciona um cliente especifico da lista de "Clientes disponiveis" fornecida. Se identificar, inclua o campo `cliente` no JSON de resposta com o nome normalizado (lowercase). Se nao identificar ou nao houver mencao clara, omita o campo `cliente`.
+
 ## Formato de Resposta (JSON OBRIGATORIO)
 
 Responda APENAS com JSON valido, sem explicacoes adicionais:
@@ -53,10 +57,10 @@ Para `direta`:
 
 Para `pipeline`:
 ```json
-{"acao": "pipeline", "briefing": "Descricao refinada e clara da tarefa para o agente de producao"}
+{"acao": "pipeline", "briefing": "Descricao refinada e clara da tarefa para o agente de producao", "cliente": "nome_do_cliente"}
 ```
 
-O `briefing` deve ser uma instrucao clara, refinada e completa para o agente que vai executar. Inclua contexto, objetivo, restricoes e formato esperado.
+O `briefing` deve ser uma instrucao clara, refinada e completa para o agente que vai executar. Inclua contexto, objetivo, restricoes e formato esperado. O campo `cliente` e opcional e deve conter apenas o nome do cliente se identificado na mensagem (use lowercase e exatamente como aparece na lista de "Clientes disponiveis").
 
 ## Regras
 

@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ public class PipelineServiceTests
     private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
+    private readonly Mock<ReferenciaClienteLoader> _referenciaLoaderMock;
     private readonly Mock<HistoricoChat> _historicoMock;
     private readonly IConfiguration _configuration;
     private readonly PipelineService _pipeline;
@@ -50,6 +52,11 @@ public class PipelineServiceTests
             Mock.Of<IConfiguration>(),
             (string?)null);
 
+        _referenciaLoaderMock = new Mock<ReferenciaClienteLoader>(
+            Mock.Of<ILogger<ReferenciaClienteLoader>>(),
+            Mock.Of<IConfiguration>(),
+            (string?)null);
+
         _configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -64,6 +71,7 @@ public class PipelineServiceTests
             _loggerFactoryMock.Object,
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
             _historicoMock.Object,
             _configuration);
     }

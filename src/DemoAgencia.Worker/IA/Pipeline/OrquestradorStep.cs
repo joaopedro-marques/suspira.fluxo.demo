@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Pipeline;
 
@@ -8,6 +9,7 @@ public class OrquestradorStep : IPipelineStep
     private readonly ILogger<OrquestradorStep> _logger;
     private readonly OpenRouterService _openRouter;
     private readonly AgenteLoader _agenteLoader;
+    private readonly ReferenciaClienteLoader _referenciaLoader;
     private readonly HistoricoChat _historico;
 
     public string Nome => "orquestrador";
@@ -16,11 +18,13 @@ public class OrquestradorStep : IPipelineStep
         ILogger<OrquestradorStep> logger,
         OpenRouterService openRouter,
         AgenteLoader agenteLoader,
+        ReferenciaClienteLoader referenciaLoader,
         HistoricoChat historico)
     {
         _logger = logger;
         _openRouter = openRouter;
         _agenteLoader = agenteLoader;
+        _referenciaLoader = referenciaLoader;
         _historico = historico;
     }
 
@@ -41,11 +45,13 @@ public class OrquestradorStep : IPipelineStep
         var historicoTexto = string.Join("\n", historicoMensagens.Select(m => $"{m.Role}: {m.Content}"));
         var agentesProducao = _agenteLoader.ListarAgentesProducao();
         var listaAgentes = string.Join(", ", agentesProducao.Select(a => $"{a.Nome}: {a.Descricao}"));
+        var clientesDisponiveis = _referenciaLoader.ListarClientes() ?? Array.Empty<string>();
+        var listaClientes = string.Join(", ", clientesDisponiveis);
 
         context.ListaAgentesProducao = listaAgentes;
         context.AgentesProducao = agentesProducao;
 
-        var instrucoesOrquestrador = $"Historico do chat:\n{historicoTexto}\n\nMensagem atual: {context.Mensagem}\n\nAgentes de producao disponiveis: {listaAgentes}";
+        var instrucoesOrquestrador = $"Historico do chat:\n{historicoTexto}\n\nMensagem atual: {context.Mensagem}\n\nAgentes de producao disponiveis: {listaAgentes}\n\nClientes disponiveis: {listaClientes}";
 
         var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
             context.ChatId,
@@ -62,6 +68,7 @@ public class OrquestradorStep : IPipelineStep
         string acao = "fora_contexto";
         string? briefing = null;
         string? respostaDireta = null;
+        string? cliente = null;
 
         if (string.IsNullOrEmpty(jsonOrquestrador))
         {
@@ -80,12 +87,28 @@ public class OrquestradorStep : IPipelineStep
                     briefing = briefingEl.GetString();
                 if (doc.RootElement.TryGetProperty("resposta", out var respostaEl))
                     respostaDireta = respostaEl.GetString();
+                if (doc.RootElement.TryGetProperty("cliente", out var clienteEl))
+                    cliente = clienteEl.GetString();
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Erro ao parsear JSON do orquestrador, usando fallback");
                 acao = "direta";
                 respostaDireta = respostaOrquestrador;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(cliente))
+        {
+            var clienteNormalizado = cliente.ToLowerInvariant();
+            var clientesList = clientesDisponiveis.ToList();
+            if (clientesList.Contains(clienteNormalizado))
+            {
+                context.Cliente = clienteNormalizado;
+            }
+            else
+            {
+                _logger.LogWarning("Cliente {Cliente} nao encontrado nas referencias disponiveis", cliente);
             }
         }
 

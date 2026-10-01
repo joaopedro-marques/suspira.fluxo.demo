@@ -27,7 +27,14 @@ public class ReferenciaClienteLoader : IHostedService
         _logger = logger;
         _configuration = configuration;
         _customPath = customPath;
-        _maxCharsPorArquivo = _configuration.GetValue<int>("Pipeline:Referencias:MaxCharsPorArquivo", 4000);
+        _maxCharsPorArquivo = 4000;
+        try
+        {
+            _maxCharsPorArquivo = _configuration.GetValue<int>("Pipeline:Referencias:MaxCharsPorArquivo", 4000);
+        }
+        catch
+        {
+        }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

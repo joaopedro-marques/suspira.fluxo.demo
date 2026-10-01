@@ -11,6 +11,7 @@ public class PipelineContext
     public CancellationToken CancellationToken { get; init; }
 
     public string Rota { get; set; } = string.Empty;
+    public string? Cliente { get; set; }
     public string? Briefing { get; set; }
     public string? RespostaDireta { get; set; }
     public string? RespostaOrquestrador { get; set; }
