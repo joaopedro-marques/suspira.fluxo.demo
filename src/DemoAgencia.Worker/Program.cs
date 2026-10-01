@@ -29,6 +29,8 @@ try
     builder.Services.AddHostedService<Worker>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Agentes.AgenteLoader>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<DemoAgencia.Worker.Agentes.AgenteLoader>());
+    builder.Services.AddSingleton<DemoAgencia.Worker.Referencias.ReferenciaClienteLoader>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<DemoAgencia.Worker.Referencias.ReferenciaClienteLoader>());
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.HistoricoChat>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Observabilidade.LangfuseClient>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Observabilidade.LangfuseInterceptor>();
