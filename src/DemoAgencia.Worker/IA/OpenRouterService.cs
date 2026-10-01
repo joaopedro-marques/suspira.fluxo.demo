@@ -287,11 +287,11 @@ public class OpenRouterService
 
         var chatService = _kernel.GetRequiredService<IChatCompletionService>();
 
-        var prompt = $@"Classifique a seguinte mensagem em UMA das categorias: 'codigo', 'estrategia', 'copy', 'geral'.
+        var prompt = $@"Classifique a seguinte mensagem em UMA das categorias: 'codigo', 'estrategia', 'copy', 'geral', 'image'.
 
 Mensagem: {mensagem}
 
-Responda APENAS com a categoria (codigo, estrategia, copy ou geral):";
+Responda APENAS com a categoria (codigo, estrategia, copy, geral ou image):";
 
         var chatHistory = new ChatHistory();
         chatHistory.AddUserMessage(prompt);
@@ -319,5 +319,68 @@ Responda APENAS com a categoria (codigo, estrategia, copy ou geral):";
             _logger.LogError(ex, "Erro ao classificar mensagem");
             return "geral";
         }
+    }
+
+    public virtual async Task<string> ChamarAgenteAsync(
+        string persona,
+        string modelo,
+        string instrucoes,
+        string etapaNome = "pipeline-step",
+        double temperature = 0.7,
+        int maxTokens = 2000,
+        CancellationToken ct = default)
+    {
+        var traceContext = _langfuse.IniciarTrace(0, etapaNome, modelo);
+
+        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
+
+        var chatHistory = new ChatHistory();
+
+        if (!string.IsNullOrEmpty(persona))
+        {
+            chatHistory.AddSystemMessage(persona);
+        }
+
+        chatHistory.AddUserMessage(instrucoes);
+
+        try
+        {
+            var settings = new OpenAIPromptExecutionSettings
+            {
+                ModelId = modelo,
+                Temperature = temperature,
+                MaxTokens = maxTokens
+            };
+
+            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
+            var resposta = response.Content ?? "";
+
+            _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modelo, resposta.Length);
+
+            await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, resposta, ct);
+
+            return resposta;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao chamar agente ({Etapa}) com modelo {Modelo}", etapaNome, modelo);
+            throw;
+        }
+    }
+
+    public static string? ExtrairJson(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto))
+            return null;
+
+        var primeiro = texto.IndexOf('{');
+        var ultimo = texto.LastIndexOf('}');
+
+        if (primeiro >= 0 && ultimo > primeiro)
+        {
+            return texto.Substring(primeiro, ultimo - primeiro + 1);
+        }
+
+        return null;
     }
 }
