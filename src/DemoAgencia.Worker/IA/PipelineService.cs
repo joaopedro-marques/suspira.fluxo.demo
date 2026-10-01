@@ -54,6 +54,7 @@ public class PipelineService
         var instrucoesOrquestrador = $"Historico do chat:\n{historicoTexto}\n\nMensagem atual: {mensagem}\n\nAgentes de producao disponiveis: {listaAgentes}";
 
         var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
+            chatId,
             orquestrador.Persona,
             orquestrador.ModeloAlvo,
             instrucoesOrquestrador,
@@ -113,6 +114,7 @@ public class PipelineService
             if (formatador != null && !string.IsNullOrEmpty(respostaDireta))
             {
                 var respostaFormatada = await _openRouter.ChamarAgenteAsync(
+                    chatId,
                     formatador.Persona,
                     formatador.ModeloAlvo,
                     $"Pedido original: {mensagem}\n\nResposta para formatar:\n{respostaDireta}",
@@ -140,8 +142,11 @@ public class PipelineService
 
         var refacoes = 0;
         string? outputProducao = null;
+        string? instrucoesOriginais = null;
         string? instrucoesProducao = null;
+        string? feedbackAnterior = null;
         AgenteDefinicao? agenteProducao = null;
+        bool aprovadoFinal = false;
 
         while (refacoes <= maxRefacoes)
         {
@@ -160,6 +165,7 @@ public class PipelineService
                 }
 
                 var planoEstrategista = await _openRouter.ChamarAgenteAsync(
+                    chatId,
                     estrategista.Persona,
                     estrategista.ModeloAlvo,
                     $"Briefing do orquestrador:\n{briefing}\n\nAgentes disponiveis: {listaAgentes}",
@@ -174,7 +180,8 @@ public class PipelineService
                     {
                         using var docPlano = JsonDocument.Parse(jsonPlano);
                         var nomeAgente = docPlano.RootElement.GetProperty("agente").GetString();
-                        instrucoesProducao = docPlano.RootElement.GetProperty("instrucoes").GetString();
+                        instrucoesOriginais = docPlano.RootElement.GetProperty("instrucoes").GetString();
+                        instrucoesProducao = instrucoesOriginais;
 
                         agenteProducao = _agenteLoader.ObterPorNome(nomeAgente ?? "");
                         if (agenteProducao == null)
@@ -187,12 +194,14 @@ public class PipelineService
                     {
                         _logger.LogWarning(ex, "Erro ao parsear plano do estrategista");
                         agenteProducao = agentesProducao.FirstOrDefault();
+                        instrucoesOriginais = briefing;
                         instrucoesProducao = briefing;
                     }
                 }
                 else
                 {
                     agenteProducao = agentesProducao.FirstOrDefault();
+                    instrucoesOriginais = briefing;
                     instrucoesProducao = briefing;
                 }
             }
@@ -209,8 +218,7 @@ public class PipelineService
             await NotificarProgresso(onProgresso, $"✍️ Produzindo com {agenteProducao.Nome}...");
             resultado.EtapasExecutadas.Add($"producao_{agenteProducao.Nome}");
 
-            var isEditorImagens = agenteProducao.Nome.Contains("Editor de Imagens", StringComparison.OrdinalIgnoreCase)
-                || agenteProducao.Nome.Contains("EditorImagens", StringComparison.OrdinalIgnoreCase);
+            var isEditorImagens = agenteProducao.Tipo.Equals("imagem", StringComparison.OrdinalIgnoreCase);
 
             if (isEditorImagens)
             {
@@ -221,6 +229,7 @@ public class PipelineService
                 // 4. Output para aprovador = descricao da imagem gerada
 
                 var promptOtimizado = await _openRouter.ChamarAgenteAsync(
+                    chatId,
                     agenteProducao.Persona,
                     agenteProducao.ModeloAlvo,
                     instrucoesProducao,
@@ -228,7 +237,7 @@ public class PipelineService
                     ct: ct);
 
                 await NotificarProgresso(onProgresso, "🎨 Gerando imagem...");
-                var imagemBytes = await _openRouter.GerarImagemAsync(promptOtimizado, ct);
+                var imagemBytes = await _openRouter.GerarImagemAsync(chatId, promptOtimizado, ct);
 
                 if (imagemBytes != null)
                 {
@@ -244,6 +253,7 @@ public class PipelineService
             else
             {
                 outputProducao = await _openRouter.ChamarAgenteAsync(
+                    chatId,
                     agenteProducao.Persona,
                     agenteProducao.ModeloAlvo,
                     instrucoesProducao,
@@ -263,13 +273,14 @@ public class PipelineService
                 return resultado;
             }
 
-            var instrucoesQualidade = $"Instrucoes originais:\n{instrucoesProducao}\n\nOutput do agente:\n{outputProducao}";
-            if (refacoes > 0)
+            var instrucoesQualidade = $"Instrucoes originais:\n{instrucoesOriginais}\n\nOutput do agente:\n{outputProducao}";
+            if (refacoes > 0 && !string.IsNullOrEmpty(feedbackAnterior))
             {
-                instrucoesQualidade += $"\n\nFeedback da iteracao anterior: {instrucoesProducao}";
+                instrucoesQualidade += $"\n\nFeedback da iteracao anterior: {feedbackAnterior}";
             }
 
             var vereditoQualidade = await _openRouter.ChamarAgenteAsync(
+                chatId,
                 qualidade.Persona,
                 qualidade.ModeloAlvo,
                 instrucoesQualidade,
@@ -302,7 +313,8 @@ public class PipelineService
             {
                 refacoes++;
                 _logger.LogInformation("Qualidade reprovou, refacao {Refacao}/{Max}", refacoes, maxRefacoes);
-                instrucoesProducao = $"Instrucoes originais:\n{instrucoesProducao}\n\nFeedback para correcao:\n{feedback}";
+                feedbackAnterior = feedback;
+                instrucoesProducao = $"Instrucoes originais:\n{instrucoesOriginais}\n\nFeedback para correcao:\n{feedback}";
                 await NotificarProgresso(onProgresso, $"🔁 Refinando ({refacoes}/{maxRefacoes})...");
                 continue;
             }
@@ -322,6 +334,7 @@ public class PipelineService
             var instrucoesAprovacao = $"Briefing original:\n{briefing}\n\nOutput do agente:\n{outputProducao}\n\nVeredito da qualidade: {veredito}\nFeedback: {feedback}";
 
             var aprovacaoEstrategista = await _openRouter.ChamarAgenteAsync(
+                chatId,
                 estrategistaAprovador.Persona,
                 estrategistaAprovador.ModeloAlvo,
                 instrucoesAprovacao,
@@ -354,17 +367,25 @@ public class PipelineService
             {
                 refacoes++;
                 _logger.LogInformation("Estrategista reprovou, refacao {Refacao}/{Max}", refacoes, maxRefacoes);
-                instrucoesProducao = $"Instrucoes originais:\n{instrucoesProducao}\n\nFeedback para correcao:\n{observacoes}";
+                feedbackAnterior = observacoes;
+                instrucoesProducao = $"Instrucoes originais:\n{instrucoesOriginais}\n\nFeedback para correcao:\n{observacoes}";
                 await NotificarProgresso(onProgresso, $"🔁 Refinando ({refacoes}/{maxRefacoes})...");
                 continue;
             }
 
-            // Aprovado, sai do loop
+            // Se aprovado, marca como aprovado e sai do loop
+            if (aprovado)
+            {
+                aprovadoFinal = true;
+                break;
+            }
+
+            // Se reprovado e esgotou refacoes, sai do loop sem aprovar
             break;
         }
 
         // Se saiu do loop sem aprovar
-        if (refacoes >= maxRefacoes)
+        if (!aprovadoFinal)
         {
             _logger.LogWarning("Pipeline excedeu maximo de refacoes");
             resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"] 
@@ -380,6 +401,7 @@ public class PipelineService
         if (formatadorFinal != null && !string.IsNullOrEmpty(outputProducao))
         {
             var respostaFormatada = await _openRouter.ChamarAgenteAsync(
+                chatId,
                 formatadorFinal.Persona,
                 formatadorFinal.ModeloAlvo,
                 $"Pedido original do usuario: {mensagem}\n\nOutput aprovado para formatar:\n{outputProducao}",

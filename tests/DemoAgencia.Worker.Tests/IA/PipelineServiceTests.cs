@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Seguranca;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -26,14 +27,19 @@ public class PipelineServiceTests
             Mock.Of<ILogger<LangfuseClient>>(),
             Mock.Of<IConfiguration>());
 
+        var anonimizadorMock = new Mock<AnonimizadorService>(Mock.Of<IConfiguration>());
+        anonimizadorMock.Setup(x => x.Anonimizar(It.IsAny<string>())).Returns<string>(s => s);
+
         var langfuseInterceptorMock = new Mock<LangfuseInterceptor>(
             Mock.Of<ILogger<LangfuseInterceptor>>(),
-            langfuseClientMock.Object);
+            langfuseClientMock.Object,
+            anonimizadorMock.Object);
 
         _openRouterMock = new Mock<OpenRouterService>(
             Mock.Of<ILogger<OpenRouterService>>(),
             Mock.Of<IConfiguration>(),
-            langfuseInterceptorMock.Object);
+            langfuseInterceptorMock.Object,
+            Mock.Of<IHttpClientFactory>());
 
         _agenteLoaderMock = new Mock<AgenteLoader>(
             Mock.Of<ILogger<AgenteLoader>>(),
@@ -73,7 +79,7 @@ public class PipelineServiceTests
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("{\"acao\": \"fora_contexto\"}");
 
@@ -107,13 +113,13 @@ public class PipelineServiceTests
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("{\"acao\": \"direta\", \"resposta\": \"Resposta direta\"}");
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "formatador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Resposta formatada");
 
@@ -172,9 +178,9 @@ public class PipelineServiceTests
         var callCount = 0;
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
             {
                 callCount++;
                 return etapa switch
@@ -220,9 +226,9 @@ public class PipelineServiceTests
         var qualityCallCount = 0;
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
             {
                 return etapa switch
                 {
@@ -260,9 +266,9 @@ public class PipelineServiceTests
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
             {
                 return etapa switch
                 {
@@ -290,7 +296,7 @@ public class PipelineServiceTests
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Resposta invalida sem JSON");
 
@@ -309,7 +315,7 @@ public class PipelineServiceTests
 
         _openRouterMock
             .Setup(x => x.ChamarAgenteAsync(
-                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("{\"acao\": \"fora_contexto\"}");
 
@@ -319,3 +325,4 @@ public class PipelineServiceTests
         progressMessages.Should().Contain("🧠 Analisando seu pedido...");
     }
 }
+
