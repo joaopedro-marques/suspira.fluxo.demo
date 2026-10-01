@@ -1,0 +1,118 @@
+namespace DemoAgencia.Worker.Agentes;
+
+public class AgenteLoader : IHostedService
+{
+    private readonly ILogger<AgenteLoader> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly Dictionary<string, AgenteDefinicao> _agentesPorComando = new();
+    private readonly Dictionary<string, AgenteDefinicao> _agentesPorNome = new();
+    private readonly string? _customPath;
+
+    public AgenteLoader(ILogger<AgenteLoader> logger, IConfiguration configuration, string? customPath = null)
+    {
+        _logger = logger;
+        _configuration = configuration;
+        _customPath = customPath;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        var assetsPath = _customPath ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Assets", "agentes");
+        
+        if (!Directory.Exists(assetsPath))
+        {
+            assetsPath = _customPath ?? Path.Combine(AppContext.BaseDirectory, "Assets", "agentes");
+        }
+
+        if (!Directory.Exists(assetsPath))
+        {
+            _logger.LogWarning("Diretório de agentes não encontrado: {Path}", assetsPath);
+            return Task.CompletedTask;
+        }
+
+        _logger.LogInformation("Carregando agentes de: {Path}", assetsPath);
+
+        foreach (var file in Directory.GetFiles(assetsPath, "*.md"))
+        {
+            try
+            {
+                var agente = ParseAgente(file);
+                if (agente != null)
+                {
+                    foreach (var cmd in agente.Comandos)
+                    {
+                        _agentesPorComando[cmd.ToLowerInvariant()] = agente;
+                    }
+                    _agentesPorNome[agente.Nome.ToLowerInvariant()] = agente;
+                    _logger.LogInformation("Agente carregado: {Nome} ({Comandos})", agente.Nome, string.Join(", ", agente.Comandos));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao carregar agente de {File}", file);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private AgenteDefinicao? ParseAgente(string filePath)
+    {
+        var content = File.ReadAllText(filePath);
+        var agente = new AgenteDefinicao();
+
+        var lines = content.Split('\n');
+        var inFrontmatter = false;
+        var inPersona = false;
+        var personaLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed == "---")
+            {
+                inFrontmatter = !inFrontmatter;
+                continue;
+            }
+
+            if (inFrontmatter)
+            {
+                if (trimmed.StartsWith("nome:", StringComparison.OrdinalIgnoreCase))
+                    agente.Nome = trimmed.Substring(5).Trim();
+                else if (trimmed.StartsWith("descricao:", StringComparison.OrdinalIgnoreCase))
+                    agente.Descricao = trimmed.Substring(10).Trim();
+                else if (trimmed.StartsWith("modelo_alvo:", StringComparison.OrdinalIgnoreCase))
+                    agente.ModeloAlvo = trimmed.Substring(12).Trim();
+                else if (trimmed.StartsWith("- /", StringComparison.OrdinalIgnoreCase))
+                    agente.Comandos.Add(trimmed.Substring(2).Trim());
+            }
+            else if (trimmed.StartsWith("# "))
+            {
+                inPersona = true;
+            }
+            else if (inPersona)
+            {
+                personaLines.Add(line);
+            }
+        }
+
+        agente.Persona = string.Join("\n", personaLines).Trim();
+        return string.IsNullOrEmpty(agente.Nome) ? null : agente;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public virtual AgenteDefinicao? ObterPorComando(string comando)
+    {
+        return _agentesPorComando.TryGetValue(comando.ToLowerInvariant(), out var agente) ? agente : null;
+    }
+
+    public virtual IReadOnlyCollection<AgenteDefinicao> ListarAgentes()
+    {
+        return _agentesPorNome.Values.ToList().AsReadOnly();
+    }
+}
