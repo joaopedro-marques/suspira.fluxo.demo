@@ -120,6 +120,56 @@ sequenceDiagram
 | **qualidade** | Revisa output dos agentes de produção | Qualidade |
 | **formatacao** | Formata resposta final para o usuário | Formatador |
 
+### Referências de Cliente
+
+O sistema suporta carregar referências de clientes (manuais de marca, exemplos, imagens) para personalizar o pipeline de produção. As referências ficam em `Assets/referencias/` com o padrão de nomenclatura `CLIENTE_{nome}_{tipo}.ext`.
+
+**Fluxo de referências:**
+
+```mermaid
+flowchart LR
+    subgraph "Assets/referencias/"
+        JSON[CLIENTE_acme_marca.json]
+        HTML[CLIENTE_acme_exemplo.html]
+        IMG[CLIENTE_acme_ref-visual.png]
+    end
+
+    subgraph "Pipeline"
+        ORQ[Orquestrador<br/>extrai cliente]
+        EST[Estrategista<br/>traduz referências]
+        PRD[Produção<br/>recebe instruções]
+        QA[Qualidade<br/>valida checklist]
+    end
+
+    JSON --> EST
+    HTML --> EST
+    IMG -->|AnalisarImagemAsync| EST
+    EST -->|instrucoes + criterios_qa| PRD
+    EST -->|criterios_qa| QA
+```
+
+**Como funciona:**
+
+1. **Orquestrador** extrai o nome do cliente da mensagem e valida contra a lista de clientes disponíveis
+2. **Estrategista** carrega as referências de texto (JSON, HTML, MD) e analisa as imagens on-demand via `AnalisarImagemAsync`
+3. **Estrategista** traduz as referências em:
+   - `instrucoes`: direcionamento completo para o agente de produção (cores, tom, estrutura)
+   - `criterios_qa`: checklist objetivo para validação
+4. **Produção** recebe apenas as instruções destiladas (não vê arquivos brutos)
+5. **Qualidade** valida o output contra o checklist de critérios
+
+**Configuração:**
+
+```json
+{
+  "Pipeline": {
+    "Referencias": {
+      "MaxCharsPorArquivo": 4000
+    }
+  }
+}
+```
+
 ### Rotas do Orquestrador
 
 ```mermaid
@@ -324,7 +374,11 @@ graph TD
             AL2[AgenteLoader.cs<br/>Parser .md + cache]
             AD2[AgenteDefinicao.cs<br/>Modelo de dados]
         end
-        
+
+        subgraph "Referencias/"
+            RCL[ReferenciaClienteLoader.cs<br/>Parser CLIENTE_ prefix]
+        end
+
         subgraph "IA/"
             RS2[RoteadorService.cs<br/>Roteamento híbrido]
             OR2[OpenRouterService.cs<br/>SK + OpenRouter]
@@ -340,6 +394,7 @@ graph TD
     
     subgraph "Assets/"
         MD2[agentes/*.md<br/>Definições dos agentes]
+        REF[referencias/CLIENTE_*<br/>Referências de clientes]
         IMG[imagens/<br/>Exemplos visuais]
     end
     

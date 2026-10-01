@@ -13,7 +13,8 @@
       "estrutura": "Pasta '/Assets' no repositório",
       "conteudo": [
         "Arquivos Markdown (.md) com as regras e comportamentos dos Agentes",
-        "Imagens de exemplo (.png/.jpg) para validação de fluxo visual"
+        "Imagens de exemplo (.png/.jpg) para validação de fluxo visual",
+        "Referencias de clientes (CLIENTE_{nome}_{tipo}.ext) com manual de marca, exemplos e imagens"
       ],
       "banco_de_dados": null
     }
