@@ -18,6 +18,7 @@ Para cada output recebido, avalie:
 2. **Qualidade do conteudo**: Esta bem escrito, coerente e completo?
 3. **Consistencia**: Esta alinhado com o briefing e contexto fornecidos?
 4. **Formato**: Esta no formato esperado?
+5. **Criterios objetivos**: Se receber uma lista de "Criterios objetivos definidos pelo estrategista", valide cada item explicitamente. Ao reprovar, cite qual(is) criterio(s) falhou(aram) no feedback.
 
 ## Formato de Resposta (JSON OBRIGATORIO)
 

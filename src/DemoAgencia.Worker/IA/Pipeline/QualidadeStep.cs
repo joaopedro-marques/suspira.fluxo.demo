@@ -35,6 +35,13 @@ public class QualidadeStep : IPipelineStep
         }
 
         var instrucoesQualidade = $"Instrucoes originais:\n{context.InstrucoesOriginais}\n\nOutput do agente:\n{context.OutputProducao}";
+
+        if (context.CriteriosQa.Count > 0)
+        {
+            var criteriosTexto = string.Join("\n", context.CriteriosQa.Select((c, i) => $"{i + 1}. {c}"));
+            instrucoesQualidade += $"\n\nCriterios objetivos definidos pelo estrategista (valide cada um):\n{criteriosTexto}";
+        }
+
         if (context.Refacoes > 0 && !string.IsNullOrEmpty(context.FeedbackAnterior))
         {
             instrucoesQualidade += $"\n\nFeedback da iteracao anterior: {context.FeedbackAnterior}";

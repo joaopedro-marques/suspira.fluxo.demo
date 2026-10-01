@@ -196,4 +196,49 @@ public class QualidadeStepTests
 
         progressMessages.Should().Contain("🔍 Revisando qualidade...");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithCriteriosQa_ShouldIncludeInPrompt()
+    {
+        var qualidade = CriarQualidade();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+
+        string? capturedInstrucoes = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "qualidade", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+            .ReturnsAsync("{\"veredito\": \"aprovado\"}");
+
+        var context = CriarContext();
+        context.CriteriosQa = new List<string> { "Usar cor #FF0000", "Incluir CTA" }.AsReadOnly();
+        await _step.ExecutarAsync(context);
+
+        capturedInstrucoes.Should().Contain("Criterios objetivos");
+        capturedInstrucoes.Should().Contain("Usar cor #FF0000");
+        capturedInstrucoes.Should().Contain("Incluir CTA");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutCriteriosQa_ShouldNotIncludeCriteriaBlock()
+    {
+        var qualidade = CriarQualidade();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+
+        string? capturedInstrucoes = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "qualidade", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+            .ReturnsAsync("{\"veredito\": \"aprovado\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        capturedInstrucoes.Should().NotContain("Criterios objetivos");
+    }
 }
