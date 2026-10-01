@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Pipeline;
 
@@ -8,17 +9,20 @@ public class EstrategistaPlanejadorStep : IPipelineStep
     private readonly ILogger<EstrategistaPlanejadorStep> _logger;
     private readonly OpenRouterService _openRouter;
     private readonly AgenteLoader _agenteLoader;
+    private readonly ReferenciaClienteLoader _referenciaLoader;
 
     public string Nome => "estrategista_planejador";
 
     public EstrategistaPlanejadorStep(
         ILogger<EstrategistaPlanejadorStep> logger,
         OpenRouterService openRouter,
-        AgenteLoader agenteLoader)
+        AgenteLoader agenteLoader,
+        ReferenciaClienteLoader referenciaLoader)
     {
         _logger = logger;
         _openRouter = openRouter;
         _agenteLoader = agenteLoader;
+        _referenciaLoader = referenciaLoader;
     }
 
     public async Task<PipelineStepResult> ExecutarAsync(PipelineContext context)
@@ -34,11 +38,23 @@ public class EstrategistaPlanejadorStep : IPipelineStep
             return new PipelineStepResult { DeveContinuar = false };
         }
 
+        var promptBase = $"Briefing do orquestrador:\n{context.Briefing}\n\nAgentes disponiveis: {context.ListaAgentesProducao}";
+
+        if (!string.IsNullOrEmpty(context.Cliente))
+        {
+            var referencias = _referenciaLoader.ObterReferenciasTexto(context.Cliente);
+            if (!string.IsNullOrEmpty(referencias))
+            {
+                context.ReferenciasCliente = referencias;
+                promptBase += $"\n\nReferencias do cliente {context.Cliente}:\n{referencias}";
+            }
+        }
+
         var planoEstrategista = await _openRouter.ChamarAgenteAsync(
             context.ChatId,
             estrategista.Persona,
             estrategista.ModeloAlvo,
-            $"Briefing do orquestrador:\n{context.Briefing}\n\nAgentes disponiveis: {context.ListaAgentesProducao}",
+            promptBase,
             Nome,
             temperature: 0.3,
             ct: context.CancellationToken);
@@ -52,6 +68,19 @@ public class EstrategistaPlanejadorStep : IPipelineStep
                 var nomeAgente = docPlano.RootElement.GetProperty("agente").GetString();
                 context.InstrucoesOriginais = docPlano.RootElement.GetProperty("instrucoes").GetString();
                 context.InstrucoesProducao = context.InstrucoesOriginais;
+
+                if (docPlano.RootElement.TryGetProperty("criterios_qa", out var criteriosEl) &&
+                    criteriosEl.ValueKind == JsonValueKind.Array)
+                {
+                    var criterios = new List<string>();
+                    foreach (var item in criteriosEl.EnumerateArray())
+                    {
+                        var criterio = item.GetString();
+                        if (!string.IsNullOrEmpty(criterio))
+                            criterios.Add(criterio);
+                    }
+                    context.CriteriosQa = criterios.AsReadOnly();
+                }
 
                 context.AgenteProducao = _agenteLoader.ObterPorNome(nomeAgente ?? "");
                 if (context.AgenteProducao == null)

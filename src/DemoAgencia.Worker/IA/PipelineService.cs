@@ -35,7 +35,7 @@ public class PipelineService
             openRouter, agenteLoader, historico);
         _estrategistaPlanejadorStep = new EstrategistaPlanejadorStep(
             loggerFactory.CreateLogger<EstrategistaPlanejadorStep>(),
-            openRouter, agenteLoader);
+            openRouter, agenteLoader, referenciaLoader);
         _producaoStep = new ProducaoStep(
             loggerFactory.CreateLogger<ProducaoStep>(),
             openRouter);

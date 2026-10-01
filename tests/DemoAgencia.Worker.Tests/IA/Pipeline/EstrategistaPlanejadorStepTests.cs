@@ -2,6 +2,7 @@ using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipeline;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ public class EstrategistaPlanejadorStepTests
     private readonly Mock<ILogger<EstrategistaPlanejadorStep>> _loggerMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
+    private readonly Mock<ReferenciaClienteLoader> _referenciaLoaderMock;
     private readonly EstrategistaPlanejadorStep _step;
 
     public EstrategistaPlanejadorStepTests()
@@ -44,10 +46,16 @@ public class EstrategistaPlanejadorStepTests
             Mock.Of<IConfiguration>(),
             (string?)null);
 
+        _referenciaLoaderMock = new Mock<ReferenciaClienteLoader>(
+            Mock.Of<ILogger<ReferenciaClienteLoader>>(),
+            Mock.Of<IConfiguration>(),
+            (string?)null);
+
         _step = new EstrategistaPlanejadorStep(
             _loggerMock.Object,
             _openRouterMock.Object,
-            _agenteLoaderMock.Object);
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object);
     }
 
     private static AgenteDefinicao CriarEstrategista() => new()
@@ -212,5 +220,89 @@ public class EstrategistaPlanejadorStepTests
 
         capturedInstrucoes.Should().Contain("Criar post para Instagram");
         capturedInstrucoes.Should().Contain("Redator: Escreve posts");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithClienteAndRefs_ShouldIncludeRefsInPrompt()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+        _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("acme"))
+            .Returns("## marca.json\n```\n{\"cores\": [\"#FF0000\"]}\n```");
+
+        string? capturedInstrucoes = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+            .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\"}");
+
+        var context = CriarContext();
+        context.Cliente = "acme";
+        await _step.ExecutarAsync(context);
+
+        capturedInstrucoes.Should().Contain("Referencias do cliente");
+        capturedInstrucoes.Should().Contain("#FF0000");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutCliente_ShouldNotIncludeRefsBlock()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+
+        string? capturedInstrucoes = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+            .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        capturedInstrucoes.Should().NotContain("Referencias do cliente");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithCriteriosQa_ShouldParseAndSetInContext()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\", \"criterios_qa\": [\"Usar cor #FF0000\", \"Incluir CTA\"]}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        context.CriteriosQa.Should().HaveCount(2);
+        context.CriteriosQa.Should().Contain("Usar cor #FF0000");
+        context.CriteriosQa.Should().Contain("Incluir CTA");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutCriteriosQa_ShouldSetEmptyList()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\"}");
+
+        var context = CriarContext();
+        await _step.ExecutarAsync(context);
+
+        context.CriteriosQa.Should().BeEmpty();
     }
 }

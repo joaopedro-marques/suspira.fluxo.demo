@@ -21,6 +21,8 @@ public class PipelineContext
     public string? InstrucoesProducao { get; set; }
     public string? OutputProducao { get; set; }
     public string? FeedbackAnterior { get; set; }
+    public string? ReferenciasCliente { get; set; }
+    public IReadOnlyList<string> CriteriosQa { get; set; } = Array.Empty<string>();
 
     public int Refacoes { get; set; }
     public int MaxRefacoes { get; set; } = 2;
