@@ -3,6 +3,7 @@ nome: Editor de Imagens
 descricao: Especialista em direcao de arte e geracao de imagens para marketing
 modelo_alvo: anthropic/claude-3.5-sonnet
 papel: producao
+tipo: imagem
 ---
 
 # Editor de Imagens
