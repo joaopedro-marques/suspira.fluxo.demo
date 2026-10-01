@@ -19,6 +19,4 @@ RUN mkdir -p /app/logs /app/Assets/agentes /app/Assets/imagens
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_PRINT_TELEMETRY_MESSAGE=false
 
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -f http://localhost/health || exit 1
-
 ENTRYPOINT ["dotnet", "DemoAgencia.Worker.dll"]

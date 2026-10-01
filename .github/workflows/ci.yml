@@ -108,11 +108,11 @@ jobs:
         echo "Checking .env.example structure..."
         
         required_vars=(
-          "TELEGRAM_BOT_TOKEN"
-          "OPENROUTER_API_KEY"
-          "LANGFUSE_PUBLIC_KEY"
-          "LANGFUSE_SECRET_KEY"
-          "LANGFUSE_HOST"
+          "Telegram__BotToken"
+          "OpenRouter__ApiKey"
+          "Langfuse__PublicKey"
+          "Langfuse__SecretKey"
+          "Langfuse__Host"
         )
         
         for var in "${required_vars[@]}"; do

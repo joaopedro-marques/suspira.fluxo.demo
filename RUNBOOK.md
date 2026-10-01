@@ -72,11 +72,15 @@ nano .env
 Preencha com suas credenciais:
 
 ```env
-TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-OPENROUTER_API_KEY=sk-or-v1-abc123...
-LANGFUSE_PUBLIC_KEY=pk-lf-abc123...
-LANGFUSE_SECRET_KEY=sk-lf-abc123...
-LANGFUSE_HOST=https://cloud.langfuse.com
+Telegram__BotToken=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+Telegram__ChatIdsPermitidos=
+OpenRouter__ApiKey=sk-or-v1-abc123...
+OpenRouter__DataCollection=deny
+Langfuse__PublicKey=pk-lf-abc123...
+Langfuse__SecretKey=sk-lf-abc123...
+Langfuse__Host=https://cloud.langfuse.com
+Seguranca__AnonimizarDados=true
+Seguranca__MaxMensagensPorMinuto=5
 ```
 
 ## Deploy
@@ -208,10 +212,10 @@ docker-compose exec demoagencia env | grep TELEGRAM
 
 ```bash
 # Verificar API key
-docker-compose exec demoagencia env | grep OPENROUTER
+docker-compose exec demoagencia env | grep OpenRouter
 
 # Testar conexão
-docker-compose exec demoagencia curl -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/models
+docker-compose exec demoagencia curl -H "Authorization: Bearer $OpenRouter__ApiKey" https://openrouter.ai/api/v1/models
 ```
 
 ### Container reiniciando constantemente

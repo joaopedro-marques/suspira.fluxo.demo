@@ -27,11 +27,11 @@ check "Bot conectado ao Telegram"
 
 echo ""
 echo "3. Verificando variáveis de ambiente..."
-docker-compose exec demoagencia env | grep -q "TELEGRAM_BOT_TOKEN"
-check "TELEGRAM_BOT_TOKEN configurado"
+docker-compose exec demoagencia env | grep -q "Telegram__BotToken"
+check "Telegram__BotToken configurado"
 
-docker-compose exec demoagencia env | grep -q "OPENROUTER_API_KEY"
-check "OPENROUTER_API_KEY configurado"
+docker-compose exec demoagencia env | grep -q "OpenRouter__ApiKey"
+check "OpenRouter__ApiKey configurado"
 
 echo ""
 echo "4. Verificando arquivos..."

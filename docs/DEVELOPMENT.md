@@ -106,11 +106,15 @@ public class MeuServiceTests
 
 | Variável | Descrição | Obrigatória |
 |----------|-----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Token do bot Telegram | Sim |
-| `OPENROUTER_API_KEY` | Chave da API OpenRouter | Sim |
-| `LANGFUSE_PUBLIC_KEY` | Public key Langfuse | Não |
-| `LANGFUSE_SECRET_KEY` | Secret key Langfuse | Não |
-| `LANGFUSE_HOST` | URL do Langfuse | Não (default: cloud) |
+| `Telegram__BotToken` | Token do bot Telegram | Sim |
+| `Telegram__ChatIdsPermitidos` | IDs de chat permitidos (CSV) | Não (vazio = modo demo) |
+| `OpenRouter__ApiKey` | Chave da API OpenRouter | Sim |
+| `OpenRouter__DataCollection` | Política de coleta de dados (deny/allow) | Não (default: deny) |
+| `Langfuse__PublicKey` | Public key Langfuse | Não |
+| `Langfuse__SecretKey` | Secret key Langfuse | Não |
+| `Langfuse__Host` | URL do Langfuse | Não (default: cloud) |
+| `Seguranca__AnonimizarDados` | Anonimizar dados sensíveis | Não (default: true) |
+| `Seguranca__MaxMensagensPorMinuto` | Rate limit por chat | Não (default: 5) |
 
 ## Debug
 

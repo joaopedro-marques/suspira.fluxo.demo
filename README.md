@@ -53,8 +53,8 @@ src/DemoAgencia.Worker/
 
 ```bash
 # Configurar variáveis de ambiente
-export TELEGRAM_BOT_TOKEN="seu-token"
-export OPENROUTER_API_KEY="sua-chave"
+export Telegram__BotToken="seu-token"
+export OpenRouter__ApiKey="sua-chave"
 
 # Executar
 dotnet run --project src/DemoAgencia.Worker/DemoAgencia.Worker.csproj
@@ -71,9 +71,10 @@ nano .env
 ```
 
 2. Configure:
-   - `TELEGRAM_BOT_TOKEN` - Token do BotFather
-   - `OPENROUTER_API_KEY` - Chave da OpenRouter
-   - `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` - Chaves do Langfuse
+   - `Telegram__BotToken` - Token do BotFather
+   - `Telegram__ChatIdsPermitidos` - IDs de chat permitidos (opcional, vazio = modo demo)
+   - `OpenRouter__ApiKey` - Chave da OpenRouter
+   - `Langfuse__PublicKey` / `Langfuse__SecretKey` - Chaves do Langfuse
 
 ### Deploy na VM Oracle
 
@@ -109,8 +110,8 @@ docker build -t demoagencia .
 # Run
 docker run -d \
   --name demoagencia \
-  -e TELEGRAM_BOT_TOKEN="seu-token" \
-  -e OPENROUTER_API_KEY="sua-chave" \
+  -e Telegram__BotToken="seu-token" \
+  -e OpenRouter__ApiKey="sua-chave" \
   --restart unless-stopped \
   demoagencia
 ```
