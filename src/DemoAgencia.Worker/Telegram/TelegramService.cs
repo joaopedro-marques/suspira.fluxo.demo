@@ -12,7 +12,7 @@ public class TelegramService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly AgenteLoader _agenteLoader;
     private readonly OpenRouterService _openRouter;
-    private readonly RoteadorService _roteador;
+    private readonly PipelineService _pipeline;
     private readonly HistoricoChat _historico;
     private readonly StreamingService _streaming;
     private TelegramBotClient? _botClient;
@@ -23,7 +23,7 @@ public class TelegramService : BackgroundService
         IConfiguration configuration,
         AgenteLoader agenteLoader,
         OpenRouterService openRouter,
-        RoteadorService roteador,
+        PipelineService pipeline,
         HistoricoChat historico,
         StreamingService streaming)
     {
@@ -31,7 +31,7 @@ public class TelegramService : BackgroundService
         _configuration = configuration;
         _agenteLoader = agenteLoader;
         _openRouter = openRouter;
-        _roteador = roteador;
+        _pipeline = pipeline;
         _historico = historico;
         _streaming = streaming;
     }
@@ -140,7 +140,7 @@ public class TelegramService : BackgroundService
             var comandosAgentes = string.Join("\n", agentes.SelectMany(a => a.Comandos.Select(c => $"{c} - {a.Nome}: {a.Descricao}")));
             await _botClient!.SendMessage(
                 chatId: message.Chat.Id,
-                text: $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/imagem <prompt> - Gera uma imagem\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nAgentes:\n{comandosAgentes}",
+                text: $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo pipeline multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}",
                 cancellationToken: ct);
             return;
         }
@@ -175,38 +175,6 @@ public class TelegramService : BackgroundService
             return;
         }
 
-        if (command == "/imagem")
-        {
-            if (string.IsNullOrWhiteSpace(args))
-            {
-                await _botClient!.SendMessage(
-                    chatId: message.Chat.Id,
-                    text: "Uso: /imagem <descrição da imagem>",
-                    cancellationToken: ct);
-                return;
-            }
-
-            await _botClient!.SendChatAction(message.Chat.Id, ChatAction.UploadPhoto, cancellationToken: ct);
-            var imagemBytes = await _openRouter.GerarImagemAsync(args, ct);
-            
-            if (imagemBytes == null)
-            {
-                await _botClient!.SendMessage(
-                    chatId: message.Chat.Id,
-                    text: "Erro ao gerar imagem. Tente novamente.",
-                    cancellationToken: ct);
-                return;
-            }
-
-            using var stream = new MemoryStream(imagemBytes);
-            await _botClient!.SendPhoto(
-                chatId: message.Chat.Id,
-                photo: stream,
-                caption: args,
-                cancellationToken: ct);
-            return;
-        }
-
         var agente = _agenteLoader.ObterPorComando(command);
         if (agente != null)
         {
@@ -215,7 +183,7 @@ public class TelegramService : BackgroundService
                 _agentesPorChat[message.Chat.Id] = command;
                 await _botClient!.SendMessage(
                     chatId: message.Chat.Id,
-                    text: $"Agente {agente.Nome} selecionado. Envie sua mensagem para interagir.",
+                    text: $"Agente {agente.Nome} selecionado. Envie sua mensagem para interagir diretamente.",
                     cancellationToken: ct);
             }
             else
@@ -244,30 +212,127 @@ public class TelegramService : BackgroundService
 
     private async Task HandleTextMessage(Message message, string text, CancellationToken ct)
     {
-        await _botClient!.SendChatAction(message.Chat.Id, ChatAction.Typing, cancellationToken: ct);
-
-        string? comandoAtivo = null;
+        // Se ha um agente selecionado por comando, bypass direto
         if (_agentesPorChat.TryGetValue(message.Chat.Id, out var cmd))
         {
-            comandoAtivo = cmd;
+            var agente = _agenteLoader.ObterPorComando(cmd);
+            if (agente != null)
+            {
+                await _botClient!.SendChatAction(message.Chat.Id, ChatAction.Typing, cancellationToken: ct);
+                
+                await EnviarComStreaming(message.Chat.Id, async () =>
+                {
+                    return _openRouter.CompletarStreamingAsync(
+                        message.Chat.Id,
+                        text,
+                        agente.Persona,
+                        agente.ModeloAlvo,
+                        _historico,
+                        ct);
+                }, ct);
+                return;
+            }
         }
 
-        var (modelo, persona) = await _roteador.RoteearAsync(
-            message.Chat.Id,
-            text,
-            comandoAtivo,
-            ct);
+        // Mensagem livre: pipeline multi-agente com progresso
+        Message? mensagemProgresso = null;
 
-        await EnviarComStreaming(message.Chat.Id, async () =>
+        try
         {
-            return _openRouter.CompletarStreamingAsync(
+            mensagemProgresso = await _botClient!.SendMessage(
+                chatId: message.Chat.Id,
+                text: "🧠 Analisando seu pedido...",
+                cancellationToken: ct);
+
+            var resultado = await _pipeline.ExecutarAsync(
                 message.Chat.Id,
                 text,
-                persona,
-                modelo,
-                _historico,
+                async (progresso) =>
+                {
+                    if (mensagemProgresso != null)
+                    {
+                        try
+                        {
+                            await _botClient!.EditMessageText(
+                                chatId: message.Chat.Id,
+                                messageId: mensagemProgresso.MessageId,
+                                text: progresso,
+                                cancellationToken: ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Erro ao atualizar progresso");
+                        }
+                    }
+                },
                 ct);
-        }, ct);
+
+            // Enviar resposta final
+            if (resultado.Imagem != null)
+            {
+                using var stream = new MemoryStream(resultado.Imagem);
+                await _botClient!.SendPhoto(
+                    chatId: message.Chat.Id,
+                    photo: stream,
+                    caption: resultado.LegendaImagem ?? resultado.RespostaFinal,
+                    cancellationToken: ct);
+            }
+
+            if (!string.IsNullOrEmpty(resultado.RespostaFinal))
+            {
+                if (mensagemProgresso != null && resultado.Imagem == null)
+                {
+                    // Editar mensagem de progresso com resposta final
+                    try
+                    {
+                        await _botClient!.EditMessageText(
+                            chatId: message.Chat.Id,
+                            messageId: mensagemProgresso.MessageId,
+                            text: resultado.RespostaFinal,
+                            cancellationToken: ct);
+                    }
+                    catch
+                    {
+                        // Se falhar ao editar, enviar nova mensagem
+                        await _botClient!.SendMessage(
+                            chatId: message.Chat.Id,
+                            text: resultado.RespostaFinal,
+                            cancellationToken: ct);
+                    }
+                }
+                else if (resultado.Imagem != null)
+                {
+                    // Se tem imagem, enviar texto como mensagem separada
+                    await _botClient!.SendMessage(
+                        chatId: message.Chat.Id,
+                        text: resultado.RespostaFinal,
+                        cancellationToken: ct);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
+            
+            if (mensagemProgresso != null)
+            {
+                try
+                {
+                    await _botClient!.EditMessageText(
+                        chatId: message.Chat.Id,
+                        messageId: mensagemProgresso.MessageId,
+                        text: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
+                        cancellationToken: ct);
+                }
+                catch
+                {
+                    await _botClient!.SendMessage(
+                        chatId: message.Chat.Id,
+                        text: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
+                        cancellationToken: ct);
+                }
+            }
+        }
     }
 
     private async Task HandlePhoto(Message message, CancellationToken ct)

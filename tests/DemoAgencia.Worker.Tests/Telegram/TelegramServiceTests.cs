@@ -15,7 +15,7 @@ public class TelegramServiceTests
     private readonly IConfiguration _configuration;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
-    private readonly Mock<RoteadorService> _roteadorMock;
+    private readonly Mock<PipelineService> _pipelineMock;
     private readonly Mock<HistoricoChat> _historicoMock;
     private readonly Mock<StreamingService> _streamingMock;
 
@@ -47,10 +47,12 @@ public class TelegramServiceTests
             Mock.Of<IConfiguration>(),
             langfuseInterceptorMock.Object);
 
-        _roteadorMock = new Mock<RoteadorService>(
-            Mock.Of<ILogger<RoteadorService>>(),
+        _pipelineMock = new Mock<PipelineService>(
+            Mock.Of<ILogger<PipelineService>>(),
             _openRouterMock.Object,
-            _agenteLoaderMock.Object);
+            _agenteLoaderMock.Object,
+            Mock.Of<HistoricoChat>(),
+            Mock.Of<IConfiguration>());
 
         _historicoMock = new Mock<HistoricoChat>();
         _streamingMock = new Mock<StreamingService>(Mock.Of<ILogger<StreamingService>>());
@@ -64,7 +66,7 @@ public class TelegramServiceTests
             _configuration,
             _agenteLoaderMock.Object,
             _openRouterMock.Object,
-            _roteadorMock.Object,
+            _pipelineMock.Object,
             _historicoMock.Object,
             _streamingMock.Object);
 
@@ -86,7 +88,7 @@ public class TelegramServiceTests
             config,
             _agenteLoaderMock.Object,
             _openRouterMock.Object,
-            _roteadorMock.Object,
+            _pipelineMock.Object,
             _historicoMock.Object,
             _streamingMock.Object);
 
