@@ -1,28 +1,51 @@
-using System.Text.Json;
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.IA.Pipeline;
 
 namespace DemoAgencia.Worker.IA;
 
 public class PipelineService
 {
     private readonly ILogger<PipelineService> _logger;
-    private readonly OpenRouterService _openRouter;
-    private readonly AgenteLoader _agenteLoader;
-    private readonly HistoricoChat _historico;
     private readonly IConfiguration _configuration;
+    private readonly OrquestradorStep _orquestradorStep;
+    private readonly DiretaStep _diretaStep;
+    private readonly EstrategistaPlanejadorStep _estrategistaPlanejadorStep;
+    private readonly ProducaoStep _producaoStep;
+    private readonly QualidadeStep _qualidadeStep;
+    private readonly AprovadorStep _aprovadorStep;
+    private readonly FormatadorStep _formatadorStep;
 
     public PipelineService(
         ILogger<PipelineService> logger,
+        ILoggerFactory loggerFactory,
         OpenRouterService openRouter,
         AgenteLoader agenteLoader,
         HistoricoChat historico,
         IConfiguration configuration)
     {
         _logger = logger;
-        _openRouter = openRouter;
-        _agenteLoader = agenteLoader;
-        _historico = historico;
         _configuration = configuration;
+        _orquestradorStep = new OrquestradorStep(
+            loggerFactory.CreateLogger<OrquestradorStep>(),
+            openRouter, agenteLoader, historico);
+        _diretaStep = new DiretaStep(
+            loggerFactory.CreateLogger<DiretaStep>(),
+            openRouter, agenteLoader, historico);
+        _estrategistaPlanejadorStep = new EstrategistaPlanejadorStep(
+            loggerFactory.CreateLogger<EstrategistaPlanejadorStep>(),
+            openRouter, agenteLoader);
+        _producaoStep = new ProducaoStep(
+            loggerFactory.CreateLogger<ProducaoStep>(),
+            openRouter);
+        _qualidadeStep = new QualidadeStep(
+            loggerFactory.CreateLogger<QualidadeStep>(),
+            openRouter, agenteLoader);
+        _aprovadorStep = new AprovadorStep(
+            loggerFactory.CreateLogger<AprovadorStep>(),
+            openRouter, agenteLoader);
+        _formatadorStep = new FormatadorStep(
+            loggerFactory.CreateLogger<FormatadorStep>(),
+            openRouter, agenteLoader, historico);
     }
 
     public virtual async Task<ResultadoPipeline> ExecutarAsync(
@@ -31,395 +54,109 @@ public class PipelineService
         Func<string, Task>? onProgresso = null,
         CancellationToken ct = default)
     {
-        var resultado = new ResultadoPipeline();
-        var maxRefacoes = _configuration.GetValue<int>("Pipeline:MaxRefacoes", 2);
-
-        // 1. ORQUESTRADOR
-        await NotificarProgresso(onProgresso, "🧠 Analisando seu pedido...");
-        resultado.EtapasExecutadas.Add("orquestrador");
-
-        var orquestrador = _agenteLoader.ObterPorPapel("orquestrador");
-        if (orquestrador == null)
+        var context = new PipelineContext
         {
-            _logger.LogError("Agente orquestrador nao encontrado");
-            resultado.RespostaFinal = "Erro interno: orquestrador nao configurado.";
-            return resultado;
-        }
+            ChatId = chatId,
+            Mensagem = mensagem,
+            OnProgresso = onProgresso,
+            CancellationToken = ct,
+            MaxRefacoes = _configuration.GetValue<int>("Pipeline:MaxRefacoes", 2)
+        };
 
-        var historicoMensagens = _historico.ObterHistorico(chatId);
-        var historicoTexto = string.Join("\n", historicoMensagens.Select(m => $"{m.Role}: {m.Content}"));
-        var agentesProducao = _agenteLoader.ListarAgentesProducao();
-        var listaAgentes = string.Join(", ", agentesProducao.Select(a => $"{a.Nome}: {a.Descricao}"));
+        var orqResult = await _orquestradorStep.ExecutarAsync(context);
+        if (!orqResult.DeveContinuar)
+            return context.Resultado;
 
-        var instrucoesOrquestrador = $"Historico do chat:\n{historicoTexto}\n\nMensagem atual: {mensagem}\n\nAgentes de producao disponiveis: {listaAgentes}";
-
-        var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
-            chatId,
-            orquestrador.Persona,
-            orquestrador.ModeloAlvo,
-            instrucoesOrquestrador,
-            "orquestrador",
-            temperature: 0.3,
-            ct: ct);
-
-        var jsonOrquestrador = OpenRouterService.ExtrairJson(respostaOrquestrador);
-        string acao = "fora_contexto";
-        string? briefing = null;
-        string? respostaDireta = null;
-
-        if (string.IsNullOrEmpty(jsonOrquestrador))
+        if (context.Rota == "fora_contexto")
         {
-            // No JSON found, fallback to direta with raw response
-            _logger.LogWarning("Orquestrador nao retornou JSON valido, usando fallback para direta");
-            acao = "direta";
-            respostaDireta = respostaOrquestrador;
-        }
-        else
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(jsonOrquestrador);
-                acao = doc.RootElement.GetProperty("acao").GetString() ?? "fora_contexto";
-                
-                if (doc.RootElement.TryGetProperty("briefing", out var briefingEl))
-                    briefing = briefingEl.GetString();
-                if (doc.RootElement.TryGetProperty("resposta", out var respostaEl))
-                    respostaDireta = respostaEl.GetString();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Erro ao parsear JSON do orquestrador, usando fallback");
-                acao = "direta";
-                respostaDireta = respostaOrquestrador;
-            }
-        }
-
-        resultado.Rota = acao;
-
-        // ROTA: FORA_CONTEXTO
-        if (acao == "fora_contexto")
-        {
-            resultado.RespostaFinal = _configuration["Pipeline:MensagemForaContexto"] 
+            context.Resultado.RespostaFinal = _configuration["Pipeline:MensagemForaContexto"]
                 ?? "Opa, *suspiro*, infelizmente nao consigo te responder sobre isso.";
-            return resultado;
+            return context.Resultado;
         }
 
-        // ROTA: DIRETA
-        if (acao == "direta")
+        if (context.Rota == "direta")
         {
-            await NotificarProgresso(onProgresso, "📤 Formatando resposta...");
-            resultado.EtapasExecutadas.Add("formatador");
-
-            var formatador = _agenteLoader.ObterPorPapel("formatacao");
-            if (formatador != null && !string.IsNullOrEmpty(respostaDireta))
-            {
-                var respostaFormatada = await _openRouter.ChamarAgenteAsync(
-                    chatId,
-                    formatador.Persona,
-                    formatador.ModeloAlvo,
-                    $"Pedido original: {mensagem}\n\nResposta para formatar:\n{respostaDireta}",
-                    "formatador",
-                    ct: ct);
-
-                resultado.RespostaFinal = respostaFormatada;
-            }
-            else
-            {
-                resultado.RespostaFinal = respostaDireta ?? respostaOrquestrador;
-            }
-
-            _historico.AdicionarMensagem(chatId, "user", mensagem);
-            _historico.AdicionarMensagem(chatId, "assistant", resultado.RespostaFinal);
-            return resultado;
+            await _diretaStep.ExecutarAsync(context);
+            return context.Resultado;
         }
 
-        // ROTA: PIPELINE
-        if (string.IsNullOrEmpty(briefing))
+        if (string.IsNullOrEmpty(context.Briefing))
         {
             _logger.LogWarning("Briefing vazio do orquestrador, usando mensagem original");
-            briefing = mensagem;
+            context.Briefing = mensagem;
         }
 
-        var refacoes = 0;
-        string? outputProducao = null;
-        string? instrucoesOriginais = null;
-        string? instrucoesProducao = null;
-        string? feedbackAnterior = null;
-        AgenteDefinicao? agenteProducao = null;
-        bool aprovadoFinal = false;
+        return await ExecutarPipelineAsync(context);
+    }
 
-        while (refacoes <= maxRefacoes)
+    private async Task<ResultadoPipeline> ExecutarPipelineAsync(PipelineContext context)
+    {
+        while (context.Refacoes <= context.MaxRefacoes)
         {
-            // 2. ESTRATEGISTA (PLANEJADOR) - so na primeira iteracao
-            if (refacoes == 0)
+            if (context.Refacoes == 0)
             {
-                await NotificarProgresso(onProgresso, "📋 Planejando execucao...");
-                resultado.EtapasExecutadas.Add("estrategista_planejador");
-
-                var estrategista = _agenteLoader.ObterPorPapel("estrategista");
-                if (estrategista == null)
-                {
-                    _logger.LogError("Agente estrategista nao encontrado");
-                    resultado.RespostaFinal = "Erro interno: estrategista nao configurado.";
-                    return resultado;
-                }
-
-                var planoEstrategista = await _openRouter.ChamarAgenteAsync(
-                    chatId,
-                    estrategista.Persona,
-                    estrategista.ModeloAlvo,
-                    $"Briefing do orquestrador:\n{briefing}\n\nAgentes disponiveis: {listaAgentes}",
-                    "estrategista_planejador",
-                    temperature: 0.3,
-                    ct: ct);
-
-                var jsonPlano = OpenRouterService.ExtrairJson(planoEstrategista);
-                if (!string.IsNullOrEmpty(jsonPlano))
-                {
-                    try
-                    {
-                        using var docPlano = JsonDocument.Parse(jsonPlano);
-                        var nomeAgente = docPlano.RootElement.GetProperty("agente").GetString();
-                        instrucoesOriginais = docPlano.RootElement.GetProperty("instrucoes").GetString();
-                        instrucoesProducao = instrucoesOriginais;
-
-                        agenteProducao = _agenteLoader.ObterPorNome(nomeAgente ?? "");
-                        if (agenteProducao == null)
-                        {
-                            _logger.LogWarning("Agente {Agente} nao encontrado, usando primeiro de producao", nomeAgente);
-                            agenteProducao = agentesProducao.FirstOrDefault();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Erro ao parsear plano do estrategista");
-                        agenteProducao = agentesProducao.FirstOrDefault();
-                        instrucoesOriginais = briefing;
-                        instrucoesProducao = briefing;
-                    }
-                }
-                else
-                {
-                    agenteProducao = agentesProducao.FirstOrDefault();
-                    instrucoesOriginais = briefing;
-                    instrucoesProducao = briefing;
-                }
+                var planResult = await _estrategistaPlanejadorStep.ExecutarAsync(context);
+                if (!planResult.DeveContinuar)
+                    return context.Resultado;
             }
 
-            if (agenteProducao == null || string.IsNullOrEmpty(instrucoesProducao))
+            if (context.AgenteProducao == null || string.IsNullOrEmpty(context.InstrucoesProducao))
             {
                 _logger.LogError("Agente de producao ou instrucoes vazias");
-                resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"] 
+                context.Resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"]
                     ?? "Nao consegui produzir um resultado. Tente reformular.";
-                return resultado;
+                return context.Resultado;
             }
 
-            // 3. PRODUCAO
-            await NotificarProgresso(onProgresso, $"✍️ Produzindo com {agenteProducao.Nome}...");
-            resultado.EtapasExecutadas.Add($"producao_{agenteProducao.Nome}");
+            await _producaoStep.ExecutarAsync(context);
 
-            var isEditorImagens = agenteProducao.Tipo.Equals("imagem", StringComparison.OrdinalIgnoreCase);
+            var qualResult = await _qualidadeStep.ExecutarAsync(context);
+            if (!qualResult.DeveContinuar)
+                return context.Resultado;
 
-            if (isEditorImagens)
+            if (qualResult.DeveRefazer)
             {
-                // Fluxo especial para editor de imagens:
-                // 1. Enriquecer prompt (editor agent → optimized prompt)
-                // 2. Gerar imagem (optimized prompt → image bytes)
-                // 3. QA revisa o prompt otimizado (texto)
-                // 4. Output para aprovador = descricao da imagem gerada
-
-                var promptOtimizado = await _openRouter.ChamarAgenteAsync(
-                    chatId,
-                    agenteProducao.Persona,
-                    agenteProducao.ModeloAlvo,
-                    instrucoesProducao,
-                    $"producao_{agenteProducao.Nome}_enriquecimento",
-                    ct: ct);
-
-                await NotificarProgresso(onProgresso, "🎨 Gerando imagem...");
-                var imagemBytes = await _openRouter.GerarImagemAsync(chatId, promptOtimizado, ct);
-
-                if (imagemBytes != null)
-                {
-                    resultado.Imagem = imagemBytes;
-                    resultado.LegendaImagem = mensagem; // pedido original como caption
-                    outputProducao = $"Imagem gerada com sucesso. Prompt otimizado: {promptOtimizado}";
-                }
-                else
-                {
-                    outputProducao = "Falha ao gerar imagem.";
-                }
-            }
-            else
-            {
-                outputProducao = await _openRouter.ChamarAgenteAsync(
-                    chatId,
-                    agenteProducao.Persona,
-                    agenteProducao.ModeloAlvo,
-                    instrucoesProducao,
-                    $"producao_{agenteProducao.Nome}",
-                    ct: ct);
-            }
-
-            // 4. QUALIDADE
-            await NotificarProgresso(onProgresso, "🔍 Revisando qualidade...");
-            resultado.EtapasExecutadas.Add("qualidade");
-
-            var qualidade = _agenteLoader.ObterPorPapel("qualidade");
-            if (qualidade == null)
-            {
-                _logger.LogError("Agente qualidade nao encontrado");
-                resultado.RespostaFinal = "Erro interno: qualidade nao configurada.";
-                return resultado;
-            }
-
-            var instrucoesQualidade = $"Instrucoes originais:\n{instrucoesOriginais}\n\nOutput do agente:\n{outputProducao}";
-            if (refacoes > 0 && !string.IsNullOrEmpty(feedbackAnterior))
-            {
-                instrucoesQualidade += $"\n\nFeedback da iteracao anterior: {feedbackAnterior}";
-            }
-
-            var vereditoQualidade = await _openRouter.ChamarAgenteAsync(
-                chatId,
-                qualidade.Persona,
-                qualidade.ModeloAlvo,
-                instrucoesQualidade,
-                "qualidade",
-                temperature: 0.3,
-                ct: ct);
-
-            var jsonVeredito = OpenRouterService.ExtrairJson(vereditoQualidade);
-            string veredito = "aprovado";
-            string? feedback = null;
-
-            if (!string.IsNullOrEmpty(jsonVeredito))
-            {
-                try
-                {
-                    using var docVeredito = JsonDocument.Parse(jsonVeredito);
-                    veredito = docVeredito.RootElement.GetProperty("veredito").GetString() ?? "aprovado";
-                    if (docVeredito.RootElement.TryGetProperty("feedback", out var feedbackEl))
-                        feedback = feedbackEl.GetString();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Erro ao parsear veredito da qualidade, assumindo aprovado");
-                    veredito = "aprovado";
-                }
-            }
-
-            // Se reprovado e ainda tem refacoes, volta para producao
-            if (veredito == "reprovado" && refacoes < maxRefacoes)
-            {
-                refacoes++;
-                _logger.LogInformation("Qualidade reprovou, refacao {Refacao}/{Max}", refacoes, maxRefacoes);
-                feedbackAnterior = feedback;
-                instrucoesProducao = $"Instrucoes originais:\n{instrucoesOriginais}\n\nFeedback para correcao:\n{feedback}";
-                await NotificarProgresso(onProgresso, $"🔁 Refinando ({refacoes}/{maxRefacoes})...");
+                context.Refacoes++;
+                _logger.LogInformation("Qualidade reprovou, refacao {Refacao}/{Max}", context.Refacoes, context.MaxRefacoes);
+                context.FeedbackAnterior = context.FeedbackQualidade;
+                context.InstrucoesProducao = $"Instrucoes originais:\n{context.InstrucoesOriginais}\n\nFeedback para correcao:\n{context.FeedbackQualidade}";
+                await NotificarProgresso(context.OnProgresso, $"🔁 Refinando ({context.Refacoes}/{context.MaxRefacoes})...");
                 continue;
             }
 
-            // 5. ESTRATEGISTA (APROVADOR)
-            await NotificarProgresso(onProgresso, "✅ Aprovando...");
-            resultado.EtapasExecutadas.Add("estrategista_aprovador");
+            var apvResult = await _aprovadorStep.ExecutarAsync(context);
+            if (!apvResult.DeveContinuar)
+                return context.Resultado;
 
-            var estrategistaAprovador = _agenteLoader.ObterPorPapel("estrategista");
-            if (estrategistaAprovador == null)
+            if (apvResult.DeveRefazer)
             {
-                _logger.LogError("Agente estrategista nao encontrado para aprovacao");
-                resultado.RespostaFinal = "Erro interno: estrategista nao configurado.";
-                return resultado;
-            }
-
-            var instrucoesAprovacao = $"Briefing original:\n{briefing}\n\nOutput do agente:\n{outputProducao}\n\nVeredito da qualidade: {veredito}\nFeedback: {feedback}";
-
-            var aprovacaoEstrategista = await _openRouter.ChamarAgenteAsync(
-                chatId,
-                estrategistaAprovador.Persona,
-                estrategistaAprovador.ModeloAlvo,
-                instrucoesAprovacao,
-                "estrategista_aprovador",
-                temperature: 0.3,
-                ct: ct);
-
-            var jsonAprovacao = OpenRouterService.ExtrairJson(aprovacaoEstrategista);
-            bool aprovado = true;
-            string? observacoes = null;
-
-            if (!string.IsNullOrEmpty(jsonAprovacao))
-            {
-                try
-                {
-                    using var docAprovacao = JsonDocument.Parse(jsonAprovacao);
-                    aprovado = docAprovacao.RootElement.GetProperty("aprovado").GetBoolean();
-                    if (docAprovacao.RootElement.TryGetProperty("observacoes", out var obsEl))
-                        observacoes = obsEl.GetString();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Erro ao parsear aprovacao do estrategista, assumindo aprovado");
-                    aprovado = true;
-                }
-            }
-
-            // Se reprovado e ainda tem refacoes, volta para producao
-            if (!aprovado && refacoes < maxRefacoes)
-            {
-                refacoes++;
-                _logger.LogInformation("Estrategista reprovou, refacao {Refacao}/{Max}", refacoes, maxRefacoes);
-                feedbackAnterior = observacoes;
-                instrucoesProducao = $"Instrucoes originais:\n{instrucoesOriginais}\n\nFeedback para correcao:\n{observacoes}";
-                await NotificarProgresso(onProgresso, $"🔁 Refinando ({refacoes}/{maxRefacoes})...");
+                context.Refacoes++;
+                _logger.LogInformation("Estrategista reprovou, refacao {Refacao}/{Max}", context.Refacoes, context.MaxRefacoes);
+                context.FeedbackAnterior = context.ObservacoesEstrategista;
+                context.InstrucoesProducao = $"Instrucoes originais:\n{context.InstrucoesOriginais}\n\nFeedback para correcao:\n{context.ObservacoesEstrategista}";
+                await NotificarProgresso(context.OnProgresso, $"🔁 Refinando ({context.Refacoes}/{context.MaxRefacoes})...");
                 continue;
             }
 
-            // Se aprovado, marca como aprovado e sai do loop
-            if (aprovado)
+            if (context.AprovadoEstrategista)
             {
-                aprovadoFinal = true;
+                context.AprovadoFinal = true;
                 break;
             }
 
-            // Se reprovado e esgotou refacoes, sai do loop sem aprovar
             break;
         }
 
-        // Se saiu do loop sem aprovar
-        if (!aprovadoFinal)
+        if (!context.AprovadoFinal)
         {
             _logger.LogWarning("Pipeline excedeu maximo de refacoes");
-            resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"] 
+            context.Resultado.RespostaFinal = _configuration["Pipeline:MensagemFalhaPipeline"]
                 ?? "Nao consegui produzir um resultado com a qualidade esperada. Pode reformular o pedido?";
-            return resultado;
+            return context.Resultado;
         }
 
-        // 6. FORMATADOR
-        await NotificarProgresso(onProgresso, "📤 Formatando resposta final...");
-        resultado.EtapasExecutadas.Add("formatador");
-
-        var formatadorFinal = _agenteLoader.ObterPorPapel("formatacao");
-        if (formatadorFinal != null && !string.IsNullOrEmpty(outputProducao))
-        {
-            var respostaFormatada = await _openRouter.ChamarAgenteAsync(
-                chatId,
-                formatadorFinal.Persona,
-                formatadorFinal.ModeloAlvo,
-                $"Pedido original do usuario: {mensagem}\n\nOutput aprovado para formatar:\n{outputProducao}",
-                "formatador",
-                ct: ct);
-
-            resultado.RespostaFinal = respostaFormatada;
-        }
-        else
-        {
-            resultado.RespostaFinal = outputProducao ?? "";
-        }
-
-        // Salvar no historico
-        _historico.AdicionarMensagem(chatId, "user", mensagem);
-        _historico.AdicionarMensagem(chatId, "assistant", resultado.RespostaFinal);
-
-        return resultado;
+        await _formatadorStep.ExecutarAsync(context);
+        return context.Resultado;
     }
 
     private static async Task NotificarProgresso(Func<string, Task>? onProgresso, string mensagem)

@@ -12,6 +12,7 @@ namespace DemoAgencia.Worker.Tests.IA;
 public class PipelineServiceTests
 {
     private readonly Mock<ILogger<PipelineService>> _loggerMock;
+    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
     private readonly Mock<HistoricoChat> _historicoMock;
@@ -21,6 +22,9 @@ public class PipelineServiceTests
     public PipelineServiceTests()
     {
         _loggerMock = new Mock<ILogger<PipelineService>>();
+        _loggerFactoryMock = new Mock<ILoggerFactory>();
+        _loggerFactoryMock.Setup(x => x.CreateLogger(It.IsAny<string>()))
+            .Returns(new Mock<ILogger>().Object);
         _historicoMock = new Mock<HistoricoChat>();
 
         var langfuseClientMock = new Mock<LangfuseClient>(
@@ -57,6 +61,7 @@ public class PipelineServiceTests
 
         _pipeline = new PipelineService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _historicoMock.Object,
