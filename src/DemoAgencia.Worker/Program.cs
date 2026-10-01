@@ -25,6 +25,7 @@ try
     builder.Services.AddSingleton<DemoAgencia.Worker.Observabilidade.LangfuseInterceptor>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.OpenRouterService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.RoteadorService>();
+    builder.Services.AddSingleton<DemoAgencia.Worker.IA.PipelineService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.StreamingService>();
     builder.Services.AddHostedService<DemoAgencia.Worker.Telegram.TelegramService>();
 
