@@ -17,11 +17,13 @@ public class EstrategistaPlanejadorStepTests
     private readonly Mock<OpenRouterService> _openRouterMock;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
     private readonly Mock<ReferenciaClienteLoader> _referenciaLoaderMock;
+    private readonly HistoricoChat _historico;
     private readonly EstrategistaPlanejadorStep _step;
 
     public EstrategistaPlanejadorStepTests()
     {
         _loggerMock = new Mock<ILogger<EstrategistaPlanejadorStep>>();
+        _historico = new HistoricoChat();
 
         var langfuseClientMock = new Mock<LangfuseClient>(
             Mock.Of<ILogger<LangfuseClient>>(),
@@ -55,7 +57,8 @@ public class EstrategistaPlanejadorStepTests
             _loggerMock.Object,
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
-            _referenciaLoaderMock.Object);
+            _referenciaLoaderMock.Object,
+            _historico);
     }
 
     private static AgenteDefinicao CriarEstrategista() => new()
@@ -304,5 +307,86 @@ public class EstrategistaPlanejadorStepTests
         await _step.ExecutarAsync(context);
 
         context.CriteriosQa.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithClientImages_ShouldAnalyzeAndIncludeDescriptions()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+        _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("");
+        _referenciaLoaderMock.Setup(x => x.ListarImagens("acme"))
+            .Returns(new List<string> { "/tmp/test-image.png" }.AsReadOnly());
+
+        var tempImage = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllBytesAsync(tempImage, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+            _referenciaLoaderMock.Setup(x => x.ListarImagens("acme"))
+                .Returns(new List<string> { tempImage }.AsReadOnly());
+
+            _openRouterMock
+                .Setup(x => x.AnalisarImagemAsync(
+                    It.IsAny<long>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<HistoricoChat>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync("Uma imagem com cores laranja e azul");
+
+            string? capturedInstrucoes = null;
+            _openRouterMock
+                .Setup(x => x.ChamarAgenteAsync(
+                    It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                    "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                    (_, _, _, instrucoes, _, _, _, _) => capturedInstrucoes = instrucoes)
+                .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\"}");
+
+            var context = CriarContext();
+            context.Cliente = "acme";
+            await _step.ExecutarAsync(context);
+
+            capturedInstrucoes.Should().Contain("cores laranja e azul");
+        }
+        finally
+        {
+            if (File.Exists(tempImage))
+                File.Delete(tempImage);
+        }
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ImageAnalysisFails_ShouldContinueWithoutDescription()
+    {
+        var estrategista = CriarEstrategista();
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("estrategista")).Returns(estrategista);
+        _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("");
+
+        var tempImage = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllBytesAsync(tempImage, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+            _referenciaLoaderMock.Setup(x => x.ListarImagens("acme"))
+                .Returns(new List<string> { tempImage }.AsReadOnly());
+
+            _openRouterMock
+                .Setup(x => x.AnalisarImagemAsync(
+                    It.IsAny<long>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<HistoricoChat>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new Exception("Image analysis failed"));
+
+            _openRouterMock
+                .Setup(x => x.ChamarAgenteAsync(
+                    It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                    "estrategista_planejador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync("{\"agente\": \"Redator\", \"instrucoes\": \"Instrucoes\"}");
+
+            var context = CriarContext();
+            context.Cliente = "acme";
+            var result = await _step.ExecutarAsync(context);
+
+            result.DeveContinuar.Should().BeTrue();
+        }
+        finally
+        {
+            if (File.Exists(tempImage))
+                File.Delete(tempImage);
+        }
     }
 }

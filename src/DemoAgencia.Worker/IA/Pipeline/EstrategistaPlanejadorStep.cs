@@ -10,6 +10,7 @@ public class EstrategistaPlanejadorStep : IPipelineStep
     private readonly OpenRouterService _openRouter;
     private readonly AgenteLoader _agenteLoader;
     private readonly ReferenciaClienteLoader _referenciaLoader;
+    private readonly HistoricoChat _historico;
 
     public string Nome => "estrategista_planejador";
 
@@ -17,12 +18,14 @@ public class EstrategistaPlanejadorStep : IPipelineStep
         ILogger<EstrategistaPlanejadorStep> logger,
         OpenRouterService openRouter,
         AgenteLoader agenteLoader,
-        ReferenciaClienteLoader referenciaLoader)
+        ReferenciaClienteLoader referenciaLoader,
+        HistoricoChat historico)
     {
         _logger = logger;
         _openRouter = openRouter;
         _agenteLoader = agenteLoader;
         _referenciaLoader = referenciaLoader;
+        _historico = historico;
     }
 
     public async Task<PipelineStepResult> ExecutarAsync(PipelineContext context)
@@ -47,6 +50,32 @@ public class EstrategistaPlanejadorStep : IPipelineStep
             {
                 context.ReferenciasCliente = referencias;
                 promptBase += $"\n\nReferencias do cliente {context.Cliente}:\n{referencias}";
+            }
+
+            var imagens = _referenciaLoader.ListarImagens(context.Cliente) ?? Array.Empty<string>();
+            foreach (var imagemPath in imagens)
+            {
+                try
+                {
+                    if (File.Exists(imagemPath))
+                    {
+                        var imagemBytes = await File.ReadAllBytesAsync(imagemPath, context.CancellationToken);
+                        var descricao = await _openRouter.AnalisarImagemAsync(
+                            context.ChatId,
+                            imagemBytes,
+                            $"Contexto: {context.Briefing}",
+                            _historico,
+                            context.CancellationToken);
+                        if (!string.IsNullOrEmpty(descricao))
+                        {
+                            promptBase += $"\n\nImagem {Path.GetFileName(imagemPath)}: {descricao}";
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erro ao analisar imagem {Imagem}", imagemPath);
+                }
             }
         }
 
