@@ -1,4 +1,6 @@
 using DemoAgencia.Worker;
+using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.Seguranca;
 using Serilog;
 
 try
@@ -17,12 +19,21 @@ try
             retainedFileCountLimit: 7,
             outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"));
 
+    builder.Services.AddHttpClient("OpenRouter", client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(120);
+    }).AddHttpMessageHandler<OpenRouterPrivacyHandler>();
+
+    builder.Services.AddTransient<OpenRouterPrivacyHandler>();
+
     builder.Services.AddHostedService<Worker>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Agentes.AgenteLoader>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<DemoAgencia.Worker.Agentes.AgenteLoader>());
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.HistoricoChat>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Observabilidade.LangfuseClient>();
     builder.Services.AddSingleton<DemoAgencia.Worker.Observabilidade.LangfuseInterceptor>();
+    builder.Services.AddSingleton<AnonimizadorService>();
+    builder.Services.AddSingleton<RateLimiterService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.OpenRouterService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.PipelineService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.StreamingService>();

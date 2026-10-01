@@ -12,84 +12,32 @@ public class OpenRouterService
     private readonly IConfiguration _configuration;
     private readonly Kernel _kernel;
     private readonly LangfuseInterceptor _langfuse;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public OpenRouterService(
         ILogger<OpenRouterService> logger,
         IConfiguration configuration,
-        LangfuseInterceptor langfuse)
+        LangfuseInterceptor langfuse,
+        IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
         _configuration = configuration;
         _langfuse = langfuse;
+        _httpClientFactory = httpClientFactory;
 
         var apiKey = _configuration["OpenRouter:ApiKey"] ?? "";
         var baseUrl = _configuration["OpenRouter:BaseUrl"] ?? "https://openrouter.ai/api/v1";
+
+        var httpClient = _httpClientFactory.CreateClient("OpenRouter");
 
         var builder = Kernel.CreateBuilder();
         builder.AddOpenAIChatCompletion(
             modelId: "openai/auto",
             endpoint: new Uri(baseUrl),
-            apiKey: apiKey);
+            apiKey: apiKey,
+            httpClient: httpClient);
 
         _kernel = builder.Build();
-    }
-
-    public virtual async Task<string> CompletarAsync(
-        long chatId,
-        string mensagem,
-        string? persona,
-        string modelo,
-        HistoricoChat historico,
-        CancellationToken ct = default)
-    {
-        var traceContext = _langfuse.IniciarTrace(chatId, "chat-completion", modelo);
-
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
-
-        var chatHistory = new ChatHistory();
-
-        if (!string.IsNullOrEmpty(persona))
-        {
-            chatHistory.AddSystemMessage(persona);
-        }
-
-        var historicoMensagens = historico.ObterHistorico(chatId);
-        foreach (var msg in historicoMensagens)
-        {
-            if (msg.Role == "user")
-                chatHistory.AddUserMessage(msg.Content);
-            else if (msg.Role == "assistant")
-                chatHistory.AddAssistantMessage(msg.Content);
-        }
-
-        chatHistory.AddUserMessage(mensagem);
-
-        try
-        {
-            var settings = new OpenAIPromptExecutionSettings
-            {
-                ModelId = modelo,
-                Temperature = 0.7,
-                MaxTokens = 2000
-            };
-
-            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
-            var resposta = response.Content ?? "";
-
-            historico.AdicionarMensagem(chatId, "user", mensagem);
-            historico.AdicionarMensagem(chatId, "assistant", resposta);
-
-            _logger.LogInformation("Completado com {Modelo}", modelo);
-
-            await _langfuse.FinalizarTraceAsync(traceContext, mensagem, resposta, ct);
-
-            return resposta;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao completar com modelo {Modelo}", modelo);
-            throw;
-        }
     }
 
     public async IAsyncEnumerable<string> CompletarStreamingAsync(
@@ -217,18 +165,16 @@ public class OpenRouterService
     }
 
     public virtual async Task<byte[]?> GerarImagemAsync(
+        long chatId,
         string prompt,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(0, "image-generation", "openai/gpt-image-1");
+        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", "openai/gpt-image-1");
 
-        _logger.LogInformation("Gerando imagem com prompt: {Prompt}", prompt.Substring(0, Math.Min(50, prompt.Length)));
+        _logger.LogInformation("Gerando imagem ({Length} chars)", prompt.Length);
 
-        var httpClient = new HttpClient();
-        var apiKey = _configuration["OpenRouter:ApiKey"] ?? "";
-
-        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-        httpClient.DefaultRequestHeaders.Add("HTTP-Referer", "https://demoagencia.local");
+        var httpClient = _httpClientFactory.CreateClient("OpenRouter");
+        var dataCollection = _configuration["OpenRouter:DataCollection"] ?? "deny";
 
         var request = new
         {
@@ -236,7 +182,8 @@ public class OpenRouterService
             prompt = prompt,
             n = 1,
             size = "1024x1024",
-            response_format = "b64_json"
+            response_format = "b64_json",
+            provider = new { data_collection = dataCollection }
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(request);
@@ -249,7 +196,7 @@ public class OpenRouterService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("Erro ao gerar imagem: {StatusCode} - {Response}", response.StatusCode, responseJson);
+                _logger.LogError("Erro ao gerar imagem: {StatusCode}", response.StatusCode);
                 return null;
             }
 
@@ -270,7 +217,7 @@ public class OpenRouterService
 
             _logger.LogInformation("Imagem gerada com sucesso");
 
-            await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[imagem gerada]", ct);
+            await _langfuse.FinalizarTraceAsync(traceContext, "[imagem gerada]", "[imagem gerada]", ct);
 
             return Convert.FromBase64String(b64);
         }
@@ -281,47 +228,8 @@ public class OpenRouterService
         }
     }
 
-    public virtual async Task<string> ClassificarAsync(string mensagem, CancellationToken ct = default)
-    {
-        var traceContext = _langfuse.IniciarTrace(0, "classification", "google/gemini-flash-1.5");
-
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
-
-        var prompt = $@"Classifique a seguinte mensagem em UMA das categorias: 'codigo', 'estrategia', 'copy', 'geral', 'image'.
-
-Mensagem: {mensagem}
-
-Responda APENAS com a categoria (codigo, estrategia, copy, geral ou image):";
-
-        var chatHistory = new ChatHistory();
-        chatHistory.AddUserMessage(prompt);
-
-        var settings = new OpenAIPromptExecutionSettings
-        {
-            ModelId = "google/gemini-flash-1.5",
-            Temperature = 0.1,
-            MaxTokens = 10
-        };
-
-        try
-        {
-            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
-            var categoria = (response.Content ?? "geral").Trim().ToLowerInvariant();
-
-            _logger.LogInformation("Classificação: {Mensagem} -> {Categoria}", mensagem.Substring(0, Math.Min(50, mensagem.Length)), categoria);
-
-            await _langfuse.FinalizarTraceAsync(traceContext, mensagem, categoria, ct);
-
-            return categoria;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao classificar mensagem");
-            return "geral";
-        }
-    }
-
     public virtual async Task<string> ChamarAgenteAsync(
+        long chatId,
         string persona,
         string modelo,
         string instrucoes,
@@ -330,7 +238,7 @@ Responda APENAS com a categoria (codigo, estrategia, copy, geral ou image):";
         int maxTokens = 2000,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(0, etapaNome, modelo);
+        var traceContext = _langfuse.IniciarTrace(chatId, etapaNome, modelo);
 
         var chatService = _kernel.GetRequiredService<IChatCompletionService>();
 
