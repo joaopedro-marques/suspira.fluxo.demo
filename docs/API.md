@@ -33,11 +33,12 @@ Comandos:
 /start - Inicia o bot
 /help - Mostra esta ajuda
 /agentes - Lista agentes disponíveis
-/imagem <prompt> - Gera uma imagem
 /limpar - Limpa histórico do chat
 /reset - Deseleciona agente e limpa histórico
 
-Agentes:
+Mensagens livres são processadas pelo pipeline multi-agente.
+
+Agentes (atalhos diretos):
 /redator - Redator: Especialista em copywriting
 /dev - Dev: Especialista em desenvolvimento
 /estrategista - Estrategista: Especialista em estratégia
@@ -130,21 +131,6 @@ Seleciona o agente Estrategista (planejamento).
 
 ---
 
-### `/imagem <prompt>`
-
-Gera uma imagem usando IA.
-
-**Exemplo:**
-```
-/imagem um gato azul em estilo cyberpunk
-```
-
-**Resposta:** [Imagem gerada enviada como foto]
-
-**Modelo:** `openai/gpt-image-1`
-
----
-
 ### `/limpar`
 
 Limpa o histórico de conversas do chat atual.
@@ -173,25 +159,76 @@ Deseleciona o agente ativo e limpa o histórico.
 
 ## Mensagens Livres
 
-Quando nenhuma agente está selecionado, o bot classifica automaticamente a mensagem:
+Mensagens livres (sem comando) são processadas pelo pipeline multi-agente:
 
 ```mermaid
-flowchart LR
-    MSG[Mensagem] --> CLASS{Classificador<br/>Gemini Flash}
-    CLASS -->|codigo| DEV[Dev Agent<br/>Claude]
-    CLASS -->|estrategia| EST[Estrategista<br/>Llama]
-    CLASS -->|copy| RED[Redator<br/>Claude]
-    CLASS -->|geral| GEN[Geral<br/>Gemini Flash]
+flowchart TD
+    MSG[Mensagem Livre] --> ORQ[Orquestrador]
+    ORQ --> DEC{Decisão}
+    DEC -->|fora_contexto| FIX[Mensagem Fixa]
+    DEC -->|direta| DIR[Resposta Direta]
+    DEC -->|pipeline| PIPE[Pipeline Completo]
+    
+    PIPE --> EST[Estrategista Planeja]
+    EST --> PROD[Produção]
+    PROD --> QA[Qualidade]
+    QA -->|Aprovado| APROV[Estrategista Aprova]
+    QA -->|Reprovado| PROD
+    APROV -->|Aprovado| FORM[Formatador]
+    APROV -->|Reprovado| PROD
+    FORM --> RESP[Resposta Final]
 ```
 
-**Exemplos:**
+### Rotas do Orquestrador
 
-| Mensagem | Categoria | Modelo |
-|----------|-----------|--------|
-| "Como faço um loop em JavaScript?" | codigo | Claude |
-| "Me ajude a planejar um lançamento" | estrategia | Llama |
-| "Escreva um texto persuasivo" | copy | Claude |
-| "Qual a capital do Brasil?" | geral | Gemini Flash |
+| Rota | Descrição | Exemplo |
+|------|-----------|---------|
+| `fora_contexto` | Fora do escopo da Suspira (Marketing) | "Qual a capital do Brasil?" |
+| `direta` | Pergunta simples dentro do contexto | "O que é marketing de conteúdo?" |
+| `pipeline` | Tarefa de produção complexa | "Crie um post para Instagram" |
+
+### Pipeline Completo
+
+O pipeline executa as seguintes etapas:
+
+1. **🧠 Orquestrador**: Analisa intenção e decide rota
+2. **📋 Estrategista**: Planeja execução e seleciona agente de produção
+3. **✍️ Produção**: Agente especializado executa a tarefa
+4. **🔍 Qualidade**: Revisa o output (aprovado/reprovado)
+5. **✅ Estrategista**: Aprova o resultado final
+6. **📤 Formatador**: Formata resposta para o Telegram
+
+**Máximo de refações:** 2 (configurável)
+
+**Progresso:** O bot atualiza a mensagem com o progresso de cada etapa.
+
+### Agentes de Produção
+
+| Agente | Especialidade | Modelo |
+|--------|---------------|--------|
+| Redator | Copywriting e conteúdo | Claude 3.5 Sonnet |
+| Dev | Desenvolvimento e código | Claude 3.5 Sonnet |
+| Editor de Imagens | Direção de arte e geração | Claude 3.5 Sonnet + GPT Image |
+
+### Geração de Imagens
+
+Para solicitar imagens, use mensagens naturais:
+
+**Exemplo:**
+```
+Crie uma imagem de um gato azul em estilo cyberpunk
+```
+
+**Fluxo:**
+1. Orquestrador detecta intenção de imagem
+2. Pipeline roteia para Editor de Imagens
+3. Editor enriquece o prompt com detalhes de direção de arte
+4. Imagem é gerada via GPT Image
+5. QA revisa o prompt otimizado
+6. Estrategista aprova
+7. Imagem enviada com legenda (pedido original)
+
+**Resposta:** [Imagem gerada enviada como foto]
 
 ---
 

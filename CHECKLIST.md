@@ -22,33 +22,40 @@
 ### Comandos Básicos
 - [ ] `/start` - Bot responde com mensagem de boas-vindas
 - [ ] `/help` - Lista todos os comandos disponíveis
-- [ ] `/agentes` - Lista os 3 agentes (Redator, Dev, Estrategista)
+- [ ] `/agentes` - Lista os agentes públicos (Redator, Dev, Estrategista)
 - [ ] `/limpar` - Limpa histórico do chat
 - [ ] `/reset` - Deseleciona agente e limpa histórico
 
-### Interação com Agentes
+### Interação Direta com Agentes (Bypass)
 - [ ] `/redator` - Seleciona agente redator
-- [ ] `/redator Escreva um slogan para uma cafeteria` - Responde com copy criativa
+- [ ] `/redator Escreva um slogan para uma cafeteria` - Responde com copy criativa (streaming)
 - [ ] `/dev` - Seleciona agente dev
-- [ ] `/dev Crie uma função em Python que soma dois números` - Responde com código
+- [ ] `/dev Crie uma função em Python que soma dois números` - Responde com código (streaming)
 - [ ] `/estrategista` - Seleciona agente estrategista
-- [ ] `/estrategista Como aumentar vendas de um e-commerce?` - Responde com estratégia
+- [ ] `/estrategista Como aumentar vendas de um e-commerce?` - Responde com estratégia (streaming)
 
-### Roteamento Automático
-- [ ] Mensagem "Como faço um loop em JavaScript?" - Classifica como "codigo" e usa Claude
-- [ ] Mensagem "Me ajude a planejar um lançamento" - Classifica como "estrategia" e usa Llama
-- [ ] Mensagem "Escreva um texto persuasivo" - Classifica como "copy" e usa Claude
-- [ ] Mensagem "Qual a capital do Brasil?" - Classifica como "geral" e usa Gemini Flash
+### Pipeline Multi-Agente
+- [ ] Mensagem "Crie um post para Instagram" - Pipeline completo com progresso visível
+- [ ] Mensagem "O que é marketing de conteúdo?" - Rota direta (resposta simples)
+- [ ] Mensagem "Qual a capital do Brasil?" - Fora do contexto (mensagem fixa)
+- [ ] Pipeline mostra progresso: 🧠 → 📋 → ✍️ → 🔍 → ✅ → 📤
+- [ ] Qualidade reprova e pipeline refaz (máx 2 refações)
+- [ ] Pipeline excede refações - Mensagem de falha retornada
 
-### Streaming
-- [ ] Mensagens de texto aparecem progressivamente (edição da mensagem)
+### Geração de Imagens (via Pipeline)
+- [ ] Mensagem "Crie uma imagem de um gato azul" - Pipeline roteia para Editor de Imagens
+- [ ] Editor enriquece prompt com detalhes de direção de arte
+- [ ] Imagem gerada e enviada com legenda (pedido original)
+- [ ] QA revisa o prompt otimizado antes da geração
+
+### Streaming (Comandos Diretos)
+- [ ] Mensagens via comando aparecem progressivamente (edição da mensagem)
 - [ ] Respostas longas são atualizadas em tempo real
 - [ ] Não há erros de rate limit do Telegram
 
-### Multimodal
+### Multimodal (Análise de Fotos)
 - [ ] Enviar foto sem legenda - Bot descreve a imagem
 - [ ] Enviar foto com legenda "O que tem nesta imagem?" - Bot analisa com contexto
-- [ ] `/imagem um gato azul em estilo cyberpunk` - Gera e envia imagem
 
 ### Histórico
 - [ ] Enviar múltiplas mensagens - Bot mantém contexto da conversa
@@ -61,7 +68,7 @@
 - [ ] Acessar dashboard Langfuse
 - [ ] Verificar traces das interações
 - [ ] Verificar métricas: tokens, latência, modelo usado
-- [ ] Verificar traces de classificação (roteamento automático)
+- [ ] Verificar traces do pipeline (orquestrador, estrategista, produção, qualidade, formatador)
 - [ ] Verificar traces de análise de imagem
 - [ ] Verificar traces de geração de imagem
 
@@ -86,12 +93,13 @@
 
 ### Mensagens Inválidas
 - [ ] Enviar comando inexistente - Bot responde com erro amigável
-- [ ] Enviar `/imagem` sem prompt - Bot responde com uso correto
 - [ ] Enviar foto muito grande - Bot trata erro graciosamente
+- [ ] Pipeline com JSON inválido do orquestrador - Fallback para rota direta
 
 ## Performance
 
-- [ ] Respostas de texto: < 10 segundos (depende do modelo)
+- [ ] Respostas de texto (comando direto): < 10 segundos (depende do modelo)
+- [ ] Pipeline completo: < 60 segundos (múltiplas chamadas LLM)
 - [ ] Streaming: primeira edição em < 2 segundos
 - [ ] Análise de imagem: < 15 segundos
 - [ ] Geração de imagem: < 30 segundos

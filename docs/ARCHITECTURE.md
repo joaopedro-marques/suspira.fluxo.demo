@@ -4,7 +4,7 @@ Documentação técnica da arquitetura do sistema DemoAgencia.
 
 ## Visão Geral
 
-O DemoAgencia é uma Prova de Conceito (PoC) de um sistema de agentes de IA operando via Telegram, com foco em redução de custos e infraestrutura simplificada.
+O DemoAgencia é uma Prova de Conceito (PoC) de um sistema multi-agente de IA operando via Telegram, com orquestração inteligente e pipeline de produção com controle de qualidade.
 
 ```mermaid
 graph TB
@@ -19,7 +19,7 @@ graph TB
     subgraph "DemoAgencia Worker"
         TS[TelegramService]
         AL[AgenteLoader]
-        RS[RoteadorService]
+        PS[PipelineService]
         OR[OpenRouterService]
         SS[StreamingService]
         HC[HistoricoChat]
@@ -39,8 +39,8 @@ graph TB
     User -->|Mensagens| Bot
     Bot -->|Long Polling| TS
     TS -->|Carrega| AL
-    TS -->|Roteia| RS
-    RS -->|Completar| OR
+    TS -->|Pipeline| PS
+    PS -->|Executa| OR
     OR -->|API| OR_API
     OR -->|Traces| LI
     LI -->|Envia| LF
@@ -48,6 +48,97 @@ graph TB
     TS -->|Histórico| HC
     AL -->|Lê| MD
     TS -->|Logs| LOG
+```
+
+## Pipeline Multi-Agente
+
+O sistema utiliza um pipeline multi-agente com orquestração inteligente:
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário
+    participant T as TelegramService
+    participant P as PipelineService
+    participant O as Orquestrador
+    participant E as Estrategista
+    participant PR as Produção
+    participant Q as Qualidade
+    participant F as Formatador
+    
+    U->>T: Mensagem livre
+    T->>P: ExecutarAsync()
+    
+    Note over P: 🧠 Analisando...
+    P->>O: Classificar intenção
+    O-->>P: fora_contexto | direta | pipeline
+    
+    alt fora_contexto
+        P-->>T: Mensagem fixa
+        T-->>U: Resposta
+    else direta
+        P->>O: Responder diretamente
+        P->>F: Formatar resposta
+        F-->>T: Resposta formatada
+        T-->>U: Resposta
+    else pipeline
+        Note over P: 📋 Planejando...
+        P->>E: Planejar execução
+        E-->>P: Agente + instruções
+        
+        loop Máx 2 refações
+            Note over P: ✍️ Produzindo...
+            P->>PR: Executar tarefa
+            PR-->>P: Output
+            
+            Note over P: 🔍 Revisando...
+            P->>Q: Revisar qualidade
+            Q-->>P: Aprovado | Reprovado
+            
+            alt Reprovado
+                Note over P: 🔁 Refinando...
+            else Aprovado
+                Note over P: ✅ Aprovando...
+                P->>E: Aprovar resultado
+                E-->>P: Aprovado | Reprovado
+            end
+        end
+        
+        Note over P: 📤 Formatando...
+        P->>F: Formatar resposta final
+        F-->>T: Resposta formatada
+        T-->>U: Resposta
+    end
+```
+
+### Papéis dos Agentes
+
+| Papel | Descrição | Exemplos |
+|-------|-----------|----------|
+| **orquestrador** | Classifica intenção e decide rota | Orquestrador |
+| **estrategista** | Planeja execução e aprova resultados | Estrategista |
+| **producao** | Executa tarefas específicas | Redator, Dev, Editor de Imagens |
+| **qualidade** | Revisa output dos agentes de produção | Qualidade |
+| **formatacao** | Formata resposta final para o usuário | Formatador |
+
+### Rotas do Orquestrador
+
+```mermaid
+graph TD
+    A[Mensagem do Usuário] --> B{Orquestrador}
+    B -->|fora_contexto| C[Mensagem Fixa]
+    B -->|direta| D[Resposta Direta]
+    B -->|pipeline| E[Pipeline Completo]
+    
+    C --> F[Formatador]
+    D --> F
+    E --> G[Estrategista]
+    G --> H[Produção]
+    H --> I[Qualidade]
+    I -->|Aprovado| J[Estrategista Aprova]
+    I -->|Reprovado| H
+    J -->|Aprovado| K[Formatador]
+    J -->|Reprovado| H
+    K --> L[Resposta Final]
 ```
 
 ## Diagrama de Componentes
