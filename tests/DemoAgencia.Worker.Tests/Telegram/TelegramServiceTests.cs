@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Seguranca;
 using DemoAgencia.Worker.Telegram;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -18,6 +19,8 @@ public class TelegramServiceTests
     private readonly Mock<PipelineService> _pipelineMock;
     private readonly Mock<HistoricoChat> _historicoMock;
     private readonly Mock<StreamingService> _streamingMock;
+    private readonly Mock<RateLimiterService> _rateLimiterMock;
+    private readonly Mock<AnonimizadorService> _anonimizadorMock;
 
     public TelegramServiceTests()
     {
@@ -38,14 +41,19 @@ public class TelegramServiceTests
             Mock.Of<ILogger<LangfuseClient>>(),
             Mock.Of<IConfiguration>());
 
+        var anonimizadorMock = new Mock<AnonimizadorService>(Mock.Of<IConfiguration>());
+        anonimizadorMock.Setup(x => x.Anonimizar(It.IsAny<string>())).Returns<string>(s => s);
+
         var langfuseInterceptorMock = new Mock<LangfuseInterceptor>(
             Mock.Of<ILogger<LangfuseInterceptor>>(),
-            langfuseClientMock.Object);
+            langfuseClientMock.Object,
+            anonimizadorMock.Object);
 
         _openRouterMock = new Mock<OpenRouterService>(
             Mock.Of<ILogger<OpenRouterService>>(),
             Mock.Of<IConfiguration>(),
-            langfuseInterceptorMock.Object);
+            langfuseInterceptorMock.Object,
+            Mock.Of<IHttpClientFactory>());
 
         _pipelineMock = new Mock<PipelineService>(
             Mock.Of<ILogger<PipelineService>>(),
@@ -56,6 +64,8 @@ public class TelegramServiceTests
 
         _historicoMock = new Mock<HistoricoChat>();
         _streamingMock = new Mock<StreamingService>(Mock.Of<ILogger<StreamingService>>());
+        _rateLimiterMock = new Mock<RateLimiterService>(Mock.Of<IConfiguration>());
+        _anonimizadorMock = new Mock<AnonimizadorService>(Mock.Of<IConfiguration>());
     }
 
     [Fact]
@@ -68,7 +78,9 @@ public class TelegramServiceTests
             _openRouterMock.Object,
             _pipelineMock.Object,
             _historicoMock.Object,
-            _streamingMock.Object);
+            _streamingMock.Object,
+            _rateLimiterMock.Object,
+            _anonimizadorMock.Object);
 
         act.Should().NotThrow();
     }
@@ -90,7 +102,9 @@ public class TelegramServiceTests
             _openRouterMock.Object,
             _pipelineMock.Object,
             _historicoMock.Object,
-            _streamingMock.Object);
+            _streamingMock.Object,
+            _rateLimiterMock.Object,
+            _anonimizadorMock.Object);
 
         act.Should().NotThrow();
     }

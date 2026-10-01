@@ -1,5 +1,6 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.Seguranca;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -15,8 +16,11 @@ public class TelegramService : BackgroundService
     private readonly PipelineService _pipeline;
     private readonly HistoricoChat _historico;
     private readonly StreamingService _streaming;
+    private readonly RateLimiterService _rateLimiter;
+    private readonly AnonimizadorService _anonimizador;
     private TelegramBotClient? _botClient;
     private readonly Dictionary<long, string> _agentesPorChat = new();
+    private bool _allowlistAvisada = false;
 
     public TelegramService(
         ILogger<TelegramService> logger,
@@ -25,7 +29,9 @@ public class TelegramService : BackgroundService
         OpenRouterService openRouter,
         PipelineService pipeline,
         HistoricoChat historico,
-        StreamingService streaming)
+        StreamingService streaming,
+        RateLimiterService rateLimiter,
+        AnonimizadorService anonimizador)
     {
         _logger = logger;
         _configuration = configuration;
@@ -34,6 +40,8 @@ public class TelegramService : BackgroundService
         _pipeline = pipeline;
         _historico = historico;
         _streaming = streaming;
+        _rateLimiter = rateLimiter;
+        _anonimizador = anonimizador;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -41,7 +49,7 @@ public class TelegramService : BackgroundService
         var botToken = _configuration["Telegram:BotToken"];
         if (string.IsNullOrWhiteSpace(botToken))
         {
-            _logger.LogError("Token do Telegram nao configurado. Defina TELEGRAM_BOT_TOKEN.");
+            _logger.LogError("Token do Telegram nao configurado. Defina Telegram__BotToken.");
             return;
         }
 
@@ -99,6 +107,29 @@ public class TelegramService : BackgroundService
         {
             if (update.Message is { } message)
             {
+                if (!ChatPermitido(message.Chat.Id))
+                {
+                    if (!_allowlistAvisada)
+                    {
+                        _logger.LogWarning("Chat {ChatId} nao esta na allowlist. Configure Telegram__ChatIdsPermitidos.", message.Chat.Id);
+                        _allowlistAvisada = true;
+                    }
+                    await _botClient!.SendMessage(
+                        chatId: message.Chat.Id,
+                        text: "Acesso restrito. Este bot esta configurado para chats especificos.",
+                        cancellationToken: ct);
+                    return;
+                }
+
+                if (!_rateLimiter.PodeProcessar(message.Chat.Id))
+                {
+                    await _botClient!.SendMessage(
+                        chatId: message.Chat.Id,
+                        text: "Voce esta enviando mensagens muito rapido. Aguarde um momento.",
+                        cancellationToken: ct);
+                    return;
+                }
+
                 if (message.Photo is { Length: > 0 })
                 {
                     await HandlePhoto(message, ct);
@@ -117,6 +148,25 @@ public class TelegramService : BackgroundService
         {
             _logger.LogError(ex, "Erro processando update {UpdateId}", update.Id);
         }
+    }
+
+    private bool ChatPermitido(long chatId)
+    {
+        var allowlistConfig = _configuration["Telegram:ChatIdsPermitidos"];
+        
+        if (string.IsNullOrWhiteSpace(allowlistConfig))
+        {
+            return true;
+        }
+
+        var idsPermitidos = allowlistConfig
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(id => id.Trim())
+            .Where(id => long.TryParse(id, out _))
+            .Select(long.Parse)
+            .ToHashSet();
+
+        return idsPermitidos.Contains(chatId);
     }
 
     private async Task HandleCommand(Message message, CancellationToken ct)
