@@ -202,12 +202,47 @@ public class PipelineService
             await NotificarProgresso(onProgresso, $"✍️ Produzindo com {agenteProducao.Nome}...");
             resultado.EtapasExecutadas.Add($"producao_{agenteProducao.Nome}");
 
-            outputProducao = await _openRouter.ChamarAgenteAsync(
-                agenteProducao.Persona,
-                agenteProducao.ModeloAlvo,
-                instrucoesProducao,
-                $"producao_{agenteProducao.Nome}",
-                ct: ct);
+            var isEditorImagens = agenteProducao.Nome.Contains("Editor de Imagens", StringComparison.OrdinalIgnoreCase)
+                || agenteProducao.Nome.Contains("EditorImagens", StringComparison.OrdinalIgnoreCase);
+
+            if (isEditorImagens)
+            {
+                // Fluxo especial para editor de imagens:
+                // 1. Enriquecer prompt (editor agent → optimized prompt)
+                // 2. Gerar imagem (optimized prompt → image bytes)
+                // 3. QA revisa o prompt otimizado (texto)
+                // 4. Output para aprovador = descricao da imagem gerada
+
+                var promptOtimizado = await _openRouter.ChamarAgenteAsync(
+                    agenteProducao.Persona,
+                    agenteProducao.ModeloAlvo,
+                    instrucoesProducao,
+                    $"producao_{agenteProducao.Nome}_enriquecimento",
+                    ct: ct);
+
+                await NotificarProgresso(onProgresso, "🎨 Gerando imagem...");
+                var imagemBytes = await _openRouter.GerarImagemAsync(promptOtimizado, ct);
+
+                if (imagemBytes != null)
+                {
+                    resultado.Imagem = imagemBytes;
+                    resultado.LegendaImagem = mensagem; // pedido original como caption
+                    outputProducao = $"Imagem gerada com sucesso. Prompt otimizado: {promptOtimizado}";
+                }
+                else
+                {
+                    outputProducao = "Falha ao gerar imagem.";
+                }
+            }
+            else
+            {
+                outputProducao = await _openRouter.ChamarAgenteAsync(
+                    agenteProducao.Persona,
+                    agenteProducao.ModeloAlvo,
+                    instrucoesProducao,
+                    $"producao_{agenteProducao.Nome}",
+                    ct: ct);
+            }
 
             // 4. QUALIDADE
             await NotificarProgresso(onProgresso, "🔍 Revisando qualidade...");
