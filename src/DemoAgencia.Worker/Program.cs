@@ -1,5 +1,6 @@
 using DemoAgencia.Worker;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.Seguranca;
 using Serilog;
 
@@ -39,6 +40,15 @@ try
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.OpenRouterService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.PipelineService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.StreamingService>();
+    builder.Services.AddSingleton<FerramentaRegistry>(sp =>
+    {
+        var registry = new FerramentaRegistry();
+        registry.Registrar(new GerarImagemFerramenta(
+            sp.GetRequiredService<ILogger<GerarImagemFerramenta>>(),
+            sp.GetRequiredService<DemoAgencia.Worker.IA.OpenRouterService>()));
+        return registry;
+    });
+    builder.Services.AddSingleton<DemoAgencia.Worker.IA.OrquestradorLoop.OrquestradorLoopService>();
     builder.Services.AddHostedService<DemoAgencia.Worker.Telegram.TelegramService>();
 
     var host = builder.Build();

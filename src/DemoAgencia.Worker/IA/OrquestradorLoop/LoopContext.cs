@@ -1,0 +1,22 @@
+namespace DemoAgencia.Worker.IA.OrquestradorLoop;
+
+public class LoopContext
+{
+    public long ChatId { get; init; }
+    public string Mensagem { get; init; } = string.Empty;
+    public ResultadoPipeline Resultado { get; } = new();
+    public Func<string, Task>? OnProgresso { get; init; }
+    public CancellationToken CancellationToken { get; init; }
+
+    public string? Cliente { get; set; }
+    public string? Entregavel { get; set; }
+    public bool QaExecutado { get; set; }
+    public bool QaAprovado { get; set; }
+    public string? FeedbackQa { get; set; }
+    public int RefacoesQa { get; set; }
+    public int Turnos { get; set; }
+    public string? UltimaAcaoHash { get; set; }
+
+    public int MaxTurnos { get; set; } = 8;
+    public int MaxRefacoesQa { get; set; } = 2;
+}
