@@ -1,4 +1,4 @@
-using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.OrquestradorLoop;
 using FluentAssertions;
 
 namespace DemoAgencia.Worker.Tests.IA;
@@ -15,7 +15,7 @@ public class OpenRouterServiceTests
     [InlineData("{invalido}", "{invalido}")]
     public void ExtrairJson_ShouldExtractJsonFromText(string input, string? expected)
     {
-        var result = OpenRouterService.ExtrairJson(input);
+        var result = ParserDecisao.ExtrairJson(input);
         result.Should().Be(expected);
     }
 
@@ -23,7 +23,7 @@ public class OpenRouterServiceTests
     public void ExtrairJson_WithNestedJson_ShouldExtractOuter()
     {
         var input = "{\"outer\": {\"inner\": \"value\"}}";
-        var result = OpenRouterService.ExtrairJson(input);
+        var result = ParserDecisao.ExtrairJson(input);
         result.Should().Be(input);
     }
 
@@ -31,7 +31,7 @@ public class OpenRouterServiceTests
     public void ExtrairJson_WithMarkdownCodeBlock_ShouldExtractJson()
     {
         var input = "```json\n{\"acao\": \"pipeline\"}\n```";
-        var result = OpenRouterService.ExtrairJson(input);
+        var result = ParserDecisao.ExtrairJson(input);
         result.Should().Be("{\"acao\": \"pipeline\"}");
     }
 }
