@@ -37,10 +37,16 @@ dotnet run --project src/DemoAgencia.Worker
 ### Camadas
 
 ```
-Telegram/     → Comunicação com Telegram Bot API
-Agentes/      → Carregamento e cache de definições de agentes
-IA/           → Semantic Kernel, roteamento, streaming, histórico
-Observabilidade/ → Langfuse integration
+Telegram/           → Comunicação com Telegram Bot API (ITelegramGateway)
+Agentes/            → IAgentesCatalogo + loader de agentes .md (públicos/internos)
+IA/                 → OpenRouterService, StreamingService, HistoricoChat
+IA/OrquestradorLoop/ → OrquestradorLoopService, ParserDecisao, GateQualidade, EnriquecedorContextoCliente
+IA/Ferramentas/     → FerramentaRegistry + ferramentas (gerar_imagem)
+Referencias/        → IReferenciasCliente (texto + imagens por cliente)
+Seguranca/          → AnonimizadorService, RateLimiterService
+Observabilidade/    → LangfuseClient, LangfuseInterceptor
+Contracts/          → LangfuseTrace, LangfuseTraceContext
+Configuracoes/      → Options pattern (LoopOptions, OpenRouterOptions, etc.)
 ```
 
 ## Testes
@@ -98,7 +104,8 @@ public class MeuServiceTests
 | `/redator` | Seleciona agente redator |
 | `/dev` | Seleciona agente desenvolvedor |
 | `/estrategista` | Seleciona agente estrategista |
-| `/imagem <prompt>` | Gera imagem via IA |
+| `/prompt-imagem <prompt>` | Seleciona agente Prompt para Imagens |
+| Mensagem livre com intenção de imagem | Loop chama ferramenta `gerar_imagem` |
 | `/limpar` | Limpa histórico do chat |
 | `/reset` | Deseleciona agente e limpa histórico |
 
@@ -114,6 +121,9 @@ public class MeuServiceTests
 | `Langfuse__Host` | URL do Langfuse | Não (default: cloud) |
 | `Seguranca__AnonimizarDados` | Anonimizar dados sensíveis | Não (default: true) |
 | `Seguranca__MaxMensagensPorMinuto` | Rate limit por chat | Não (default: 5) |
+| `GrafanaLoki__Endpoint` | Endpoint do Grafana Loki | Não |
+| `GrafanaLoki__LoginId` | Login ID do Grafana Loki | Não |
+| `GrafanaLoki__Password` | API key do Grafana Loki | Não |
 
 ## Debug
 
