@@ -1,6 +1,6 @@
 namespace DemoAgencia.Worker.Referencias;
 
-public class ReferenciaClienteLoader : IHostedService
+public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 {
     private readonly ILogger<ReferenciaClienteLoader> _logger;
     private readonly IConfiguration _configuration;
@@ -107,15 +107,6 @@ public class ReferenciaClienteLoader : IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
-    }
-
-    public virtual IReadOnlyCollection<string> ListarClientes()
-    {
-        return _referenciasPorCliente.Keys
-            .Union(_imagensPorCliente.Keys)
-            .OrderBy(c => c)
-            .ToList()
-            .AsReadOnly();
     }
 
     public virtual string ObterReferenciasTexto(string cliente)

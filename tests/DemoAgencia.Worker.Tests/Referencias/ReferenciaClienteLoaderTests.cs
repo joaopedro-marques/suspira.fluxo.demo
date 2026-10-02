@@ -42,23 +42,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
 
-        var clientes = loader.ListarClientes();
-        clientes.Should().HaveCount(2);
-        clientes.Should().Contain(new[] { "acme", "beta" });
-    }
-
-    [Fact]
-    public async Task ListarClientes_ShouldReturnDistinctClients()
-    {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_exemplo.html"), "<html></html>");
-
-        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
-        await loader.StartAsync(CancellationToken.None);
-
-        var clientes = loader.ListarClientes();
-        clientes.Should().HaveCount(1);
-        clientes.First().Should().Be("acme");
+        loader.ObterReferenciasTexto("acme").Should().NotBeEmpty();
+        loader.ObterReferenciasTexto("beta").Should().NotBeEmpty();
     }
 
     [Fact]
@@ -130,9 +115,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
 
-        var clientes = loader.ListarClientes();
-        clientes.Should().HaveCount(1);
-        clientes.First().Should().Be("acme");
+        loader.ObterReferenciasTexto("acme").Should().NotBeEmpty();
     }
 
     [Fact]
@@ -143,9 +126,6 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var act = () => loader.StartAsync(CancellationToken.None);
 
         await act.Should().NotThrowAsync();
-
-        var clientes = loader.ListarClientes();
-        clientes.Should().BeEmpty();
     }
 
     [Fact]
@@ -157,9 +137,6 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var act = () => loader.StartAsync(CancellationToken.None);
 
         await act.Should().NotThrowAsync();
-
-        var clientes = loader.ListarClientes();
-        clientes.Should().BeEmpty();
     }
 
     [Fact]
@@ -197,8 +174,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
 
-        var clientes = loader.ListarClientes();
-        clientes.Should().Contain("acme");
-        clientes.Should().Contain("beta");
+        loader.ObterReferenciasTexto("acme").Should().NotBeEmpty();
+        loader.ObterReferenciasTexto("beta").Should().NotBeEmpty();
     }
 }
