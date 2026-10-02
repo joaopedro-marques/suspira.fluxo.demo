@@ -17,13 +17,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddDemoAgencia(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSerilog(config => config
-            .ReadFrom.Configuration(configuration)
-            .WriteTo.Console()
-            .WriteTo.File(
-                path: "logs/demo-log-.txt",
-                rollingInterval: Serilog.RollingInterval.Day,
-                retainedFileCountLimit: 7,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"));
+            .ReadFrom.Configuration(configuration));
 
         services.Configure<LoopOptions>(configuration.GetSection(LoopOptions.Section));
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.Section));
