@@ -89,7 +89,6 @@ jobs:
           ".env.example"
           "deploy.sh"
           "validate.sh"
-          "arquitetura.json"
           "Assets/agentes/redator.md"
           "Assets/agentes/dev.md"
           "Assets/agentes/estrategista.md"
