@@ -67,6 +67,7 @@ jobs:
           OpenRouter__ApiKey=${{ secrets.OPENROUTER_API_KEY }}
           OpenRouter__BaseUrl=https://openrouter.ai/api/v1
           OpenRouter__DataCollection=deny
+          OpenRouter__DefaultModel=openai/gpt-4o-mini
           Langfuse__PublicKey=${{ secrets.LANGFUSE_PUBLIC_KEY }}
           Langfuse__SecretKey=${{ secrets.LANGFUSE_SECRET_KEY }}
           Langfuse__Host=https://cloud.langfuse.com

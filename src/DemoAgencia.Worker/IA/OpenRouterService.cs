@@ -30,7 +30,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         var builder = Kernel.CreateBuilder();
         builder.AddOpenAIChatCompletion(
-            modelId: "openai/auto",
+            modelId: _options.DefaultModel,
             endpoint: new Uri(_options.BaseUrl),
             apiKey: _options.ApiKey,
             httpClient: httpClient);
