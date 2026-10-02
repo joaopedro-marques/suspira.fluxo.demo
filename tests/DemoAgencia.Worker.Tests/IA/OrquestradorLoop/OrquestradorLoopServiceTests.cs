@@ -1,12 +1,10 @@
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
-using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
-using DemoAgencia.Worker.Seguranca;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -15,67 +13,44 @@ namespace DemoAgencia.Worker.Tests.IA.OrquestradorLoop;
 public class OrquestradorLoopServiceTests
 {
     private readonly Mock<ILogger<OrquestradorLoopService>> _loggerMock;
-    private readonly Mock<OpenRouterService> _openRouterMock;
-    private readonly Mock<AgenteLoader> _agenteLoaderMock;
-    private readonly Mock<ReferenciaClienteLoader> _referenciaLoaderMock;
-    private readonly Mock<HistoricoChat> _historicoMock;
+    private readonly Mock<IServicoChat> _openRouterMock;
+    private readonly Mock<IAgentesCatalogo> _agenteLoaderMock;
+    private readonly Mock<IReferenciasCliente> _referenciaLoaderMock;
+    private readonly Mock<IAnalisadorImagem> _analisadorImagemMock;
     private readonly FerramentaRegistry _ferramentaRegistry;
-    private readonly IConfiguration _configuration;
+    private readonly LoopOptions _loopOptions;
     private readonly OrquestradorLoopService _loop;
 
     public OrquestradorLoopServiceTests()
     {
         _loggerMock = new Mock<ILogger<OrquestradorLoopService>>();
-        _historicoMock = new Mock<HistoricoChat>();
 
-        var langfuseClientMock = new Mock<LangfuseClient>(
-            Mock.Of<ILogger<LangfuseClient>>(),
-            Mock.Of<IConfiguration>());
+        _openRouterMock = new Mock<IServicoChat>();
 
-        var anonimizadorMock = new Mock<AnonimizadorService>(Mock.Of<IConfiguration>());
-        anonimizadorMock.Setup(x => x.Anonimizar(It.IsAny<string>())).Returns<string>(s => s);
+        _agenteLoaderMock = new Mock<IAgentesCatalogo>();
 
-        var langfuseInterceptorMock = new Mock<LangfuseInterceptor>(
-            Mock.Of<ILogger<LangfuseInterceptor>>(),
-            langfuseClientMock.Object,
-            anonimizadorMock.Object);
+        _referenciaLoaderMock = new Mock<IReferenciasCliente>();
 
-        _openRouterMock = new Mock<OpenRouterService>(
-            Mock.Of<ILogger<OpenRouterService>>(),
-            Mock.Of<IConfiguration>(),
-            langfuseInterceptorMock.Object,
-            Mock.Of<IHttpClientFactory>());
-
-        _agenteLoaderMock = new Mock<AgenteLoader>(
-            Mock.Of<ILogger<AgenteLoader>>(),
-            Mock.Of<IConfiguration>(),
-            (string?)null);
-
-        _referenciaLoaderMock = new Mock<ReferenciaClienteLoader>(
-            Mock.Of<ILogger<ReferenciaClienteLoader>>(),
-            Mock.Of<IConfiguration>(),
-            (string?)null);
+        _analisadorImagemMock = new Mock<IAnalisadorImagem>();
 
         _ferramentaRegistry = new FerramentaRegistry();
 
-        _configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Loop:MaxTurnos"] = "8",
-                ["Loop:MaxRefacoesQa"] = "2",
-                ["Loop:MensagemForaContexto"] = "Fora do contexto",
-                ["Loop:MensagemFalha"] = "Falha no loop"
-            })
-            .Build();
+        _loopOptions = new LoopOptions
+        {
+            MaxTurnos = 8,
+            MaxRefacoesQa = 2,
+            MensagemForaContexto = "Fora do contexto",
+            MensagemFalha = "Falha no loop"
+        };
 
         _loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _configuration,
+            TestOptions.Create(_loopOptions),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
-            _historicoMock.Object,
-            _ferramentaRegistry);
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
     }
 
     private AgenteDefinicao CriarOrquestrador() => new()
@@ -108,7 +83,6 @@ public class OrquestradorLoopServiceTests
 
         var result = await _loop.ExecutarAsync(123, "qual a capital do Brasil?");
 
-        result.Rota.Should().Be("fora_contexto");
         result.RespostaFinal.Should().Be("Fora do contexto");
     }
 
@@ -126,7 +100,6 @@ public class OrquestradorLoopServiceTests
 
         var result = await _loop.ExecutarAsync(123, "o que e marketing?");
 
-        result.Rota.Should().Be("direta");
         result.RespostaFinal.Should().Be("Marketing e...");
     }
 
@@ -313,23 +286,21 @@ public class OrquestradorLoopServiceTests
                 "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("{\"acao\": \"chamar_agente\", \"agente\": \"Inexistente\", \"briefing\": \"x\"}");
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Loop:MaxTurnos"] = "2",
-                ["Loop:MaxRefacoesQa"] = "2",
-                ["Loop:MensagemFalha"] = "Falha no loop"
-            })
-            .Build();
+        var options = new LoopOptions
+        {
+            MaxTurnos = 2,
+            MaxRefacoesQa = 2,
+            MensagemFalha = "Falha no loop"
+        };
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            config,
+            TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
-            _historicoMock.Object,
-            _ferramentaRegistry);
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
 
         var result = await loop.ExecutarAsync(123, "mensagem");
 
@@ -403,6 +374,7 @@ public class OrquestradorLoopServiceTests
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
         _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("Manual de marca: cor #FF6B35");
+        _referenciaLoaderMock.Setup(x => x.ListarImagens("acme")).Returns(new List<string>().AsReadOnly());
 
         var callCount = 0;
         _openRouterMock

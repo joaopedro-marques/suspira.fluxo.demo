@@ -1,36 +1,42 @@
 using System.Text.Json;
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.Referencias;
+using Microsoft.Extensions.Options;
 
 namespace DemoAgencia.Worker.IA.OrquestradorLoop;
 
 public class OrquestradorLoopService
 {
     private readonly ILogger<OrquestradorLoopService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly OpenRouterService _openRouter;
-    private readonly AgenteLoader _agenteLoader;
-    private readonly ReferenciaClienteLoader _referenciaLoader;
-    private readonly HistoricoChat _historico;
+    private readonly LoopOptions _options;
+    private readonly IServicoChat _openRouter;
+    private readonly IAgentesCatalogo _agenteLoader;
+    private readonly IReferenciasCliente _referenciaLoader;
     private readonly FerramentaRegistry _ferramentaRegistry;
+    private readonly GateQualidade _gateQualidade;
+    private readonly PromptOrquestradorBuilder _promptBuilder;
+    private readonly EnriquecedorContextoCliente _enriquecedor;
 
     public OrquestradorLoopService(
         ILogger<OrquestradorLoopService> logger,
-        IConfiguration configuration,
-        OpenRouterService openRouter,
-        AgenteLoader agenteLoader,
-        ReferenciaClienteLoader referenciaLoader,
-        HistoricoChat historico,
-        FerramentaRegistry ferramentaRegistry)
+        IOptions<LoopOptions> options,
+        IServicoChat openRouter,
+        IAgentesCatalogo agenteLoader,
+        IReferenciasCliente referenciaLoader,
+        FerramentaRegistry ferramentaRegistry,
+        IAnalisadorImagem analisadorImagem)
     {
         _logger = logger;
-        _configuration = configuration;
+        _options = options.Value;
         _openRouter = openRouter;
         _agenteLoader = agenteLoader;
         _referenciaLoader = referenciaLoader;
-        _historico = historico;
         _ferramentaRegistry = ferramentaRegistry;
+        _gateQualidade = new GateQualidade(openRouter, agenteLoader);
+        _promptBuilder = new PromptOrquestradorBuilder(agenteLoader, ferramentaRegistry);
+        _enriquecedor = new EnriquecedorContextoCliente(referenciaLoader, analisadorImagem);
     }
 
     public virtual async Task<ResultadoPipeline> ExecutarAsync(
@@ -45,20 +51,20 @@ public class OrquestradorLoopService
             Mensagem = mensagem,
             OnProgresso = onProgresso,
             CancellationToken = ct,
-            MaxTurnos = _configuration.GetValue<int>("Loop:MaxTurnos", 8),
-            MaxRefacoesQa = _configuration.GetValue<int>("Loop:MaxRefacoesQa", 2)
+            MaxTurnos = _options.MaxTurnos,
+            MaxRefacoesQa = _options.MaxRefacoesQa
         };
 
         var orquestrador = _agenteLoader.ObterPorPapel("orquestrador");
         if (orquestrador == null)
         {
             _logger.LogError("Orquestrador nao encontrado");
-            context.Resultado.RespostaFinal = _configuration["Loop:MensagemFalha"] ?? "Erro interno";
+            context.Resultado.RespostaFinal = _options.MensagemFalha;
             return context.Resultado;
         }
 
         var transcript = new List<(string role, string content)>();
-        transcript.Add(("system", BuildSystemPrompt(orquestrador)));
+        transcript.Add(("system", _promptBuilder.Build(orquestrador)));
         transcript.Add(("user", mensagem));
 
         var jsonRetry = false;
@@ -79,8 +85,8 @@ public class OrquestradorLoopService
                 temperature: orquestrador.Temperatura,
                 ct: ct);
 
-            var json = OpenRouterService.ExtrairJson(respostaOrquestrador);
-            if (string.IsNullOrEmpty(json))
+            var decisao = ParserDecisao.TentarExtrair(respostaOrquestrador);
+            if (decisao == null)
             {
                 if (!jsonRetry)
                 {
@@ -89,34 +95,14 @@ public class OrquestradorLoopService
                     transcript.Add(("user", "Sua resposta nao continha JSON valido. Responda apenas com JSON."));
                     continue;
                 }
-                context.Resultado.RespostaFinal = _configuration["Loop:MensagemFalha"] ?? "Falha no loop";
+                context.Resultado.RespostaFinal = _options.MensagemFalha;
                 return context.Resultado;
             }
 
             jsonRetry = false;
 
-            JsonDocument doc;
-            try
-            {
-                doc = JsonDocument.Parse(json);
-            }
-            catch
-            {
-                if (!jsonRetry)
-                {
-                    jsonRetry = true;
-                    transcript.Add(("assistant", respostaOrquestrador));
-                    transcript.Add(("user", "JSON invalido. Responda apenas com JSON valido."));
-                    continue;
-                }
-                context.Resultado.RespostaFinal = _configuration["Loop:MensagemFalha"] ?? "Falha no loop";
-                return context.Resultado;
-            }
-
-            var acao = doc.RootElement.TryGetProperty("acao", out var acaoEl) ? acaoEl.GetString() : null;
-
-            var acaoHash = ComputeActionHash(json);
-            if (acaoHash == context.UltimaAcaoHash && acao != "finalizar")
+            var acaoHash = ComputeActionHash(respostaOrquestrador);
+            if (acaoHash == context.UltimaAcaoHash && decisao.Acao != "finalizar")
             {
                 transcript.Add(("assistant", respostaOrquestrador));
                 transcript.Add(("user", "Voce ja executou essa mesma acao. Tente uma abordagem diferente."));
@@ -124,42 +110,28 @@ public class OrquestradorLoopService
             }
             context.UltimaAcaoHash = acaoHash;
 
-            if (doc.RootElement.TryGetProperty("cliente", out var clienteEl))
+            if (!string.IsNullOrEmpty(decisao.Cliente) && string.IsNullOrEmpty(context.Cliente))
             {
-                var cliente = clienteEl.GetString();
-                if (!string.IsNullOrEmpty(cliente) && string.IsNullOrEmpty(context.Cliente))
-                {
-                    context.Cliente = cliente;
-                    InjectClientReferences(transcript, cliente);
-                }
+                context.Cliente = decisao.Cliente;
+                await InjectClientReferencesAsync(transcript, decisao.Cliente, ct);
             }
 
-            switch (acao)
+            switch (decisao.Acao)
             {
                 case "fora_contexto":
-                    context.Resultado.Rota = "fora_contexto";
-                    context.Resultado.RespostaFinal = _configuration["Loop:MensagemForaContexto"]
-                        ?? "Fora do contexto";
+                    context.Resultado.RespostaFinal = _options.MensagemForaContexto;
                     return context.Resultado;
 
                 case "responder_direto":
-                    context.Resultado.Rota = "direta";
-                    context.Resultado.RespostaFinal = doc.RootElement.TryGetProperty("resposta", out var respEl)
-                        ? respEl.GetString() ?? ""
-                        : "";
+                    context.Resultado.RespostaFinal = decisao.Resposta ?? "";
                     return context.Resultado;
 
                 case "chamar_agente":
-                    var agenteNome = doc.RootElement.TryGetProperty("agente", out var agenteEl)
-                        ? agenteEl.GetString() : null;
-                    var briefing = doc.RootElement.TryGetProperty("briefing", out var briefingEl)
-                        ? briefingEl.GetString() : null;
-
-                    var agente = _agenteLoader.ObterPorNome(agenteNome ?? "");
+                    var agente = _agenteLoader.ObterPorNome(decisao.Agente ?? "");
                     if (agente == null)
                     {
                         transcript.Add(("assistant", respostaOrquestrador));
-                        transcript.Add(("user", $"Agente '{agenteNome}' nao encontrado. Escolha um agente valido."));
+                        transcript.Add(("user", $"Agente '{decisao.Agente}' nao encontrado. Escolha um agente valido."));
                         continue;
                     }
 
@@ -170,7 +142,7 @@ public class OrquestradorLoopService
                         chatId,
                         agente.Persona,
                         agente.ModeloAlvo,
-                        briefing ?? "",
+                        decisao.Briefing ?? "",
                         $"loop_agente_{agente.Nome}",
                         temperature: agente.Temperatura,
                         ct: ct);
@@ -180,20 +152,17 @@ public class OrquestradorLoopService
                     break;
 
                 case "chamar_ferramenta":
-                    var ferramentaNome = doc.RootElement.TryGetProperty("ferramenta", out var ferrEl)
-                        ? ferrEl.GetString() : null;
-                    var ferramenta = _ferramentaRegistry.Obter(ferramentaNome ?? "");
+                    var ferramenta = _ferramentaRegistry.Obter(decisao.Ferramenta ?? "");
                     if (ferramenta == null)
                     {
                         transcript.Add(("assistant", respostaOrquestrador));
-                        transcript.Add(("user", $"Ferramenta '{ferramentaNome}' nao encontrada."));
+                        transcript.Add(("user", $"Ferramenta '{decisao.Ferramenta}' nao encontrada."));
                         continue;
                     }
 
                     await NotificarProgresso(onProgresso, $"🔧 Executando {ferramenta.Nome}...");
 
-                    var parametros = doc.RootElement.TryGetProperty("parametros", out var paramEl)
-                        ? paramEl : JsonDocument.Parse("{}").RootElement;
+                    var parametros = decisao.Parametros ?? JsonDocument.Parse("{}").RootElement;
 
                     var toolResult = await ferramenta.ExecutarAsync(context, parametros, ct);
 
@@ -202,62 +171,29 @@ public class OrquestradorLoopService
                     break;
 
                 case "finalizar":
-                    var entregavel = doc.RootElement.TryGetProperty("entregavel", out var entrEl)
-                        ? entrEl.GetString() : null;
-                    context.Entregavel = entregavel;
+                    context.Entregavel = decisao.Entregavel;
 
                     if (!context.QaExecutado)
                     {
                         await NotificarProgresso(onProgresso, "🔍 Revisando qualidade...");
                         context.Resultado.EtapasExecutadas.Add("loop_qualidade");
 
-                        var qualidade = _agenteLoader.ObterPorPapel("qualidade");
-                        if (qualidade == null)
-                        {
-                            context.QaAprovado = true;
-                        }
-                        else
-                        {
-                            var qaPrompt = $"Briefing original: {context.Mensagem}\n\nEntregavel:\n{entregavel}";
-                            var qaResult = await _openRouter.ChamarAgenteAsync(
-                                chatId,
-                                qualidade.Persona,
-                                qualidade.ModeloAlvo,
-                                qaPrompt,
-                                "loop_qualidade",
-                                temperature: qualidade.Temperatura,
-                                ct: ct);
+                        var qaResultado = await _gateQualidade.AvaliarAsync(
+                            chatId,
+                            context.Mensagem,
+                            decisao.Entregavel ?? "",
+                            ct);
 
-                            var qaJson = OpenRouterService.ExtrairJson(qaResult);
-                            if (!string.IsNullOrEmpty(qaJson))
-                            {
-                                try
-                                {
-                                    using var qaDoc = JsonDocument.Parse(qaJson);
-                                    context.QaAprovado = qaDoc.RootElement.TryGetProperty("aprovado", out var apEl)
-                                        && apEl.GetBoolean();
-                                    context.FeedbackQa = qaDoc.RootElement.TryGetProperty("feedback", out var fbEl)
-                                        ? fbEl.GetString() : null;
-                                }
-                                catch
-                                {
-                                    context.QaAprovado = true;
-                                }
-                            }
-                            else
-                            {
-                                context.QaAprovado = true;
-                            }
-
-                            context.QaExecutado = true;
-                        }
+                        context.QaAprovado = qaResultado.Aprovado;
+                        context.FeedbackQa = qaResultado.Feedback;
+                        context.QaExecutado = true;
 
                         if (!context.QaAprovado)
                         {
                             context.RefacoesQa++;
                             if (context.RefacoesQa >= context.MaxRefacoesQa)
                             {
-                                context.Resultado.RespostaFinal = _configuration["Loop:MensagemFalha"] ?? "Falha no loop";
+                                context.Resultado.RespostaFinal = _options.MensagemFalha;
                                 return context.Resultado;
                             }
 
@@ -268,8 +204,8 @@ public class OrquestradorLoopService
                         }
                     }
 
-                    context.Resultado.RespostaFinal = entregavel ?? "";
-                    return context.Resultado;
+                            context.Resultado.RespostaFinal = decisao.Entregavel ?? "";
+                            return context.Resultado;
 
                 default:
                     transcript.Add(("assistant", respostaOrquestrador));
@@ -278,60 +214,25 @@ public class OrquestradorLoopService
             }
         }
 
-        context.Resultado.RespostaFinal = _configuration["Loop:MensagemFalha"] ?? "Falha no loop";
+        context.Resultado.RespostaFinal = _options.MensagemFalha;
         return context.Resultado;
     }
 
-    private string BuildSystemPrompt(AgenteDefinicao orquestrador)
+    private async Task InjectClientReferencesAsync(List<(string role, string content)> transcript, string cliente, CancellationToken ct)
     {
-        var agentes = _agenteLoader.ListarAgentesProducao();
-        var ferramentas = _ferramentaRegistry.Listar();
-
-        var prompt = orquestrador.Persona;
-        prompt += "\n\n## Agentes disponiveis:\n";
-        foreach (var a in agentes)
+        var contexto = await _enriquecedor.ObterContextoAsync(cliente, ct);
+        if (!string.IsNullOrEmpty(contexto))
         {
-            prompt += $"- {a.Nome}: {a.Descricao}\n";
-        }
-
-        if (ferramentas.Any())
-        {
-            prompt += "\n## Ferramentas disponiveis:\n";
-            foreach (var f in ferramentas)
-            {
-                prompt += $"- {f.Nome}: {f.Descricao}\n";
-            }
-        }
-
-        prompt += "\n## Protocolo:\nResponda apenas com JSON: {\"acao\": \"responder_direto\"|\"fora_contexto\"|\"chamar_agente\"|\"chamar_ferramenta\"|\"finalizar\", ...}";
-
-        return prompt;
-    }
-
-    private void InjectClientReferences(List<(string role, string content)> transcript, string cliente)
-    {
-        var referencias = _referenciaLoader.ObterReferenciasTexto(cliente);
-        if (!string.IsNullOrEmpty(referencias))
-        {
-            transcript.Add(("user", $"Referencias do cliente {cliente}:\n{referencias}"));
+            transcript.Add(("user", $"Referencias do cliente {cliente}:\n{contexto}"));
         }
     }
 
-    private static string ComputeActionHash(string json)
+    private static string ComputeActionHash(string texto)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var acao = doc.RootElement.TryGetProperty("acao", out var a) ? a.GetString() : "";
-            var agente = doc.RootElement.TryGetProperty("agente", out var ag) ? ag.GetString() : "";
-            var briefing = doc.RootElement.TryGetProperty("briefing", out var br) ? br.GetString() : "";
-            var ferramenta = doc.RootElement.TryGetProperty("ferramenta", out var fe) ? fe.GetString() : "";
-            return $"{acao}|{agente}|{briefing}|{ferramenta}";
-        }
-        catch
-        {
-            return json;
-        }
+        var decisao = ParserDecisao.TentarExtrair(texto);
+        if (decisao == null)
+            return texto;
+        return $"{decisao.Acao}|{decisao.Agente}|{decisao.Briefing}|{decisao.Ferramenta}";
     }
 
     private static async Task NotificarProgresso(Func<string, Task>? onProgresso, string mensagem)
