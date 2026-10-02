@@ -6,12 +6,12 @@ namespace DemoAgencia.Worker.IA.Ferramentas;
 public class GerarImagemFerramenta : IFerramenta
 {
     private readonly ILogger<GerarImagemFerramenta> _logger;
-    private readonly OpenRouterService _openRouter;
+    private readonly IGeradorImagem _openRouter;
 
     public string Nome => "gerar_imagem";
     public string Descricao => "Gera uma imagem a partir de um prompt textual";
 
-    public GerarImagemFerramenta(ILogger<GerarImagemFerramenta> logger, OpenRouterService openRouter)
+    public GerarImagemFerramenta(ILogger<GerarImagemFerramenta> logger, IGeradorImagem openRouter)
     {
         _logger = logger;
         _openRouter = openRouter;

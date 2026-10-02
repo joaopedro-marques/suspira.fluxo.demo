@@ -1,6 +1,16 @@
 namespace DemoAgencia.Worker.IA;
 
-public class StreamingService
+public interface IStreamingService
+{
+    Task ProcessarStreamingAsync(
+        long chatId,
+        IAsyncEnumerable<string> chunks,
+        Func<string, Task<long>> enviarMensagem,
+        Func<long, string, Task> editarMensagem,
+        CancellationToken ct);
+}
+
+public class StreamingService : IStreamingService
 {
     private readonly ILogger<StreamingService> _logger;
 

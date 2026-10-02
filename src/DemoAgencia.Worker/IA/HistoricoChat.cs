@@ -1,6 +1,6 @@
 namespace DemoAgencia.Worker.IA;
 
-public class HistoricoChat
+public class HistoricoChat : IHistoricoChat
 {
     private readonly Dictionary<long, List<ChatMessage>> _historicos = new();
     private readonly object _lock = new();

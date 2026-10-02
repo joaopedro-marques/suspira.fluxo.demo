@@ -1,40 +1,38 @@
-using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.Observabilidade;
+using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 namespace DemoAgencia.Worker.IA;
 
-public class OpenRouterService
+public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, IAnalisadorImagem
 {
     private readonly ILogger<OpenRouterService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly OpenRouterOptions _options;
     private readonly Kernel _kernel;
     private readonly LangfuseInterceptor _langfuse;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public OpenRouterService(
         ILogger<OpenRouterService> logger,
-        IConfiguration configuration,
+        IOptions<OpenRouterOptions> options,
         LangfuseInterceptor langfuse,
         IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
-        _configuration = configuration;
+        _options = options.Value;
         _langfuse = langfuse;
         _httpClientFactory = httpClientFactory;
-
-        var apiKey = _configuration["OpenRouter:ApiKey"] ?? "";
-        var baseUrl = _configuration["OpenRouter:BaseUrl"] ?? "https://openrouter.ai/api/v1";
 
         var httpClient = _httpClientFactory.CreateClient("OpenRouter");
 
         var builder = Kernel.CreateBuilder();
         builder.AddOpenAIChatCompletion(
             modelId: "openai/auto",
-            endpoint: new Uri(baseUrl),
-            apiKey: apiKey,
+            endpoint: new Uri(_options.BaseUrl),
+            apiKey: _options.ApiKey,
             httpClient: httpClient);
 
         _kernel = builder.Build();
@@ -45,7 +43,7 @@ public class OpenRouterService
         string mensagem,
         string? persona,
         string modelo,
-        HistoricoChat historico,
+        IHistoricoChat historico,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
         var traceContext = _langfuse.IniciarTrace(chatId, "chat-completion-streaming", modelo);
@@ -96,28 +94,15 @@ public class OpenRouterService
         await _langfuse.FinalizarTraceAsync(traceContext, mensagem, respostaCompleta, ct);
     }
 
-    public virtual async Task<string> AnalisarImagemAsync(
-        long chatId,
+    public virtual async Task<string> DescreverImagemAsync(
         byte[] imagemBytes,
         string? contexto,
-        HistoricoChat historico,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(chatId, "image-analysis", "google/gemini-flash-1.5");
-
         var chatService = _kernel.GetRequiredService<IChatCompletionService>();
 
         var chatHistory = new ChatHistory();
         chatHistory.AddSystemMessage("Voce e um assistente que analisa imagens. Descreva o que ve na imagem de forma clara e concisa.");
-
-        var historicoMensagens = historico.ObterHistorico(chatId);
-        foreach (var msg in historicoMensagens)
-        {
-            if (msg.Role == "user")
-                chatHistory.AddUserMessage(msg.Content);
-            else if (msg.Role == "assistant")
-                chatHistory.AddAssistantMessage(msg.Content);
-        }
 
         var prompt = string.IsNullOrEmpty(contexto) 
             ? "Descreva esta imagem:" 
@@ -138,7 +123,7 @@ public class OpenRouterService
 
         var settings = new OpenAIPromptExecutionSettings
         {
-            ModelId = "google/gemini-flash-1.5",
+            ModelId = "qwen/qwen2.5-vl-72b-instruct",
             Temperature = 0.5,
             MaxTokens = 1000
         };
@@ -148,12 +133,7 @@ public class OpenRouterService
             var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
             var resposta = response.Content ?? "";
 
-            historico.AdicionarMensagem(chatId, "user", contexto ?? "[imagem]");
-            historico.AdicionarMensagem(chatId, "assistant", resposta);
-
             _logger.LogInformation("Imagem analisada com sucesso");
-
-            await _langfuse.FinalizarTraceAsync(traceContext, contexto ?? "[imagem]", resposta, ct);
 
             return resposta;
         }
@@ -169,21 +149,20 @@ public class OpenRouterService
         string prompt,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", "openai/gpt-image-1");
+        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", "qwen/qwen-image-3-pro");
 
         _logger.LogInformation("Gerando imagem ({Length} chars)", prompt.Length);
 
         var httpClient = _httpClientFactory.CreateClient("OpenRouter");
-        var dataCollection = _configuration["OpenRouter:DataCollection"] ?? "deny";
 
         var request = new
         {
-            model = "openai/gpt-image-1",
+            model = "qwen/qwen-image-3-pro",
             prompt = prompt,
             n = 1,
             size = "1024x1024",
             response_format = "b64_json",
-            provider = new { data_collection = dataCollection }
+            provider = new { data_collection = _options.DataCollection }
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(request);
@@ -191,7 +170,7 @@ public class OpenRouterService
 
         try
         {
-            var response = await httpClient.PostAsync("https://openrouter.ai/api/v1/images/generations", content, ct);
+            var response = await httpClient.PostAsync($"{_options.BaseUrl}/images/generations", content, ct);
             var responseJson = await response.Content.ReadAsStringAsync(ct);
 
             if (!response.IsSuccessStatusCode)
