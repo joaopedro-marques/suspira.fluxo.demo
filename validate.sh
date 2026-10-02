@@ -71,7 +71,7 @@ if [ $FAIL -eq 0 ]; then
     echo "Próximos passos:"
     echo "  1. Teste o bot no Telegram: /start, /help, /agentes"
     echo "  2. Teste uma mensagem de texto"
-    echo "  3. Teste /imagem <prompt>"
+    echo "  3. Teste /prompt-imagem <prompt> ou mensagem com intencao de imagem"
     echo "  4. Verifique os traces no Langfuse"
     exit 0
 else
