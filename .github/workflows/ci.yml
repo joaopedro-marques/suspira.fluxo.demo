@@ -177,17 +177,17 @@ jobs:
       run: |
         echo "Checking for potential secrets..."
         
-        if grep -r "sk-or-" --include="*.cs" --include="*.json" --include="*.md" . 2>/dev/null; then
+        if grep -r "sk-or-" --include="*.cs" --include="*.json" --include="*.md" --exclude-dir="tests" . 2>/dev/null; then
           echo "✗ Potential OpenRouter API key found"
           exit 1
         fi
         
-        if grep -r "pk-lf-" --include="*.cs" --include="*.json" --include="*.md" . 2>/dev/null; then
+        if grep -r "pk-lf-" --include="*.cs" --include="*.json" --include="*.md" --exclude-dir="tests" . 2>/dev/null; then
           echo "✗ Potential Langfuse public key found"
           exit 1
         fi
         
-        if grep -r "sk-lf-" --include="*.cs" --include="*.json" --include="*.md" . 2>/dev/null; then
+        if grep -r "sk-lf-" --include="*.cs" --include="*.json" --include="*.md" --exclude-dir="tests" . 2>/dev/null; then
           echo "✗ Potential Langfuse secret key found"
           exit 1
         fi

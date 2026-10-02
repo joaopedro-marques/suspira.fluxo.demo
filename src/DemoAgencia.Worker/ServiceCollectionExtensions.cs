@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HistoricoChat>();
         services.AddSingleton<IHistoricoChat>(sp => sp.GetRequiredService<HistoricoChat>());
 
+        services.AddSingleton<AnonimizadorService>();
         services.AddSingleton<LangfuseClient>();
         services.AddSingleton<LangfuseInterceptor>();
         services.AddSingleton<RateLimiterService>();
