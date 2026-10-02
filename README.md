@@ -16,17 +16,18 @@ Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram 
 
 ## Arquitetura
 
-O sistema utiliza um **pipeline multi-agente** com orquestração inteligente:
+O sistema utiliza um **loop de orquestracao** (padrao supervisor/hub-and-spoke):
 
 ```
-Mensagem Livre → Orquestrador → Estrategista → Produção → Qualidade → Aprovação → Formatador → Resposta
+Mensagem Livre → OrquestradorLoopService → Loop (max 8 turnos):
+  Orquestrador decide: chamar_agente | chamar_ferramenta | responder_direto | fora_contexto | finalizar
+  → finalizar aciona QA obrigatorio → Resposta Final
 ```
 
-- **Orquestrador**: Classifica intenção (fora_contexto | direta | pipeline)
-- **Estrategista**: Planeja execução e aprova resultados
-- **Produção**: Agentes especializados (Redator, Dev, Editor de Imagens)
-- **Qualidade**: Revisa output com controle de refações (máx 2)
-- **Formatador**: Formata resposta final para Telegram
+- **Orquestrador**: Loop supervisor que decide acoes a cada turno (JSON protocol)
+- **Agentes de producao**: Executam tarefas (Redator, Dev, Estrategista, Prompt para Imagens)
+- **Qualidade**: Revisor critico independente (obrigatorio antes de entregar)
+- **Ferramentas**: Registry generico (gerar_imagem)
 
 ## Estrutura
 
@@ -34,18 +35,17 @@ Mensagem Livre → Orquestrador → Estrategista → Produção → Qualidade �
 src/DemoAgencia.Worker/
   ├── Telegram/          # Cliente Telegram e handlers
   ├── Agentes/           # Loader de agentes .md
-  ├── IA/                # PipelineService, OpenRouterService, StreamingService
+  ├── IA/                # OrquestradorLoopService, OpenRouterService, Ferramentas/
   └── Observabilidade/   # Serilog e Langfuse
 
 /Assets/
-  ├── agentes/           # Definições dos agentes (.md)
+  ├── agentes/           # Definicoes dos agentes (.md)
   │   ├── orquestrador.md
-  │   ├── estrategista.md
   │   ├── qualidade.md
-  │   ├── formatador.md
   │   ├── redator.md
   │   ├── dev.md
-  │   └── editor_imagens.md
+  │   ├── estrategista.md
+  │   └── criador_prompt-imagens.md
   └── imagens/           # Exemplos para fluxo visual
 ```
 
@@ -127,8 +127,8 @@ docker run -d \
 - [x] F7 - Deploy manual (runbook, scripts, checklist)
 - [x] F8 - Testes unitários (62 testes, xUnit + Moq + FluentAssertions)
 - [x] F9 - CI/CD (GitHub Actions: build, test, docker, security scan)
-- [x] F10 - Pipeline multi-agente (orquestrador, estrategista, qualidade, formatador)
-- [x] F11 - Editor de imagens (enriquecimento de prompt + geração)
+- [x] F10 - Loop de orquestrador (supervisor hub-and-spoke, QA obrigatorio, ferramentas)
+- [x] F11 - Criador de prompt de imagens (agente de producao)
 
 ## Testes
 
@@ -140,7 +140,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**62 testes** cobrindo: AgenteLoader, HistoricoChat, PipelineService, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService.
+**85 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, Ferramentas, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService.
 
 ## CI/CD
 

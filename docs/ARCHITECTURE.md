@@ -50,81 +50,82 @@ graph TB
     TS -->|Logs| LOG
 ```
 
-## Pipeline Multi-Agente
+## Orquestrador Loop (Supervisor)
 
-O sistema utiliza um pipeline multi-agente com orquestração inteligente:
+O sistema utiliza um **loop de orquestracao** (padrao supervisor/hub-and-spoke) onde o orquestrador decide a cada turno qual acao executar:
 
 ```mermaid
 sequenceDiagram
-    participant U as Usuário
+    participant U as Usuario
     participant T as TelegramService
-    participant P as PipelineService
-    participant O as Orquestrador
-    participant E as Estrategista
-    participant PR as Produção
+    participant L as OrquestradorLoopService
+    participant O as Orquestrador (LLM)
+    participant A as Agentes (Redator, Dev, etc)
+    participant F as Ferramentas (gerar_imagem)
     participant Q as Qualidade
-    participant F as Formatador
-    
+
     U->>T: Mensagem livre
-    T->>P: ExecutarAsync()
-    
-    Note over P: 🧠 Analisando...
-    P->>O: Classificar intenção
-    O-->>P: fora_contexto | direta | pipeline
-    
-    alt fora_contexto
-        P-->>T: Mensagem fixa
-        T-->>U: Resposta
-    else direta
-        P->>O: Responder diretamente
-        P->>F: Formatar resposta
-        F-->>T: Resposta formatada
-        T-->>U: Resposta
-    else pipeline
-        Note over P: 📋 Planejando...
-        P->>E: Planejar execução
-        E-->>P: Agente + instruções
-        
-        loop Máx 2 refações
-            Note over P: ✍️ Produzindo...
-            P->>PR: Executar tarefa
-            PR-->>P: Output
-            
-            Note over P: 🔍 Revisando...
-            P->>Q: Revisar qualidade
-            Q-->>P: Aprovado | Reprovado
-            
-            alt Reprovado
-                Note over P: 🔁 Refinando...
-            else Aprovado
-                Note over P: ✅ Aprovando...
-                P->>E: Aprovar resultado
-                E-->>P: Aprovado | Reprovado
+    T->>L: ExecutarAsync()
+
+    loop Max 8 turnos
+        L->>O: Transcript + acao anterior
+        O-->>L: JSON {acao: ...}
+
+        alt responder_direto
+            L-->>T: Resposta direta
+        else fora_contexto
+            L-->>T: Mensagem fixa
+        else chamar_agente
+            L->>A: Briefing autocontido
+            A-->>L: Output (entra no transcript)
+        else chamar_ferramenta
+            L->>F: Parametros
+            F-->>L: Resultado (entra no transcript)
+        else finalizar
+            L->>Q: Entregavel para revisao
+            Q-->>L: {aprovado: true/false}
+            alt Aprovado
+                L-->>T: Resposta final
+            else Reprovado (max 2)
+                Note over L: Feedback entra no transcript
             end
         end
-        
-        Note over P: 📤 Formatando...
-        P->>F: Formatar resposta final
-        F-->>T: Resposta formatada
-        T-->>U: Resposta
     end
 ```
 
-### Papéis dos Agentes
+### Acoes do Orquestrador
 
-| Papel | Descrição | Exemplos |
+| Acao | Descricao |
+|------|-----------|
+| `responder_direto` | Resposta direta a perguntas simples |
+| `fora_contexto` | Mensagem fora do escopo de Marketing |
+| `chamar_agente` | Delega a um agente especializado (Redator, Dev, etc) |
+| `chamar_ferramenta` | Usa uma ferramenta (gerar_imagem) |
+| `finalizar` | Entregavel pronto → QA obrigatorio → entrega |
+
+### Papeis dos Agentes
+
+| Papel | Descricao | Exemplos |
 |-------|-----------|----------|
-| **orquestrador** | Classifica intenção e decide rota | Orquestrador |
-| **estrategista** | Planeja execução e aprova resultados | Estrategista |
-| **producao** | Executa tarefas específicas | Redator, Dev, Editor de Imagens |
-| **qualidade** | Revisa output dos agentes de produção | Qualidade |
-| **formatacao** | Formata resposta final para o usuário | Formatador |
+| **orquestrador** | Loop supervisor, decide acoes e costura contexto | Orquestrador |
+| **producao** | Executa tarefas especificas | Redator, Dev, Estrategista, Prompt para Imagens |
+| **qualidade** | Revisor critico independente de qualquer entregavel | Qualidade |
 
-### Referências de Cliente
+### Ferramentas
 
-O sistema suporta carregar referências de clientes (manuais de marca, exemplos, imagens) para personalizar o pipeline de produção. As referências ficam em `Assets/referencias/` com o padrão de nomenclatura `CLIENTE_{nome}_{tipo}.ext`.
+Ferramentas sao registradas em codigo e chamadas pelo orquestrador via `chamar_ferramenta`:
 
-**Fluxo de referências:**
+| Ferramenta | Descricao |
+|------------|-----------|
+| `gerar_imagem` | Gera imagem a partir de prompt (OpenRouter) |
+
+Novas ferramentas = novo `.cs` implementando `IFerramenta` + registro no `FerramentaRegistry`.
+
+### Referencias de Cliente
+
+O sistema suporta carregar referencias de clientes (manuais de marca, exemplos, imagens) para personalizar a producao. As referencias ficam em `Assets/referencias/` com o padrao `CLIENTE_{nome}_{tipo}.ext`.
+
+**Fluxo de referencias:**
 
 ```mermaid
 flowchart LR
@@ -134,68 +135,62 @@ flowchart LR
         IMG[CLIENTE_acme_ref-visual.png]
     end
 
-    subgraph "Pipeline"
-        ORQ[Orquestrador<br/>extrai cliente]
-        EST[Estrategista<br/>traduz referências]
-        PRD[Produção<br/>recebe instruções]
-        QA[Qualidade<br/>valida checklist]
+    subgraph "Loop"
+        ORQ[Orquestrador<br/>identifica cliente]
+        LOOP[OrquestradorLoopService<br/>injeta no transcript]
+        AG[Agentes<br/>recebem contexto]
     end
 
-    JSON --> EST
-    HTML --> EST
-    IMG -->|AnalisarImagemAsync| EST
-    EST -->|instrucoes + criterios_qa| PRD
-    EST -->|criterios_qa| QA
+    JSON --> LOOP
+    HTML --> LOOP
+    IMG -->|AnalisarImagemAsync| LOOP
+    LOOP -->|transcript enriquecido| AG
 ```
 
 **Como funciona:**
 
-1. **Orquestrador** extrai o nome do cliente da mensagem e valida contra a lista de clientes disponíveis
-2. **Estrategista** carrega as referências de texto (JSON, HTML, MD) e analisa as imagens on-demand via `AnalisarImagemAsync`
-3. **Estrategista** traduz as referências em:
-   - `instrucoes`: direcionamento completo para o agente de produção (cores, tom, estrutura)
-   - `criterios_qa`: checklist objetivo para validação
-4. **Produção** recebe apenas as instruções destiladas (não vê arquivos brutos)
-5. **Qualidade** valida o output contra o checklist de critérios
+1. **Orquestrador** identifica o cliente na mensagem (campo `cliente` no JSON)
+2. **Loop** carrega as referencias de texto (JSON, HTML, MD) e analisa imagens on-demand
+3. **Loop** injeta as referencias no transcript do orquestrador
+4. **Orquestrador** usa o contexto enriquecido ao chamar agentes de producao
 
-**Configuração:**
+**Configuracao:**
 
 ```json
 {
-  "Pipeline": {
-    "Referencias": {
-      "MaxCharsPorArquivo": 4000
-    }
+  "Loop": {
+    "MaxTurnos": 8,
+    "MaxRefacoesQa": 2,
+    "MensagemForaContexto": "...",
+    "MensagemFalha": "..."
   }
 }
 ```
 
-### Rotas do Orquestrador
+### Fluxo do Loop
 
 ```mermaid
 graph TD
-    A[Mensagem do Usuário] --> B{Orquestrador}
-    B -->|fora_contexto| C[Mensagem Fixa]
-    B -->|direta| D[Resposta Direta]
-    B -->|pipeline| E[Pipeline Completo]
-    
-    C --> F[Formatador]
-    D --> F
-    E --> G[Estrategista]
-    G --> H[Produção]
-    H --> I[Qualidade]
-    I -->|Aprovado| J[Estrategista Aprova]
-    I -->|Reprovado| H
-    J -->|Aprovado| K[Formatador]
-    J -->|Reprovado| H
-    K --> L[Resposta Final]
+    A[Mensagem do Usuario] --> B[OrquestradorLoopService]
+    B --> C{Orquestrador LLM}
+    C -->|responder_direto| D[Resposta Direta]
+    C -->|fora_contexto| E[Mensagem Fixa]
+    C -->|chamar_agente| F[Agente Especializado]
+    C -->|chamar_ferramenta| G[Ferramenta]
+    C -->|finalizar| H[Qualidade]
+    F -->|output no transcript| C
+    G -->|resultado no transcript| C
+    H -->|aprovado| D
+    H -->|reprovado max 2| I[Falha]
+    H -->|reprovado| C
+    D --> J[Resposta Final]
 ```
 
 ## Diagrama de Componentes
 
 ```mermaid
 graph LR
-    subgraph "Camada de Comunicação"
+    subgraph "Camada de Comunicacao"
         TS[TelegramService<br/>BackgroundService]
     end
     
@@ -205,7 +200,8 @@ graph LR
     end
     
     subgraph "Camada de IA"
-        RS[RoteadorService]
+        OL[OrquestradorLoopService]
+        FR[FerramentaRegistry]
         OR[OpenRouterService]
         SS[StreamingService]
         HC[HistoricoChat]
@@ -218,11 +214,12 @@ graph LR
     end
     
     TS --> AL
-    TS --> RS
+    TS --> OL
     TS --> SS
     TS --> HC
     AL --> AD
-    RS --> OR
+    OL --> FR
+    OL --> OR
     OR --> LI
     LI --> LC
     TS --> SL
@@ -380,8 +377,9 @@ graph TD
         end
 
         subgraph "IA/"
-            RS2[RoteadorService.cs<br/>Roteamento híbrido]
-            OR2[OpenRouterService.cs<br/>SK + OpenRouter]
+            OL[OrquestradorLoopService<br/>Loop supervisor]
+            FR[Ferramentas/<br/>Registry + gerar_imagem]
+            OR2[OpenRouterService<br/>SK + OpenRouter]
             SS2[StreamingService.cs<br/>Throttle de edits]
             HC2[HistoricoChat.cs<br/>Contexto por chat]
         end
@@ -399,7 +397,7 @@ graph TD
     end
     
     subgraph "tests/"
-        TEST[DemoAgencia.Worker.Tests<br/>46 testes unitários]
+        TEST[DemoAgencia.Worker.Tests<br/>85 testes unitarios]
     end
 ```
 
