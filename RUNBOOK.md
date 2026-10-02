@@ -428,11 +428,11 @@ cat ~/.ssh/github_deploy_key
 | `SSH_USER` | `ubuntu` | Usuário SSH |
 | `SSH_KEY` | *(conteúdo de `~/.ssh/github_deploy_key`)* | Chave privada SSH (copiar tudo, incluindo `-----BEGIN` e `-----END`) |
 | `SSH_PORT` | `22` | Porta SSH (opcional, default 22) |
-| `TELEGRAM_BOT_TOKEN` | `1234567890:ABCdef...` | Token do BotFather |
+| `TELEGRAM_BOT_TOKEN` | `.` | Token do BotFather |
 | `TELEGRAM_CHAT_IDS` | *(vazio ou IDs separados por vírgula)* | Chat IDs permitidos |
-| `OPENROUTER_API_KEY` | `sk-or-v1-...` | Chave da OpenRouter |
-| `LANGFUSE_PUBLIC_KEY` | `pk-lf-...` | Public key do Langfuse |
-| `LANGFUSE_SECRET_KEY` | `sk-lf-...` | Secret key do Langfuse |
+| `OPENROUTER_API_KEY` | `` | Chave da OpenRouter |
+| `LANGFUSE_PUBLIC_KEY` | `` | Public key do Langfuse |
+| `LANGFUSE_SECRET_KEY` | `` | Secret key do Langfuse |
 
 ### 5.4 Como Funciona o Deploy Automático
 
