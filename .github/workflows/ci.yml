@@ -57,15 +57,16 @@ jobs:
     - name: Build Docker image
       run: |
         docker build \
-          --platform linux/arm64 \
+          --platform linux/amd64 \
           --tag demoagencia:${{ github.sha }} \
           --tag demoagencia:latest \
           .
 
     - name: Test Docker image
+      timeout-minutes: 2
       run: |
-        docker run --rm --platform linux/arm64 demoagencia:latest dotnet --version
-        docker run --rm --platform linux/arm64 demoagencia:latest ls -la /app/Assets/agentes/
+        docker run --rm --platform linux/amd64 --entrypoint dotnet demoagencia:latest --version
+        docker run --rm --platform linux/amd64 --entrypoint ls demoagencia:latest -la /app/Assets/agentes/
 
   validate-structure:
     name: Validate Project Structure
