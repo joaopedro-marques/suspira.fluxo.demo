@@ -3,6 +3,7 @@ nome: Formatador
 descricao: Formata a resposta final para o usuario no Telegram
 modelo_alvo: google/gemini-flash-1.5
 papel: formatacao
+temperatura: 0.3
 interno: true
 ---
 

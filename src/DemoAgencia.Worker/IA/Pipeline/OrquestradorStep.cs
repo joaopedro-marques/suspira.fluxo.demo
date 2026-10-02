@@ -59,7 +59,7 @@ public class OrquestradorStep : IPipelineStep
             orquestrador.ModeloAlvo,
             instrucoesOrquestrador,
             Nome,
-            temperature: 0.3,
+            temperature: orquestrador.Temperatura,
             ct: context.CancellationToken);
 
         context.RespostaOrquestrador = respostaOrquestrador;

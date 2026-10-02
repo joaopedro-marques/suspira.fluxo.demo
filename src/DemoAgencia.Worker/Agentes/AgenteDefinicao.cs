@@ -8,6 +8,7 @@ public class AgenteDefinicao
     public string Papel { get; set; } = "producao";
     public string Tipo { get; set; } = "texto";
     public bool Interno { get; set; } = false;
+    public double Temperatura { get; set; } = 0.7;
     public List<string> Comandos { get; set; } = new();
     public string Persona { get; set; } = string.Empty;
 }

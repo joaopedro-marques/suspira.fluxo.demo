@@ -37,6 +37,7 @@ public class DiretaStep : IPipelineStep
                 formatador.ModeloAlvo,
                 $"Pedido original: {context.Mensagem}\n\nResposta para formatar:\n{context.RespostaDireta}",
                 Nome,
+                temperature: formatador.Temperatura,
                 ct: context.CancellationToken);
 
             context.Resultado.RespostaFinal = respostaFormatada;

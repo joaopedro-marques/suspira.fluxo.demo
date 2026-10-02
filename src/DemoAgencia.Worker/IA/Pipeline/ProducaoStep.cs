@@ -33,6 +33,7 @@ public class ProducaoStep : IPipelineStep
                 agente.ModeloAlvo,
                 context.InstrucoesProducao!,
                 $"{etapaNome}_enriquecimento",
+                temperature: agente.Temperatura,
                 ct: context.CancellationToken);
 
             await NotificarProgresso(context.OnProgresso, "🎨 Gerando imagem...");
@@ -57,6 +58,7 @@ public class ProducaoStep : IPipelineStep
                 agente.ModeloAlvo,
                 context.InstrucoesProducao!,
                 etapaNome,
+                temperature: agente.Temperatura,
                 ct: context.CancellationToken);
         }
 

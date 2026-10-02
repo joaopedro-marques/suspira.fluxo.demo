@@ -3,6 +3,7 @@ nome: Redator
 descricao: Especialista em copywriting e criação de conteúdo persuasivo
 modelo_alvo: anthropic/claude-3.5-sonnet
 papel: producao
+temperatura: 0.8
 comandos:
   - /redator
 ---

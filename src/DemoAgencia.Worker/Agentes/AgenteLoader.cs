@@ -93,6 +93,11 @@ public class AgenteLoader : IHostedService
                     agente.Tipo = trimmed.Substring(5).Trim().ToLowerInvariant();
                 else if (trimmed.StartsWith("interno:", StringComparison.OrdinalIgnoreCase))
                     agente.Interno = trimmed.Substring(8).Trim().ToLowerInvariant() == "true";
+                else if (trimmed.StartsWith("temperatura:", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (double.TryParse(trimmed.Substring(12).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var temp))
+                        agente.Temperatura = temp;
+                }
                 else if (trimmed.StartsWith("- /", StringComparison.OrdinalIgnoreCase))
                     agente.Comandos.Add(trimmed.Substring(2).Trim());
             }

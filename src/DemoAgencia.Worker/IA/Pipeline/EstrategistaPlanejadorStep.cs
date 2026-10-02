@@ -85,7 +85,7 @@ public class EstrategistaPlanejadorStep : IPipelineStep
             estrategista.ModeloAlvo,
             promptBase,
             Nome,
-            temperature: 0.3,
+            temperature: estrategista.Temperatura,
             ct: context.CancellationToken);
 
         var jsonPlano = OpenRouterService.ExtrairJson(planoEstrategista);

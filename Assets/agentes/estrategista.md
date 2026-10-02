@@ -3,6 +3,7 @@ nome: Estrategista
 descricao: Especialista em estratégia de negócios e planejamento
 modelo_alvo: meta-llama/llama-3.1-70b-instruct
 papel: estrategista
+temperatura: 0.5
 comandos:
   - /estrategista
 ---

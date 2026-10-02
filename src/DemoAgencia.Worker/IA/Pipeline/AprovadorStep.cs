@@ -48,7 +48,7 @@ public class AprovadorStep : IPipelineStep
             estrategistaAprovador.ModeloAlvo,
             instrucoesAprovacao,
             Nome,
-            temperature: 0.3,
+            temperature: estrategistaAprovador.Temperatura,
             ct: context.CancellationToken);
 
         var jsonAprovacao = OpenRouterService.ExtrairJson(aprovacaoEstrategista);

@@ -53,7 +53,7 @@ public class QualidadeStep : IPipelineStep
             qualidade.ModeloAlvo,
             instrucoesQualidade,
             Nome,
-            temperature: 0.3,
+            temperature: qualidade.Temperatura,
             ct: context.CancellationToken);
 
         var jsonVeredito = OpenRouterService.ExtrairJson(vereditoQualidade);

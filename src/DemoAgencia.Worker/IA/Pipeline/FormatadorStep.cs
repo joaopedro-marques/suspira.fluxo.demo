@@ -37,6 +37,7 @@ public class FormatadorStep : IPipelineStep
                 formatadorFinal.ModeloAlvo,
                 $"Pedido original do usuario: {context.Mensagem}\n\nOutput aprovado para formatar:\n{context.OutputProducao}",
                 Nome,
+                temperature: formatadorFinal.Temperatura,
                 ct: context.CancellationToken);
 
             context.Resultado.RespostaFinal = respostaFormatada;

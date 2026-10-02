@@ -453,4 +453,55 @@ Persona";
         agente.Should().NotBeNull();
         agente!.Interno.Should().BeFalse();
     }
+
+    [Fact]
+    public async Task StartAsync_WithTemperaturaField_ShouldParseTemperatura()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+papel: producao
+temperatura: 0.8
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("TestAgent");
+        agente.Should().NotBeNull();
+        agente!.Temperatura.Should().Be(0.8);
+    }
+
+    [Fact]
+    public async Task StartAsync_WithoutTemperaturaField_ShouldDefaultTo07()
+    {
+        var markdownContent = @"---
+nome: TestAgent
+descricao: Test
+modelo_alvo: openai/gpt-4
+papel: producao
+---
+
+# TestAgent
+
+Persona";
+
+        var filePath = Path.Combine(_tempDir, "test.md");
+        await File.WriteAllTextAsync(filePath, markdownContent);
+
+        var loader = new AgenteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var agente = loader.ObterPorNome("TestAgent");
+        agente.Should().NotBeNull();
+        agente!.Temperatura.Should().Be(0.7);
+    }
 }

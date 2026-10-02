@@ -3,6 +3,7 @@ nome: Qualidade
 descricao: Revisor de qualidade das entregas dos agentes de producao
 modelo_alvo: google/gemini-flash-1.5
 papel: qualidade
+temperatura: 0.3
 interno: true
 ---
 

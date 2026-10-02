@@ -3,6 +3,7 @@ nome: Orquestrador
 descricao: Inteligencia de fluxo especializada em Marketing da Suspira
 modelo_alvo: google/gemini-flash-1.5
 papel: orquestrador
+temperatura: 0.2
 interno: true
 ---
 
