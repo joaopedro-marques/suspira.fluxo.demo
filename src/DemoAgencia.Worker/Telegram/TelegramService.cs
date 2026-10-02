@@ -1,63 +1,66 @@
 using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Seguranca;
-using Telegram.Bot;
+using Microsoft.Extensions.Options;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace DemoAgencia.Worker.Telegram;
 
 public class TelegramService : BackgroundService
 {
     private readonly ILogger<TelegramService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly AgenteLoader _agenteLoader;
-    private readonly OpenRouterService _openRouter;
+    private readonly TelegramOptions _options;
+    private readonly IAgentesCatalogo _agenteLoader;
+    private readonly IStreamingChat _openRouter;
+    private readonly IAnalisadorImagem _analisadorImagem;
     private readonly OrquestradorLoopService _loop;
-    private readonly HistoricoChat _historico;
-    private readonly StreamingService _streaming;
+    private readonly IHistoricoChat _historico;
+    private readonly IStreamingService _streaming;
     private readonly RateLimiterService _rateLimiter;
-    private readonly AnonimizadorService _anonimizador;
-    private TelegramBotClient? _botClient;
+    private readonly ITelegramGatewayFactory _gatewayFactory;
+    private ITelegramGateway? _gateway;
     private readonly Dictionary<long, string> _agentesPorChat = new();
 
     public TelegramService(
         ILogger<TelegramService> logger,
-        IConfiguration configuration,
-        AgenteLoader agenteLoader,
-        OpenRouterService openRouter,
+        IOptions<TelegramOptions> options,
+        IAgentesCatalogo agenteLoader,
+        IStreamingChat openRouter,
+        IAnalisadorImagem analisadorImagem,
         OrquestradorLoopService loop,
-        HistoricoChat historico,
-        StreamingService streaming,
+        IHistoricoChat historico,
+        IStreamingService streaming,
         RateLimiterService rateLimiter,
-        AnonimizadorService anonimizador)
+        ITelegramGatewayFactory gatewayFactory)
     {
         _logger = logger;
-        _configuration = configuration;
+        _options = options.Value;
         _agenteLoader = agenteLoader;
         _openRouter = openRouter;
+        _analisadorImagem = analisadorImagem;
         _loop = loop;
         _historico = historico;
         _streaming = streaming;
         _rateLimiter = rateLimiter;
-        _anonimizador = anonimizador;
+        _gatewayFactory = gatewayFactory;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var botToken = _configuration["Telegram:BotToken"];
+        var botToken = _options.BotToken;
         if (string.IsNullOrWhiteSpace(botToken))
         {
             _logger.LogError("Token do Telegram nao configurado. Defina Telegram__BotToken.");
             return;
         }
 
-        _botClient = new TelegramBotClient(botToken);
+        _gateway = _gatewayFactory.Create(botToken);
 
         try
         {
-            var me = await _botClient.GetMe(stoppingToken);
+            var me = await _gateway.GetMeAsync(stoppingToken);
             _logger.LogInformation("Bot conectado: @{Username} (ID: {Id})", me.Username, me.Id);
         }
         catch (Exception ex)
@@ -73,10 +76,7 @@ public class TelegramService : BackgroundService
         {
             try
             {
-                var updates = await _botClient.GetUpdates(
-                    offset: offset,
-                    timeout: 30,
-                    cancellationToken: stoppingToken);
+                var updates = await _gateway.GetUpdatesAsync(offset, 30, stoppingToken);
 
                 foreach (var update in updates)
                 {
@@ -109,10 +109,7 @@ public class TelegramService : BackgroundService
             {
                 if (!_rateLimiter.PodeProcessar(message.Chat.Id))
                 {
-                    await _botClient!.SendMessage(
-                        chatId: message.Chat.Id,
-                        text: "Voce esta enviando mensagens muito rapido. Aguarde um momento.",
-                        cancellationToken: ct);
+                    await _gateway!.SendMessageAsync(message.Chat.Id, "Voce esta enviando mensagens muito rapido. Aguarde um momento.", ct);
                     return;
                 }
 
@@ -144,10 +141,7 @@ public class TelegramService : BackgroundService
 
         if (command == "/start")
         {
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: "Bem-vindo! Sou o DemoAgencia Bot. Use /help para ver os comandos disponiveis.",
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Bem-vindo! Sou o DemoAgencia Bot. Use /help para ver os comandos disponiveis.", ct);
             return;
         }
 
@@ -155,29 +149,20 @@ public class TelegramService : BackgroundService
         {
             var agentes = _agenteLoader.ListarAgentes();
             var comandosAgentes = string.Join("\n", agentes.SelectMany(a => a.Comandos.Select(c => $"{c} - {a.Nome}: {a.Descricao}")));
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo orquestrador multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}",
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo orquestrador multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}", ct);
             return;
         }
 
         if (command == "/agentes")
         {
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: await GetAgentsList(),
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, await GetAgentsList(), ct);
             return;
         }
 
         if (command == "/limpar")
         {
             _historico.LimparHistorico(message.Chat.Id);
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: "Historico limpo.",
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Historico limpo.", ct);
             return;
         }
 
@@ -185,10 +170,7 @@ public class TelegramService : BackgroundService
         {
             _agentesPorChat.Remove(message.Chat.Id);
             _historico.LimparHistorico(message.Chat.Id);
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: "Agente deselecionado e historico limpo.",
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Agente deselecionado e historico limpo.", ct);
             return;
         }
 
@@ -198,14 +180,11 @@ public class TelegramService : BackgroundService
             if (string.IsNullOrEmpty(args))
             {
                 _agentesPorChat[message.Chat.Id] = command;
-                await _botClient!.SendMessage(
-                    chatId: message.Chat.Id,
-                    text: $"Agente {agente.Nome} selecionado. Envie sua mensagem para interagir diretamente.",
-                    cancellationToken: ct);
+                await _gateway!.SendMessageAsync(message.Chat.Id, $"Agente {agente.Nome} selecionado. Envie sua mensagem para interagir diretamente.", ct);
             }
             else
             {
-                await _botClient!.SendChatAction(message.Chat.Id, ChatAction.Typing, cancellationToken: ct);
+                await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
                 
                 await EnviarComStreaming(message.Chat.Id, async () =>
                 {
@@ -221,21 +200,17 @@ public class TelegramService : BackgroundService
             return;
         }
 
-        await _botClient!.SendMessage(
-            chatId: message.Chat.Id,
-            text: "Comando nao reconhecido. Use /help para ver os comandos disponiveis.",
-            cancellationToken: ct);
+        await _gateway!.SendMessageAsync(message.Chat.Id, "Comando nao reconhecido. Use /help para ver os comandos disponiveis.", ct);
     }
 
     private async Task HandleTextMessage(Message message, string text, CancellationToken ct)
     {
-        // Se ha um agente selecionado por comando, bypass direto
         if (_agentesPorChat.TryGetValue(message.Chat.Id, out var cmd))
         {
             var agente = _agenteLoader.ObterPorComando(cmd);
             if (agente != null)
             {
-                await _botClient!.SendChatAction(message.Chat.Id, ChatAction.Typing, cancellationToken: ct);
+                await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
                 
                 await EnviarComStreaming(message.Chat.Id, async () =>
                 {
@@ -251,30 +226,23 @@ public class TelegramService : BackgroundService
             }
         }
 
-        // Mensagem livre: pipeline multi-agente com progresso
-        Message? mensagemProgresso = null;
+        int? mensagemProgressoId = null;
 
         try
         {
-            mensagemProgresso = await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: "🧠 Analisando seu pedido...",
-                cancellationToken: ct);
+            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
+            mensagemProgressoId = msg.MessageId;
 
             var resultado = await _loop.ExecutarAsync(
                 message.Chat.Id,
                 text,
                 async (progresso) =>
                 {
-                    if (mensagemProgresso != null)
+                    if (mensagemProgressoId != null)
                     {
                         try
                         {
-                            await _botClient!.EditMessageText(
-                                chatId: message.Chat.Id,
-                                messageId: mensagemProgresso.MessageId,
-                                text: progresso,
-                                cancellationToken: ct);
+                            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, progresso, ct);
                         }
                         catch (Exception ex)
                         {
@@ -284,46 +252,28 @@ public class TelegramService : BackgroundService
                 },
                 ct);
 
-            // Enviar resposta final
             if (resultado.Imagem != null)
             {
                 using var stream = new MemoryStream(resultado.Imagem);
-                await _botClient!.SendPhoto(
-                    chatId: message.Chat.Id,
-                    photo: stream,
-                    caption: resultado.LegendaImagem ?? resultado.RespostaFinal,
-                    cancellationToken: ct);
+                await _gateway!.SendPhotoAsync(message.Chat.Id, stream, resultado.LegendaImagem ?? resultado.RespostaFinal, ct);
             }
 
             if (!string.IsNullOrEmpty(resultado.RespostaFinal))
             {
-                if (mensagemProgresso != null && resultado.Imagem == null)
+                if (mensagemProgressoId != null && resultado.Imagem == null)
                 {
-                    // Editar mensagem de progresso com resposta final
                     try
                     {
-                        await _botClient!.EditMessageText(
-                            chatId: message.Chat.Id,
-                            messageId: mensagemProgresso.MessageId,
-                            text: resultado.RespostaFinal,
-                            cancellationToken: ct);
+                        await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultado.RespostaFinal, ct);
                     }
                     catch
                     {
-                        // Se falhar ao editar, enviar nova mensagem
-                        await _botClient!.SendMessage(
-                            chatId: message.Chat.Id,
-                            text: resultado.RespostaFinal,
-                            cancellationToken: ct);
+                        await _gateway!.SendMessageAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                     }
                 }
                 else if (resultado.Imagem != null)
                 {
-                    // Se tem imagem, enviar texto como mensagem separada
-                    await _botClient!.SendMessage(
-                        chatId: message.Chat.Id,
-                        text: resultado.RespostaFinal,
-                        cancellationToken: ct);
+                    await _gateway!.SendMessageAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                 }
             }
         }
@@ -331,22 +281,15 @@ public class TelegramService : BackgroundService
         {
             _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
             
-            if (mensagemProgresso != null)
+            if (mensagemProgressoId != null)
             {
                 try
                 {
-                    await _botClient!.EditMessageText(
-                        chatId: message.Chat.Id,
-                        messageId: mensagemProgresso.MessageId,
-                        text: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
-                        cancellationToken: ct);
+                    await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.", ct);
                 }
                 catch
                 {
-                    await _botClient!.SendMessage(
-                        chatId: message.Chat.Id,
-                        text: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
-                        cancellationToken: ct);
+                    await _gateway!.SendMessageAsync(message.Chat.Id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.", ct);
                 }
             }
         }
@@ -354,62 +297,47 @@ public class TelegramService : BackgroundService
 
     private async Task HandlePhoto(Message message, CancellationToken ct)
     {
-        await _botClient!.SendChatAction(message.Chat.Id, ChatAction.Typing, cancellationToken: ct);
+        await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
 
         try
         {
             var photo = message.Photo!.OrderByDescending(p => p.FileSize).First();
-            var file = await _botClient!.GetFile(photo.FileId, ct);
-            
-            using var memoryStream = new MemoryStream();
-            await _botClient!.GetInfoAndDownloadFile(file.FileId, memoryStream, ct);
-            var imagemBytes = memoryStream.ToArray();
+            var imagemBytes = await _gateway!.DownloadFileAsync(photo.FileId, ct);
 
             var contexto = message.Caption;
-            var resposta = await _openRouter.AnalisarImagemAsync(
-                message.Chat.Id,
+            var resposta = await _analisadorImagem.DescreverImagemAsync(
                 imagemBytes,
                 contexto,
-                _historico,
                 ct);
 
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: resposta,
-                cancellationToken: ct);
+            _historico.AdicionarMensagem(message.Chat.Id, "user", contexto ?? "[imagem]");
+            _historico.AdicionarMensagem(message.Chat.Id, "assistant", resposta);
+
+            await _gateway!.SendMessageAsync(message.Chat.Id, resposta, ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao processar foto");
-            await _botClient!.SendMessage(
-                chatId: message.Chat.Id,
-                text: "Erro ao analisar a imagem. Tente novamente.",
-                cancellationToken: ct);
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Erro ao analisar a imagem. Tente novamente.", ct);
         }
     }
 
     private async Task EnviarComStreaming(long chatId, Func<Task<IAsyncEnumerable<string>>> obterStream, CancellationToken ct)
     {
-        Message? mensagemEnviada = null;
+        int? mensagemId = null;
 
         await _streaming.ProcessarStreamingAsync(
             chatId,
             await obterStream(),
             async (texto) =>
             {
-                mensagemEnviada = await _botClient!.SendMessage(
-                    chatId: chatId,
-                    text: texto,
-                    cancellationToken: ct);
-                return mensagemEnviada.MessageId;
+                var msg = await _gateway!.SendMessageAsync(chatId, texto, ct);
+                mensagemId = msg.MessageId;
+                return mensagemId.Value;
             },
-            async (messageId, texto) =>
+            async (msgId, texto) =>
             {
-                await _botClient!.EditMessageText(
-                    chatId: chatId,
-                    messageId: (int)messageId,
-                    text: texto,
-                    cancellationToken: ct);
+                await _gateway!.EditMessageTextAsync(chatId, (int)msgId, texto, ct);
             },
             ct);
     }
