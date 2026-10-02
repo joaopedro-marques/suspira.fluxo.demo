@@ -1,10 +1,10 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-62-green)
+![Tests](https://img.shields.io/badge/tests-103-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
-Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram com pipeline multi-agente e orquestração inteligente.
+Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram com loop de orquestração e referências visuais de clientes.
 
 ## Stack
 
@@ -16,37 +16,36 @@ Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram 
 
 ## Arquitetura
 
-O sistema utiliza um **loop de orquestracao** (padrao supervisor/hub-and-spoke):
+O sistema utiliza um **loop de orquestração** (padrão supervisor/hub-and-spoke):
 
 ```
 Mensagem Livre → OrquestradorLoopService → Loop (max 8 turnos):
   Orquestrador decide: chamar_agente | chamar_ferramenta | responder_direto | fora_contexto | finalizar
-  → finalizar aciona QA obrigatorio → Resposta Final
+  → finalizar aciona QA obrigatório → Resposta Final
 ```
 
-- **Orquestrador**: Loop supervisor que decide acoes a cada turno (JSON protocol)
-- **Agentes de producao**: Executam tarefas (Redator, Dev, Estrategista, Prompt para Imagens)
-- **Qualidade**: Revisor critico independente (obrigatorio antes de entregar)
-- **Ferramentas**: Registry generico (gerar_imagem)
+- **Orquestrador**: Loop supervisor que decide ações a cada turno (JSON protocol)
+- **Agentes de produção**: Executam tarefas (Redator, Dev, Estrategista, Prompt para Imagens)
+- **Qualidade**: Revisor crítico independente (obrigatório antes de entregar)
+- **Ferramentas**: Registry genérico (gerar_imagem)
+- **Referências de clientes**: Texto + imagens analisadas automaticamente quando cliente identificado
 
 ## Estrutura
 
 ```
 src/DemoAgencia.Worker/
-  ├── Telegram/          # Cliente Telegram e handlers
-  ├── Agentes/           # Loader de agentes .md
-  ├── IA/                # OrquestradorLoopService, OpenRouterService, Ferramentas/
-  └── Observabilidade/   # Serilog e Langfuse
+  ├── Telegram/              # Cliente Telegram (ITelegramGateway) e handlers
+  ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
+  ├── IA/                    # OrquestradorLoop, OpenRouterService, Ferramentas/
+  │   └── OrquestradorLoop/  # ParserDecisao, GateQualidade, EnriquecedorContextoCliente
+  ├── Referencias/           # IReferenciasCliente (texto + imagens)
+  ├── Configuracoes/         # Options pattern (LoopOptions, OpenRouterOptions, etc.)
+  ├── Seguranca/             # AnonimizadorService, RateLimiterService
+  └── Observabilidade/       # Serilog e Langfuse
 
 /Assets/
-  ├── agentes/           # Definicoes dos agentes (.md)
-  │   ├── orquestrador.md
-  │   ├── qualidade.md
-  │   ├── redator.md
-  │   ├── dev.md
-  │   ├── estrategista.md
-  │   └── criador_prompt-imagens.md
-  └── imagens/           # Exemplos para fluxo visual
+  ├── agentes/               # Definições dos agentes (.md)
+  └── referencias/           # CLIENTE_{nome}_{tipo}.ext (json, html, png, jpg)
 ```
 
 ## Execução Local
@@ -73,7 +72,7 @@ nano .env
 2. Configure:
     - `Telegram__BotToken` - Token do BotFather
     - `OpenRouter__ApiKey` - Chave da OpenRouter
-   - `Langfuse__PublicKey` / `Langfuse__SecretKey` - Chaves do Langfuse
+    - `Langfuse__PublicKey` / `Langfuse__SecretKey` - Chaves do Langfuse
 
 ### Deploy na VM Oracle
 
@@ -115,20 +114,6 @@ docker run -d \
   demoagencia
 ```
 
-## Status
-
-- [x] F1 - Fundação (scaffold, pacotes, Serilog, Dockerfile)
-- [x] F2 - Telegram (long polling, handlers, eco)
-- [x] F3 - Agentes .md (loader, cache, 3 agentes)
-- [x] F4 - SK + OpenRouter (roteamento híbrido, fallback, histórico)
-- [x] F5 - Streaming + multimodal (edição progressiva, análise de fotos, geração de imagens)
-- [x] F6 - Langfuse (observabilidade, traces de prompts/respostas)
-- [x] F7 - Deploy manual (runbook, scripts, checklist)
-- [x] F8 - Testes unitários (62 testes, xUnit + Moq + FluentAssertions)
-- [x] F9 - CI/CD (GitHub Actions: build, test, docker, security scan)
-- [x] F10 - Loop de orquestrador (supervisor hub-and-spoke, QA obrigatorio, ferramentas)
-- [x] F11 - Criador de prompt de imagens (agente de producao)
-
 ## Testes
 
 ```bash
@@ -139,7 +124,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**85 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, Ferramentas, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService.
+**103 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, GateQualidade, EnriquecedorContextoCliente, Ferramentas, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader.
 
 ## CI/CD
 
