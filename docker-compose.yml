@@ -19,6 +19,9 @@ services:
       - Langfuse__Host=${Langfuse__Host:-https://cloud.langfuse.com}
       - Seguranca__AnonimizarDados=${Seguranca__AnonimizarDados:-true}
       - Seguranca__MaxMensagensPorMinuto=${Seguranca__MaxMensagensPorMinuto:-5}
+      - GrafanaLoki__Endpoint=${GrafanaLoki__Endpoint}
+      - GrafanaLoki__LoginId=${GrafanaLoki__LoginId}
+      - GrafanaLoki__Password=${GrafanaLoki__Password}
     volumes:
       - ./logs:/app/logs
       - ./Assets:/app/Assets

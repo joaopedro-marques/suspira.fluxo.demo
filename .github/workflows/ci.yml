@@ -48,6 +48,9 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -61,8 +64,8 @@ jobs:
 
     - name: Test Docker image
       run: |
-        docker run --rm demoagencia:latest dotnet --version
-        docker run --rm demoagencia:latest ls -la /app/Assets/agentes/
+        docker run --rm --platform linux/arm64 demoagencia:latest dotnet --version
+        docker run --rm --platform linux/arm64 demoagencia:latest ls -la /app/Assets/agentes/
 
   validate-structure:
     name: Validate Project Structure
