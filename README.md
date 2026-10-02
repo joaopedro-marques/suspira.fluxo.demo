@@ -13,6 +13,7 @@ Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram 
 - Microsoft Semantic Kernel + OpenRouter
 - Serilog (logs locais)
 - Langfuse (observabilidade LLM)
+- Grafana Loki (observabilidade de logs)
 
 ## Arquitetura
 
@@ -41,7 +42,8 @@ src/DemoAgencia.Worker/
   ├── Referencias/           # IReferenciasCliente (texto + imagens)
   ├── Configuracoes/         # Options pattern (LoopOptions, OpenRouterOptions, etc.)
   ├── Seguranca/             # AnonimizadorService, RateLimiterService
-  └── Observabilidade/       # Serilog e Langfuse
+  ├── Observabilidade/       # Serilog e Langfuse
+  └── Contracts/             # LangfuseTrace, LangfuseTraceContext
 
 /Assets/
   ├── agentes/               # Definições dos agentes (.md)
@@ -124,7 +126,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**103 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, GateQualidade, EnriquecedorContextoCliente, Ferramentas, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader.
+**103 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, EnriquecedorContextoCliente, FerramentaRegistry, GerarImagemFerramenta, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader.
 
 ## CI/CD
 
