@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Observabilidade;
+using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using DemoAgencia.Worker.Telegram;
 using FluentAssertions;
@@ -55,10 +56,17 @@ public class TelegramServiceTests
             langfuseInterceptorMock.Object,
             Mock.Of<IHttpClientFactory>());
 
+        var referenciaLoaderMock = new Mock<ReferenciaClienteLoader>(
+            Mock.Of<ILogger<ReferenciaClienteLoader>>(),
+            Mock.Of<IConfiguration>(),
+            (string?)null);
+
         _pipelineMock = new Mock<PipelineService>(
             Mock.Of<ILogger<PipelineService>>(),
+            Mock.Of<ILoggerFactory>(),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
+            referenciaLoaderMock.Object,
             Mock.Of<HistoricoChat>(),
             Mock.Of<IConfiguration>());
 
