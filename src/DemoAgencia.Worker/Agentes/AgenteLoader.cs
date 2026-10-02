@@ -1,6 +1,6 @@
 namespace DemoAgencia.Worker.Agentes;
 
-public class AgenteLoader : IHostedService
+public class AgenteLoader : IHostedService, IAgentesCatalogo
 {
     private readonly ILogger<AgenteLoader> _logger;
     private readonly IConfiguration _configuration;
@@ -89,8 +89,6 @@ public class AgenteLoader : IHostedService
                     agente.ModeloAlvo = trimmed.Substring(12).Trim();
                 else if (trimmed.StartsWith("papel:", StringComparison.OrdinalIgnoreCase))
                     agente.Papel = trimmed.Substring(6).Trim().ToLowerInvariant();
-                else if (trimmed.StartsWith("tipo:", StringComparison.OrdinalIgnoreCase))
-                    agente.Tipo = trimmed.Substring(5).Trim().ToLowerInvariant();
                 else if (trimmed.StartsWith("interno:", StringComparison.OrdinalIgnoreCase))
                     agente.Interno = trimmed.Substring(8).Trim().ToLowerInvariant() == "true";
                 else if (trimmed.StartsWith("temperatura:", StringComparison.OrdinalIgnoreCase))
