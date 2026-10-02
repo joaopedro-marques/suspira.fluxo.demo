@@ -72,6 +72,9 @@ jobs:
           Langfuse__Host=https://cloud.langfuse.com
           Seguranca__AnonimizarDados=true
           Seguranca__MaxMensagensPorMinuto=5
+          GrafanaLoki__Endpoint=${{ secrets.GRAFANA_LOKI_ENDPOINT }}
+          GrafanaLoki__LoginId=${{ secrets.GRAFANA_LOKI_LOGIN_ID }}
+          GrafanaLoki__Password=${{ secrets.GRAFANA_LOKI_PASSWORD }}
           EOF
           
           echo "Parando container existente..."
