@@ -11,7 +11,6 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 {
     private readonly ILogger<OpenRouterService> _logger;
     private readonly OpenRouterOptions _options;
-    private readonly Kernel _kernel;
     private readonly LangfuseInterceptor _langfuse;
     private readonly IHttpClientFactory _httpClientFactory;
 
@@ -25,17 +24,18 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         _options = options.Value;
         _langfuse = langfuse;
         _httpClientFactory = httpClientFactory;
+    }
 
+    private Kernel CriarKernel(string modelo)
+    {
         var httpClient = _httpClientFactory.CreateClient("OpenRouter");
-
         var builder = Kernel.CreateBuilder();
         builder.AddOpenAIChatCompletion(
-            modelId: _options.DefaultModel,
+            modelId: string.IsNullOrEmpty(modelo) ? _options.DefaultModel : modelo,
             endpoint: new Uri(_options.BaseUrl),
             apiKey: _options.ApiKey,
             httpClient: httpClient);
-
-        _kernel = builder.Build();
+        return builder.Build();
     }
 
     public async IAsyncEnumerable<string> CompletarStreamingAsync(
@@ -48,7 +48,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
     {
         var traceContext = _langfuse.IniciarTrace(chatId, "chat-completion-streaming", modelo);
 
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
+        var kernel = CriarKernel(modelo);
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
         var chatHistory = new ChatHistory();
 
@@ -70,13 +71,12 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         var settings = new OpenAIPromptExecutionSettings
         {
-            ModelId = modelo,
             Temperature = 0.7,
             MaxTokens = 2000
         };
 
         var respostaCompleta = "";
-        await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(chatHistory, settings, _kernel, ct))
+        await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(chatHistory, settings, kernel, ct))
         {
             var content = chunk.Content;
             if (!string.IsNullOrEmpty(content))
@@ -99,7 +99,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         string? contexto,
         CancellationToken ct = default)
     {
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
+        var kernel = CriarKernel("qwen/qwen2.5-vl-72b-instruct");
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
         var chatHistory = new ChatHistory();
         chatHistory.AddSystemMessage("Voce e um assistente que analisa imagens. Descreva o que ve na imagem de forma clara e concisa.");
@@ -123,14 +124,13 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         var settings = new OpenAIPromptExecutionSettings
         {
-            ModelId = "qwen/qwen2.5-vl-72b-instruct",
             Temperature = 0.5,
             MaxTokens = 1000
         };
 
         try
         {
-            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
+            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
             var resposta = response.Content ?? "";
 
             _logger.LogInformation("Imagem analisada com sucesso");
@@ -219,7 +219,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
     {
         var traceContext = _langfuse.IniciarTrace(chatId, etapaNome, modelo);
 
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
+        var kernel = CriarKernel(modelo);
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
         var chatHistory = new ChatHistory();
 
@@ -234,12 +235,11 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         {
             var settings = new OpenAIPromptExecutionSettings
             {
-                ModelId = modelo,
                 Temperature = temperature,
                 MaxTokens = maxTokens
             };
 
-            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, _kernel, ct);
+            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
             var resposta = response.Content ?? "";
 
             _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modelo, resposta.Length);
