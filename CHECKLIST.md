@@ -22,7 +22,7 @@
 ### Comandos Básicos
 - [ ] `/start` - Bot responde com mensagem de boas-vindas
 - [ ] `/help` - Lista todos os comandos disponíveis
-- [ ] `/agentes` - Lista os agentes públicos (Redator, Dev, Estrategista)
+- [ ] `/agentes` - Lista os agentes públicos (Redator, Dev, Estrategista, Prompt para Imagens)
 - [ ] `/limpar` - Limpa histórico do chat
 - [ ] `/reset` - Deseleciona agente e limpa histórico
 
@@ -33,20 +33,23 @@
 - [ ] `/dev Crie uma função em Python que soma dois números` - Responde com código (streaming)
 - [ ] `/estrategista` - Seleciona agente estrategista
 - [ ] `/estrategista Como aumentar vendas de um e-commerce?` - Responde com estratégia (streaming)
+- [ ] `/prompt-imagem` - Seleciona agente Prompt para Imagens
+- [ ] `/prompt-imagem um gato azul em estilo cyberpunk` - Gera prompt otimizado em inglês
 
-### Pipeline Multi-Agente
-- [ ] Mensagem "Crie um post para Instagram" - Pipeline completo com progresso visível
-- [ ] Mensagem "O que é marketing de conteúdo?" - Rota direta (resposta simples)
-- [ ] Mensagem "Qual a capital do Brasil?" - Fora do contexto (mensagem fixa)
-- [ ] Pipeline mostra progresso: 🧠 → 📋 → ✍️ → 🔍 → ✅ → 📤
-- [ ] Qualidade reprova e pipeline refaz (máx 2 refações)
-- [ ] Pipeline excede refações - Mensagem de falha retornada
+### Loop de Orquestração (Mensagens Livres)
+- [ ] Mensagem "Crie um post para Instagram" - Loop completo com progresso visível
+- [ ] Mensagem "O que é marketing de conteúdo?" - Ação `responder_direto` (resposta simples)
+- [ ] Mensagem "Qual a capital do Brasil?" - Ação `fora_contexto` (mensagem fixa)
+- [ ] Loop mostra progresso: 🧠 Turno N / ✍️ Agente trabalhando / 🔧 Ferramenta / 🔍 Qualidade
+- [ ] Qualidade reprova e loop refaz (máx 2 refações)
+- [ ] Loop excede refações ou turnos - Mensagem de falha retornada
 
-### Geração de Imagens (via Pipeline)
-- [ ] Mensagem "Crie uma imagem de um gato azul" - Pipeline roteia para Editor de Imagens
-- [ ] Editor enriquece prompt com detalhes de direção de arte
-- [ ] Imagem gerada e enviada com legenda (pedido original)
-- [ ] QA revisa o prompt otimizado antes da geração
+### Geração de Imagens (via Loop)
+- [ ] Mensagem "Crie uma imagem de um gato azul" - Loop chama agente Prompt para Imagens
+- [ ] Agente gera prompt otimizado em inglês
+- [ ] Loop chama ferramenta `gerar_imagem` com o prompt
+- [ ] Imagem gerada via `qwen/qwen-image-3-pro` e enviada com legenda
+- [ ] QA revisa o entregável antes da entrega final
 
 ### Streaming (Comandos Diretos)
 - [ ] Mensagens via comando aparecem progressivamente (edição da mensagem)
@@ -81,9 +84,11 @@
 
 ## Tratamento de Erros
 
-### Fallback de Modelos
-- [ ] Simular erro em um modelo (ex: modelo indisponível)
-- [ ] Verificar se fallback funciona (string "modelo1,modelo2")
+### Proteções do Loop
+- [ ] JSON inválido do orquestrador - Sistema faz 1 retry automático
+- [ ] Ação repetida pelo orquestrador - Sistema avisa e pede abordagem diferente
+- [ ] Loop excede máx 8 turnos - Mensagem de falha retornada
+- [ ] QA reprova máx 2 vezes - Mensagem de falha retornada
 - [ ] Verificar se try-catch captura erros e retorna mensagem amigável
 
 ### Reconexão Telegram
@@ -94,7 +99,7 @@
 ### Mensagens Inválidas
 - [ ] Enviar comando inexistente - Bot responde com erro amigável
 - [ ] Enviar foto muito grande - Bot trata erro graciosamente
-- [ ] Pipeline com JSON inválido do orquestrador - Fallback para rota direta
+- [ ] Loop com JSON inválido do orquestrador - Retry automático, depois mensagem de falha
 
 ## Performance
 
