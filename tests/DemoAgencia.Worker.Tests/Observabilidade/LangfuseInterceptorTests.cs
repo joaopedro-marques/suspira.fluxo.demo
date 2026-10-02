@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.Contracts;
 using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Seguranca;
@@ -11,7 +12,7 @@ public class LangfuseInterceptorTests
 {
     private readonly Mock<ILogger<LangfuseInterceptor>> _loggerMock;
     private readonly Mock<LangfuseClient> _langfuseClientMock;
-    private readonly Mock<AnonimizadorService> _anonimizadorMock;
+    private readonly AnonimizadorService _anonimizador;
     private readonly LangfuseInterceptor _interceptor;
 
     public LangfuseInterceptorTests()
@@ -20,10 +21,9 @@ public class LangfuseInterceptorTests
         _langfuseClientMock = new Mock<LangfuseClient>(
             Mock.Of<ILogger<LangfuseClient>>(),
             Mock.Of<Microsoft.Extensions.Configuration.IConfiguration>());
-        _anonimizadorMock = new Mock<AnonimizadorService>(
-            Mock.Of<Microsoft.Extensions.Configuration.IConfiguration>());
-        _anonimizadorMock.Setup(x => x.Anonimizar(It.IsAny<string>())).Returns<string>(s => s);
-        _interceptor = new LangfuseInterceptor(_loggerMock.Object, _langfuseClientMock.Object, _anonimizadorMock.Object);
+        _anonimizador = new AnonimizadorService(
+            TestOptions.Create(new SegurancaOptions { AnonimizarDados = false }));
+        _interceptor = new LangfuseInterceptor(_loggerMock.Object, _langfuseClientMock.Object, _anonimizador);
     }
 
     [Fact]

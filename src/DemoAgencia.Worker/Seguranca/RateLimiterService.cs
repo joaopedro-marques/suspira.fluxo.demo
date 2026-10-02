@@ -1,19 +1,22 @@
+using DemoAgencia.Worker.Configuracoes;
+using Microsoft.Extensions.Options;
+
 namespace DemoAgencia.Worker.Seguranca;
 
 public class RateLimiterService
 {
-    private readonly IConfiguration _configuration;
+    private readonly SegurancaOptions _options;
     private readonly Dictionary<long, Queue<DateTime>> _janelas = new();
     private readonly object _lock = new();
 
-    public RateLimiterService(IConfiguration configuration)
+    public RateLimiterService(IOptions<SegurancaOptions> options)
     {
-        _configuration = configuration;
+        _options = options.Value;
     }
 
     public bool PodeProcessar(long chatId)
     {
-        var maxPorMinuto = _configuration.GetValue<int>("Seguranca:MaxMensagensPorMinuto", 5);
+        var maxPorMinuto = _options.MaxMensagensPorMinuto;
         var janela = TimeSpan.FromMinutes(1);
 
         lock (_lock)
