@@ -347,12 +347,12 @@ cp .env.example .env
 Preencha o arquivo `.env`:
 
 ```env
-Telegram__BotToken=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
-OpenRouter__ApiKey=sk-or-v1-abc123...
+Telegram__BotToken="token"
+OpenRouter__ApiKey="apikey"
 OpenRouter__BaseUrl=https://openrouter.ai/api/v1
 OpenRouter__DataCollection=deny
-Langfuse__PublicKey=pk-lf-abc123...
-Langfuse__SecretKey=sk-lf-abc123...
+Langfuse__PublicKey="privatekey"
+Langfuse__SecretKey="secret-key"
 Langfuse__Host=https://cloud.langfuse.com
 Seguranca__AnonimizarDados=true
 Seguranca__MaxMensagensPorMinuto=5

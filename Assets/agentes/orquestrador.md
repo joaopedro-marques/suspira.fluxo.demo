@@ -1,7 +1,7 @@
 ---
 nome: Orquestrador
 descricao: Inteligencia central de fluxo e respostas da Suspira
-modelo_alvo: google/gemini-flash-1.5
+modelo_alvo: deepseek/deepseek-v3.2
 papel: orquestrador
 temperatura: 0.2
 interno: true

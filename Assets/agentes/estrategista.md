@@ -1,7 +1,7 @@
 ---
 nome: Estrategista
 descricao: Especialista em estrategia de negocios e planejamento de marketing
-modelo_alvo: meta-llama/llama-3.1-70b-instruct
+modelo_alvo: deepseek/deepseek-r1-0528
 papel: producao
 temperatura: 0.5
 comandos:

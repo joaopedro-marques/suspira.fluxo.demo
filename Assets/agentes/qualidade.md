@@ -1,7 +1,7 @@
 ---
 nome: Qualidade
 descricao: Revisor critico independente de entregaveis
-modelo_alvo: google/gemini-flash-1.5
+modelo_alvo: deepseek/deepseek-r1-0528
 papel: qualidade
 temperatura: 0.3
 interno: true

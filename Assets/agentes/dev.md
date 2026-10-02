@@ -1,7 +1,7 @@
 ---
 nome: Dev
 descricao: Especialista em desenvolvimento de pagina html
-modelo_alvo: anthropic/claude-3.5-sonnet
+modelo_alvo: qwen/qwen-2.5-coder-32b-instruct
 papel: producao
 temperatura: 0.2
 comandos:

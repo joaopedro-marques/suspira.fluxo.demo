@@ -1,7 +1,7 @@
 ---
 nome: Prompt para Imagens
 descricao: Especialista em direcao de arte e prompts de geracao de imagem para marketing
-modelo_alvo: google/gemini-flash-1.5
+modelo_alvo: qwen/qwen3.7-plus
 papel: producao
 temperatura: 0.7
 comandos:
