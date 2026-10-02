@@ -1,5 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Ferramentas;
+using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
@@ -17,7 +19,7 @@ public class TelegramServiceTests
     private readonly IConfiguration _configuration;
     private readonly Mock<AgenteLoader> _agenteLoaderMock;
     private readonly Mock<OpenRouterService> _openRouterMock;
-    private readonly Mock<PipelineService> _pipelineMock;
+    private readonly Mock<OrquestradorLoopService> _loopMock;
     private readonly Mock<HistoricoChat> _historicoMock;
     private readonly Mock<StreamingService> _streamingMock;
     private readonly Mock<RateLimiterService> _rateLimiterMock;
@@ -61,14 +63,14 @@ public class TelegramServiceTests
             Mock.Of<IConfiguration>(),
             (string?)null);
 
-        _pipelineMock = new Mock<PipelineService>(
-            Mock.Of<ILogger<PipelineService>>(),
-            Mock.Of<ILoggerFactory>(),
+        _loopMock = new Mock<OrquestradorLoopService>(
+            Mock.Of<ILogger<OrquestradorLoopService>>(),
+            Mock.Of<IConfiguration>(),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             referenciaLoaderMock.Object,
             Mock.Of<HistoricoChat>(),
-            Mock.Of<IConfiguration>());
+            new FerramentaRegistry());
 
         _historicoMock = new Mock<HistoricoChat>();
         _streamingMock = new Mock<StreamingService>(Mock.Of<ILogger<StreamingService>>());
@@ -84,7 +86,7 @@ public class TelegramServiceTests
             _configuration,
             _agenteLoaderMock.Object,
             _openRouterMock.Object,
-            _pipelineMock.Object,
+            _loopMock.Object,
             _historicoMock.Object,
             _streamingMock.Object,
             _rateLimiterMock.Object,
@@ -108,7 +110,7 @@ public class TelegramServiceTests
             config,
             _agenteLoaderMock.Object,
             _openRouterMock.Object,
-            _pipelineMock.Object,
+            _loopMock.Object,
             _historicoMock.Object,
             _streamingMock.Object,
             _rateLimiterMock.Object,

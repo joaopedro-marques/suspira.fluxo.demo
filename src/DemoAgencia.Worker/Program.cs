@@ -38,7 +38,6 @@ try
     builder.Services.AddSingleton<AnonimizadorService>();
     builder.Services.AddSingleton<RateLimiterService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.OpenRouterService>();
-    builder.Services.AddSingleton<DemoAgencia.Worker.IA.PipelineService>();
     builder.Services.AddSingleton<DemoAgencia.Worker.IA.StreamingService>();
     builder.Services.AddSingleton<FerramentaRegistry>(sp =>
     {

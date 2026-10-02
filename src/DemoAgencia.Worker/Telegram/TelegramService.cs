@@ -1,5 +1,6 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Seguranca;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -13,7 +14,7 @@ public class TelegramService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly AgenteLoader _agenteLoader;
     private readonly OpenRouterService _openRouter;
-    private readonly PipelineService _pipeline;
+    private readonly OrquestradorLoopService _loop;
     private readonly HistoricoChat _historico;
     private readonly StreamingService _streaming;
     private readonly RateLimiterService _rateLimiter;
@@ -27,7 +28,7 @@ public class TelegramService : BackgroundService
         IConfiguration configuration,
         AgenteLoader agenteLoader,
         OpenRouterService openRouter,
-        PipelineService pipeline,
+        OrquestradorLoopService loop,
         HistoricoChat historico,
         StreamingService streaming,
         RateLimiterService rateLimiter,
@@ -37,7 +38,7 @@ public class TelegramService : BackgroundService
         _configuration = configuration;
         _agenteLoader = agenteLoader;
         _openRouter = openRouter;
-        _pipeline = pipeline;
+        _loop = loop;
         _historico = historico;
         _streaming = streaming;
         _rateLimiter = rateLimiter;
@@ -190,7 +191,7 @@ public class TelegramService : BackgroundService
             var comandosAgentes = string.Join("\n", agentes.SelectMany(a => a.Comandos.Select(c => $"{c} - {a.Nome}: {a.Descricao}")));
             await _botClient!.SendMessage(
                 chatId: message.Chat.Id,
-                text: $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo pipeline multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}",
+                text: $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo orquestrador multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}",
                 cancellationToken: ct);
             return;
         }
@@ -294,7 +295,7 @@ public class TelegramService : BackgroundService
                 text: "🧠 Analisando seu pedido...",
                 cancellationToken: ct);
 
-            var resultado = await _pipeline.ExecutarAsync(
+            var resultado = await _loop.ExecutarAsync(
                 message.Chat.Id,
                 text,
                 async (progresso) =>
