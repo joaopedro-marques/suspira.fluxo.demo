@@ -36,12 +36,13 @@ Comandos:
 /limpar - Limpa histórico do chat
 /reset - Deseleciona agente e limpa histórico
 
-Mensagens livres são processadas pelo pipeline multi-agente.
+Mensagens livres são processadas pelo orquestrador multi-agente.
 
 Agentes (atalhos diretos):
 /redator - Redator: Especialista em copywriting
-/dev - Dev: Especialista em desenvolvimento
+/dev - Dev: Especialista em desenvolvimento de pagina html
 /estrategista - Estrategista: Especialista em estratégia
+/prompt-imagem - Prompt para Imagens: Especialista em direcao de arte
 ```
 
 ---
@@ -62,11 +63,14 @@ Agentes disponíveis:
 • Redator - Especialista em copywriting e criação de conteúdo persuasivo
   Comandos: /redator
 
-• Dev - Especialista em desenvolvimento de software e arquitetura de código
+• Dev - Especialista em desenvolvimento de pagina html
   Comandos: /dev
 
-• Estrategista - Especialista em estratégia de negócios e planejamento
+• Estrategista - Especialista em estrategia de negocios e planejamento de marketing
   Comandos: /estrategista
+
+• Prompt para Imagens - Especialista em direcao de arte e prompts de geracao de imagem para marketing
+  Comandos: /prompt-imagem
 ```
 
 ---
@@ -87,27 +91,27 @@ Seleciona o agente Redator (copywriting).
 ```
 **Resposta:** [Resposta gerada pelo LLM com persona do redator]
 
-**Modelo:** `anthropic/claude-3.5-sonnet`
+**Modelo:** `qwen/qwen3.7-plus`
 
 ---
 
 ### `/dev`
 
-Seleciona o agente Dev (desenvolvimento).
+Seleciona o agente Dev (desenvolvimento de páginas HTML para e-mail marketing).
 
 **Uso sem args:**
 ```
 /dev
 ```
-**Resposta:** `Agente Dev selecionado. Envie sua mensagem para interagir.`
+**Resposta:** `Agente Dev selecionado. Envie sua mensagem para interagir diretamente.`
 
 **Uso com args:**
 ```
-/dev Crie uma função em Python que soma dois números
+/dev Crie um template de e-mail marketing para Black Friday
 ```
-**Resposta:** [Código gerado pelo LLM com persona do dev]
+**Resposta:** [Código HTML gerado pelo LLM com persona do dev]
 
-**Modelo:** `anthropic/claude-3.5-sonnet`
+**Modelo:** `qwen/qwen-2.5-coder-32b-instruct`
 
 ---
 
@@ -127,7 +131,27 @@ Seleciona o agente Estrategista (planejamento).
 ```
 **Resposta:** [Estratégia gerada pelo LLM com persona do estrategista]
 
-**Modelo:** `meta-llama/llama-3.1-70b-instruct`
+**Modelo:** `deepseek/deepseek-r1-0528`
+
+---
+
+### `/prompt-imagem`
+
+Seleciona o agente Prompt para Imagens (direção de arte).
+
+**Uso sem args:**
+```
+/prompt-imagem
+```
+**Resposta:** `Agente Prompt para Imagens selecionado. Envie sua mensagem para interagir diretamente.`
+
+**Uso com args:**
+```
+/prompt-imagem um gato azul em estilo cyberpunk para Instagram
+```
+**Resposta:** [Prompt otimizado em inglês gerado pelo LLM]
+
+**Modelo:** `qwen/qwen3.7-plus`
 
 ---
 
@@ -159,76 +183,93 @@ Deseleciona o agente ativo e limpa o histórico.
 
 ## Mensagens Livres
 
-Mensagens livres (sem comando) são processadas pelo pipeline multi-agente:
+Mensagens livres (sem comando) são processadas pelo **loop de orquestração** (padrão supervisor):
 
 ```mermaid
 flowchart TD
-    MSG[Mensagem Livre] --> ORQ[Orquestrador]
-    ORQ --> DEC{Decisão}
-    DEC -->|fora_contexto| FIX[Mensagem Fixa]
-    DEC -->|direta| DIR[Resposta Direta]
-    DEC -->|pipeline| PIPE[Pipeline Completo]
+    MSG[Mensagem Livre] --> ORQ[OrquestradorLoopService]
     
-    PIPE --> EST[Estrategista Planeja]
-    EST --> PROD[Produção]
-    PROD --> QA[Qualidade]
-    QA -->|Aprovado| APROV[Estrategista Aprova]
-    QA -->|Reprovado| PROD
-    APROV -->|Aprovado| FORM[Formatador]
-    APROV -->|Reprovado| PROD
-    FORM --> RESP[Resposta Final]
+    ORQ --> LOOP{Loop - max 8 turnos}
+    
+    LOOP -->|responder_direto| DIR[Resposta Direta]
+    LOOP -->|fora_contexto| FIX[Mensagem Fixa]
+    LOOP -->|chamar_agente| AG[Agente Especializado]
+    LOOP -->|chamar_ferramenta| FT[Ferramenta]
+    LOOP -->|finalizar| QA[Qualidade]
+    
+    AG -->|output no transcript| LOOP
+    FT -->|resultado no transcript| LOOP
+    
+    QA -->|aprovado| RESP[Resposta Final]
+    QA -->|reprovado max 2| LOOP
+    QA -->|reprovado excedido| FALHA[Mensagem de Falha]
 ```
 
-### Rotas do Orquestrador
+### Ações do Orquestrador
 
-| Rota | Descrição | Exemplo |
+| Ação | Descrição | Exemplo |
 |------|-----------|---------|
+| `responder_direto` | Resposta direta a perguntas simples | "O que é marketing de conteúdo?" |
 | `fora_contexto` | Fora do escopo da Suspira (Marketing) | "Qual a capital do Brasil?" |
-| `direta` | Pergunta simples dentro do contexto | "O que é marketing de conteúdo?" |
-| `pipeline` | Tarefa de produção complexa | "Crie um post para Instagram" |
+| `chamar_agente` | Delega a um agente especializado | "Crie um post para Instagram" |
+| `chamar_ferramenta` | Usa uma ferramenta (ex: gerar_imagem) | "Gere uma imagem de um gato" |
+| `finalizar` | Entregável pronto → QA obrigatório → entrega | Tarefa complexa concluída |
 
-### Pipeline Completo
+### Loop de Orquestração
 
-O pipeline executa as seguintes etapas:
+O orquestrador opera em um loop de **máximo 8 turnos**, decidindo a cada turno qual ação executar:
 
-1. **🧠 Orquestrador**: Analisa intenção e decide rota
-2. **📋 Estrategista**: Planeja execução e seleciona agente de produção
-3. **✍️ Produção**: Agente especializado executa a tarefa
-4. **🔍 Qualidade**: Revisa o output (aprovado/reprovado)
-5. **✅ Estrategista**: Aprova o resultado final
-6. **📤 Formatador**: Formata resposta para o Telegram
+1. **🧠 Turno N**: Orquestrador analisa o transcript e decide a ação
+2. **✍️ Agente trabalhando**: Agente especializado executa tarefa (output entra no transcript)
+3. **🔧 Ferramenta**: Ferramenta executada (resultado entra no transcript)
+4. **🔍 Qualidade**: QA revisa o entregável (aprovado/reprovado)
 
-**Máximo de refações:** 2 (configurável)
+**Proteções do loop:**
+- JSON inválido do orquestrador → 1 retry automático
+- Ação repetida → aviso para abordagem diferente
+- Máximo 8 turnos → mensagem de falha
+- QA reprova máx 2 vezes → mensagem de falha
 
-**Progresso:** O bot atualiza a mensagem com o progresso de cada etapa.
+**Progresso:** O bot atualiza a mensagem com o progresso de cada turno.
 
 ### Agentes de Produção
 
 | Agente | Especialidade | Modelo |
 |--------|---------------|--------|
-| Redator | Copywriting e conteúdo | Claude 3.5 Sonnet |
-| Dev | Desenvolvimento e código | Claude 3.5 Sonnet |
-| Editor de Imagens | Direção de arte e geração | Claude 3.5 Sonnet + GPT Image |
+| Redator | Copywriting e conteúdo | qwen/qwen3.7-plus |
+| Dev | Desenvolvimento de páginas HTML (e-mail marketing) | qwen/qwen-2.5-coder-32b-instruct |
+| Estrategista | Estratégia de negócios e marketing | deepseek/deepseek-r1-0528 |
+| Prompt para Imagens | Direção de arte e prompts de geração | qwen/qwen3.7-plus |
+
+### Agentes Internos (não listados em /agentes)
+
+| Agente | Papel | Modelo |
+|--------|-------|--------|
+| Orquestrador | Loop supervisor | deepseek/deepseek-v3.2 |
+| Qualidade | Revisor crítico independente | deepseek/deepseek-r1-0528 |
 
 ### Geração de Imagens
 
-Para solicitar imagens, use mensagens naturais:
+Para solicitar imagens, use mensagens naturais ou o comando `/prompt-imagem`:
 
-**Exemplo:**
+**Exemplo via mensagem livre:**
 ```
 Crie uma imagem de um gato azul em estilo cyberpunk
 ```
 
-**Fluxo:**
-1. Orquestrador detecta intenção de imagem
-2. Pipeline roteia para Editor de Imagens
-3. Editor enriquece o prompt com detalhes de direção de arte
-4. Imagem é gerada via GPT Image
-5. QA revisa o prompt otimizado
-6. Estrategista aprova
-7. Imagem enviada com legenda (pedido original)
+**Exemplo via comando:**
+```
+/prompt-imagem um gato azul em estilo cyberpunk para Instagram
+```
 
-**Resposta:** [Imagem gerada enviada como foto]
+**Fluxo (via loop):**
+1. Orquestrador detecta intenção de imagem
+2. Loop chama agente "Prompt para Imagens" (gera prompt otimizado em inglês)
+3. Loop chama ferramenta `gerar_imagem` com o prompt
+4. Imagem gerada via `qwen/qwen-image-3-pro`
+5. Loop finaliza → QA revisa → entrega
+
+**Resposta:** [Imagem gerada enviada como foto com legenda]
 
 ---
 
@@ -240,7 +281,7 @@ Envie uma foto para análise multimodal.
 ```
 [Envia foto]
 ```
-**Resposta:** Descrição da imagem pelo Gemini Flash.
+**Resposta:** Descrição da imagem pelo modelo `qwen/qwen2.5-vl-72b-instruct`.
 
 **Com legenda:**
 ```
