@@ -86,7 +86,7 @@ O projeto já possui um workflow configurado em `.github/workflows/ci.yml` com 5
 
 | Job | Descrição | Gatilho |
 |-----|-----------|---------|
-| **build-and-test** | Build .NET 10 + 85 testes unitários com coverage | Push/PR |
+| **build-and-test** | Build .NET 10 + 103 testes unitários com coverage | Push/PR |
 | **docker-build** | Build da imagem Docker ARM64 | Após build-and-test |
 | **validate-structure** | Valida arquivos obrigatórios e .env.example | Após build-and-test |
 | **security-scan** | Verifica secrets e pacotes vulneráveis | Após build-and-test |
@@ -356,6 +356,9 @@ Langfuse__SecretKey="secret-key"
 Langfuse__Host=https://cloud.langfuse.com
 Seguranca__AnonimizarDados=true
 Seguranca__MaxMensagensPorMinuto=5
+GrafanaLoki__Endpoint=https://logs-prod-012.grafana.net
+GrafanaLoki__LoginId=seu-user-id
+GrafanaLoki__Password=sua-api-key
 ```
 
 **Importante**:
@@ -429,10 +432,12 @@ cat ~/.ssh/github_deploy_key
 | `SSH_KEY` | *(conteúdo de `~/.ssh/github_deploy_key`)* | Chave privada SSH (copiar tudo, incluindo `-----BEGIN` e `-----END`) |
 | `SSH_PORT` | `22` | Porta SSH (opcional, default 22) |
 | `TELEGRAM_BOT_TOKEN` | `.` | Token do BotFather |
-| `TELEGRAM_CHAT_IDS` | *(vazio ou IDs separados por vírgula)* | Chat IDs permitidos |
 | `OPENROUTER_API_KEY` | `` | Chave da OpenRouter |
 | `LANGFUSE_PUBLIC_KEY` | `` | Public key do Langfuse |
 | `LANGFUSE_SECRET_KEY` | `` | Secret key do Langfuse |
+| `GRAFANA_LOKI_ENDPOINT` | `` | Endpoint do Grafana Loki (opcional) |
+| `GRAFANA_LOKI_LOGIN_ID` | `` | Login ID do Grafana Loki (opcional) |
+| `GRAFANA_LOKI_PASSWORD` | `` | API key do Grafana Loki (opcional) |
 
 ### 5.4 Como Funciona o Deploy Automático
 
@@ -565,7 +570,9 @@ docker inspect --format='{{.State.Health.Status}}' demoagencia
 | `/redator Escreva um slogan` | Testa streaming |
 | `/dev` | Seleciona agente dev |
 | `/estrategista` | Seleciona agente estrategista |
-| `/imagem um gato azul` | Gera imagem |
+| `/prompt-imagem` | Seleciona agente Prompt para Imagens |
+| `/prompt-imagem um gato azul` | Gera prompt otimizado para imagem |
+| Mensagem livre com intenção de imagem | Pipeline gera imagem via ferramenta |
 | `/limpar` | Limpa histórico |
 | `/reset` | Deseleciona agente |
 | Mensagem livre | Testa pipeline completo |
@@ -991,4 +998,4 @@ Após deploy bem-sucedido:
 
 ---
 
-**Última atualização**: 2026-02-25
+**Última atualização**: 2026-10-02
