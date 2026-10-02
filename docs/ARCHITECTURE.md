@@ -19,35 +19,43 @@ graph TB
     subgraph "DemoAgencia Worker"
         TS[TelegramService]
         AL[AgenteLoader]
-        PS[PipelineService]
+        OL[OrquestradorLoopService]
         OR[OpenRouterService]
         SS[StreamingService]
         HC[HistoricoChat]
         LI[LangfuseInterceptor]
+        FR[FerramentaRegistry]
+        RC[ReferenciaClienteLoader]
     end
     
-    subgraph "Serviços Externos"
+    subgraph "Servicos Externos"
         OR_API[OpenRouter API]
         LF[Langfuse]
+        GL[Grafana Loki]
     end
     
     subgraph "Armazenamento"
         MD[Agentes .md]
+        REF[Referencias CLIENTE_*]
         LOG[Logs]
     end
     
     User -->|Mensagens| Bot
     Bot -->|Long Polling| TS
     TS -->|Carrega| AL
-    TS -->|Pipeline| PS
-    PS -->|Executa| OR
+    TS -->|Loop| OL
+    OL -->|Executa| OR
+    OL -->|Ferramentas| FR
+    OL -->|Referencias| RC
     OR -->|API| OR_API
     OR -->|Traces| LI
     LI -->|Envia| LF
     TS -->|Streaming| SS
-    TS -->|Histórico| HC
-    AL -->|Lê| MD
+    TS -->|Historico| HC
+    AL -->|Le| MD
+    RC -->|Le| REF
     TS -->|Logs| LOG
+    LOG --> GL
 ```
 
 ## Orquestrador Loop (Supervisor)
@@ -154,7 +162,7 @@ flowchart LR
 3. **Loop** injeta as referencias no transcript do orquestrador
 4. **Orquestrador** usa o contexto enriquecido ao chamar agentes de producao
 
-**Configuracao:**
+**Configuracao (appsettings.json):**
 
 ```json
 {
@@ -163,9 +171,18 @@ flowchart LR
     "MaxRefacoesQa": 2,
     "MensagemForaContexto": "...",
     "MensagemFalha": "..."
+  },
+  "Pipeline": {
+    "Referencias": {
+      "MaxCharsPorArquivo": 4000
+    }
   }
 }
 ```
+
+**Extensões suportadas:**
+- Texto: `.json`, `.html`, `.htm`, `.md`, `.txt`, `.css`
+- Imagem: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
 
 ### Fluxo do Loop
 
@@ -227,65 +244,85 @@ graph LR
 
 ## Fluxo de Mensagem
 
-### Fluxo Principal (Texto)
+### Fluxo Principal (Comando de Agente)
 
 ```mermaid
 sequenceDiagram
-    participant U as Usuário
+    participant U as Usuario
     participant T as Telegram Bot
     participant TS as TelegramService
-    participant RS as RoteadorService
+    participant AL as AgenteLoader
     participant OR as OpenRouterService
     participant SK as Semantic Kernel
     participant ORAPI as OpenRouter API
     participant LF as Langfuse
     
-    U->>T: Mensagem
+    U->>T: /redator mensagem
     T->>TS: Update (Long Polling)
-    TS->>TS: Parse comando/texto
-    
-    alt É comando de agente
-        TS->>RS: Roteear(comando)
-        RS->>RS: Busca agente por comando
-    else É mensagem livre
-        TS->>RS: Roteear(mensagem)
-        RS->>OR: ClassificarAsync(mensagem)
-        OR->>SK: Classificação
-        SK->>ORAPI: Gemini Flash
-        ORAPI-->>SK: Categoria
-        SK-->>OR: "codigo"|"estrategia"|"copy"|"geral"
-        OR-->>RS: Categoria
-        RS->>RS: Mapeia categoria → modelo
-    end
-    
-    RS-->>TS: (modelo, persona)
+    TS->>AL: ObterPorComando(/redator)
+    AL-->>TS: AgenteDefinicao (persona, modelo)
     
     TS->>TS: SendChatAction (typing)
-    TS->>OR: CompletarStreamingAsync
-    OR->>SK: Chat com histórico
-    OR->>LI: IniciarTrace
+    TS->>OR: CompletarStreamingAsync(mensagem, persona, modelo)
+    OR->>SK: Chat com historico
+    OR->>LF: IniciarTrace
     
-    loop Streaming
+    loop Streaming (throttle 1s)
         SK->>ORAPI: Request
         ORAPI-->>SK: Chunk
         SK-->>OR: IAsyncEnumerable
-        OR-->>SS: Chunk
-        SS-->>TS: EditMessageText
-        TS-->>T: Edit message
+        OR-->>TS: Chunk
+        TS-->>T: EditMessageText
         T-->>U: Mensagem atualizada
     end
     
-    OR->>LI: FinalizarTrace
-    LI->>LF: EnviarTrace
+    OR->>LF: FinalizarTrace
     OR-->>TS: Resposta completa
-    TS->>HC: Salvar no histórico
 ```
 
-### Fluxo de Imagem (Análise)
+### Fluxo Principal (Mensagem Livre - Loop)
 
 ```mermaid
 sequenceDiagram
-    participant U as Usuário
+    participant U as Usuario
+    participant T as Telegram Bot
+    participant TS as TelegramService
+    participant OL as OrquestradorLoopService
+    participant O as Orquestrador (LLM)
+    participant A as Agente Especializado
+    participant F as Ferramenta (gerar_imagem)
+    participant Q as Qualidade
+    
+    U->>T: Mensagem livre
+    T->>TS: Update (Long Polling)
+    TS->>OL: ExecutarAsync(chatId, mensagem)
+    
+    loop Max 8 turnos
+        OL->>O: Transcript + contexto
+        O-->>OL: JSON {acao: ...}
+        
+        alt chamar_agente
+            OL->>A: Briefing autocontido
+            A-->>OL: Output (entra no transcript)
+        else chamar_ferramenta
+            OL->>F: Parametros
+            F-->>OL: Resultado (entra no transcript)
+        else finalizar
+            OL->>Q: Entregavel para revisao
+            Q-->>OL: {aprovado: true/false}
+        end
+    end
+    
+    OL-->>TS: ResultadoPipeline (resposta + imagem?)
+    TS-->>T: SendMessage/SendPhoto
+    T-->>U: Resposta final
+```
+
+### Fluxo de Imagem (Analise)
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
     participant T as Telegram Bot
     participant TS as TelegramService
     participant OR as OpenRouterService
@@ -296,62 +333,39 @@ sequenceDiagram
     T->>TS: Update com Photo
     TS->>TS: Download foto
     TS->>TS: SendChatAction (typing)
-    TS->>OR: AnalisarImagemAsync
+    TS->>OR: DescreverImagemAsync(imagem, contexto)
     OR->>SK: Chat com ImageContent
-    SK->>ORAPI: Gemini Flash (multimodal)
-    ORAPI-->>SK: Descrição
+    SK->>ORAPI: qwen/qwen2.5-vl-72b-instruct (multimodal)
+    ORAPI-->>SK: Descricao
     SK-->>OR: Resposta
-    OR-->>TS: Descrição da imagem
+    OR-->>TS: Descricao da imagem
     TS->>T: SendMessage
     T-->>U: Resposta
 ```
 
-### Fluxo de Geração de Imagem
+### Fluxo de Geracao de Imagem (via Ferramenta)
 
 ```mermaid
 sequenceDiagram
-    participant U as Usuário
+    participant U as Usuario
     participant T as Telegram Bot
     participant TS as TelegramService
+    participant OL as OrquestradorLoopService
     participant OR as OpenRouterService
     participant ORAPI as OpenRouter API
     
-    U->>T: /imagem prompt
-    T->>TS: Update com comando
-    TS->>TS: SendChatAction (upload_photo)
-    TS->>OR: GerarImagemAsync(prompt)
-    OR->>ORAPI: POST /images/generations
+    U->>T: Mensagem com intencao de imagem
+    T->>TS: Update
+    TS->>OL: ExecutarAsync()
+    OL->>OL: chamar_ferramenta gerar_imagem
+    OL->>OR: GerarImagemAsync(prompt)
+    OR->>ORAPI: POST /images/generations (qwen/qwen-image-3-pro)
     ORAPI-->>OR: b64_json
-    OR-->>TS: byte[] imagem
+    OR-->>OL: byte[] imagem
+    OL->>OL: finalizar → QA
+    OL-->>TS: ResultadoPipeline (imagem + legenda)
     TS->>T: SendPhoto
     T-->>U: Imagem gerada
-```
-
-## Roteamento de Modelos
-
-```mermaid
-flowchart TD
-    START[Mensagem Recebida] --> CHECK{É comando?}
-    
-    CHECK -->|Sim| AGENT{Agente existe?}
-    CHECK -->|Não| CLASSIFY[Classificador<br/>Gemini Flash]
-    
-    AGENT -->|Sim| USE_AGENT[Usa modelo do agente]
-    AGENT -->|Não| CLASSIFY
-    
-    CLASSIFY --> CAT{Categoria}
-    
-    CAT -->|codigo| CLAUDE[claude-3.5-sonnet]
-    CAT -->|estrategia| LLAMA[llama-3.1-70b-instruct]
-    CAT -->|copy| CLAUDE
-    CAT -->|geral| GEMINI[gemini-flash-1.5]
-    
-    USE_AGENT --> RESP[Resposta]
-    CLAUDE --> RESP
-    LLAMA --> RESP
-    GEMINI --> RESP
-    
-    RESP --> HIST[Salva no Histórico]
 ```
 
 ## Estrutura do Projeto
@@ -360,8 +374,8 @@ flowchart TD
 graph TD
     subgraph "src/DemoAgencia.Worker"
         direction TB
-        PROG[Program.cs<br/>Configuração DI + Serilog]
-        WORK[Worker.cs<br/>Heartbeat]
+        PROG[Program.cs<br/>Configuracao DI + Serilog]
+        SCE[ServiceCollectionExtensions.cs<br/>Composicao DI]
         
         subgraph "Telegram/"
             TS2[TelegramService.cs<br/>Long polling + handlers]
@@ -384,20 +398,29 @@ graph TD
             HC2[HistoricoChat.cs<br/>Contexto por chat]
         end
         
+        subgraph "Seguranca/"
+            AN[AnonimizadorService.cs]
+            RL[RateLimiterService.cs]
+        end
+        
         subgraph "Observabilidade/"
             LI2[LangfuseInterceptor.cs<br/>Cria traces]
             LC2[LangfuseClient.cs<br/>HTTP client]
         end
+
+        subgraph "Contracts/"
+            LT[LangfuseTrace.cs]
+            LTC[LangfuseTraceContext.cs]
+        end
     end
     
     subgraph "Assets/"
-        MD2[agentes/*.md<br/>Definições dos agentes]
-        REF[referencias/CLIENTE_*<br/>Referências de clientes]
-        IMG[imagens/<br/>Exemplos visuais]
+        MD2[agentes/*.md<br/>Definicoes dos agentes]
+        REF[referencias/CLIENTE_*<br/>Referencias de clientes]
     end
     
     subgraph "tests/"
-        TEST[DemoAgencia.Worker.Tests<br/>85 testes unitarios]
+        TEST[DemoAgencia.Worker.Tests<br/>103 testes unitarios]
     end
 ```
 
@@ -431,7 +454,7 @@ graph TB
     DEV -->|Push| GIT
     GIT -->|Trigger| CI
     CI -->|Build + Test| CI
-    CI -->|Deploy manual| DOCKER
+    CI -->|Deploy automatico via SSH| DOCKER
     DOCKER -->|Run| APP
     APP -->|Long Polling| TG
     APP -->|API Calls| OR3
@@ -450,7 +473,7 @@ stateDiagram-v2
     Parsing --> Ready: Parse frontmatter + persona
     Ready --> Idle: Aguarda comandos
     
-    Idle --> Selected: /redator, /dev, /estrategista
+    Idle --> Selected: /redator, /dev, /estrategista, /prompt-imagem
     Selected --> Processing: Mensagem recebida
     Processing --> Streaming: LLM responde
     Streaming --> Idle: Resposta completa
@@ -574,27 +597,28 @@ quadrantChart
 
 ```mermaid
 roadmap
-    title Evolução do DemoAgencia
+    title Evolucao do DemoAgencia
     section PoC (Atual)
-    Worker Service :done, 2024-01, 2024-02
-    Telegram Bot :done, 2024-01, 2024-02
-    Agentes .md :done, 2024-01, 2024-02
-    OpenRouter :done, 2024-02, 2024-03
-    Langfuse :done, 2024-02, 2024-03
+    Worker Service :done, 2025-01, 2025-03
+    Telegram Bot :done, 2025-01, 2025-03
+    Agentes .md :done, 2025-01, 2025-03
+    Loop de Orquestracao :done, 2025-03, 2025-06
+    OpenRouter :done, 2025-02, 2025-04
+    Langfuse :done, 2025-02, 2025-04
+    Referencias de Clientes :done, 2025-06, 2025-07
     
     section MVP
-    Banco de dados :2024-04, 2024-05
-    Autenticação :2024-04, 2024-05
-    Multi-tenant :2024-05, 2024-06
+    Banco de dados :2026-01, 2026-03
+    Autenticacao :2026-02, 2026-04
+    Multi-tenant :2026-03, 2026-05
     
-    section Produção
-    Kubernetes :2024-07, 2024-09
-    Monitoramento avançado :2024-07, 2024-08
-    Auto-scaling :2024-08, 2024-10
+    section Producao
+    Kubernetes :2026-06, 2026-08
+    Monitoramento avancado :2026-06, 2026-07
+    Auto-scaling :2026-07, 2026-09
 ```
 
-## Referências
+## Referencias
 
-- [arquitetura.json](../arquitetura.json) - Especificação original do projeto
-- [RUNBOOK.md](../RUNBOOK.md) - Guia de deploy e operação
+- [RUNBOOK.md](../RUNBOOK.md) - Guia de deploy e operacao
 - [CHECKLIST.md](../CHECKLIST.md) - Checklist de aceite E2E
