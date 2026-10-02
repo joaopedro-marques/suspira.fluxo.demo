@@ -71,9 +71,8 @@ nano .env
 ```
 
 2. Configure:
-   - `Telegram__BotToken` - Token do BotFather
-   - `Telegram__ChatIdsPermitidos` - IDs de chat permitidos (opcional, vazio = modo demo)
-   - `OpenRouter__ApiKey` - Chave da OpenRouter
+    - `Telegram__BotToken` - Token do BotFather
+    - `OpenRouter__ApiKey` - Chave da OpenRouter
    - `Langfuse__PublicKey` / `Langfuse__SecretKey` - Chaves do Langfuse
 
 ### Deploy na VM Oracle

@@ -107,7 +107,6 @@ public class MeuServiceTests
 | Variável | Descrição | Obrigatória |
 |----------|-----------|-------------|
 | `Telegram__BotToken` | Token do bot Telegram | Sim |
-| `Telegram__ChatIdsPermitidos` | IDs de chat permitidos (CSV) | Não (vazio = modo demo) |
 | `OpenRouter__ApiKey` | Chave da API OpenRouter | Sim |
 | `OpenRouter__DataCollection` | Política de coleta de dados (deny/allow) | Não (default: deny) |
 | `Langfuse__PublicKey` | Public key Langfuse | Não |

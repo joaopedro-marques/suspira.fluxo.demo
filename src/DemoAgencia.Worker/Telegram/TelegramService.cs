@@ -21,7 +21,6 @@ public class TelegramService : BackgroundService
     private readonly AnonimizadorService _anonimizador;
     private TelegramBotClient? _botClient;
     private readonly Dictionary<long, string> _agentesPorChat = new();
-    private bool _allowlistAvisada = false;
 
     public TelegramService(
         ILogger<TelegramService> logger,
@@ -108,20 +107,6 @@ public class TelegramService : BackgroundService
         {
             if (update.Message is { } message)
             {
-                if (!ChatPermitido(message.Chat.Id))
-                {
-                    if (!_allowlistAvisada)
-                    {
-                        _logger.LogWarning("Chat {ChatId} nao esta na allowlist. Configure Telegram__ChatIdsPermitidos.", message.Chat.Id);
-                        _allowlistAvisada = true;
-                    }
-                    await _botClient!.SendMessage(
-                        chatId: message.Chat.Id,
-                        text: "Acesso restrito. Este bot esta configurado para chats especificos.",
-                        cancellationToken: ct);
-                    return;
-                }
-
                 if (!_rateLimiter.PodeProcessar(message.Chat.Id))
                 {
                     await _botClient!.SendMessage(
@@ -149,25 +134,6 @@ public class TelegramService : BackgroundService
         {
             _logger.LogError(ex, "Erro processando update {UpdateId}", update.Id);
         }
-    }
-
-    private bool ChatPermitido(long chatId)
-    {
-        var allowlistConfig = _configuration["Telegram:ChatIdsPermitidos"];
-        
-        if (string.IsNullOrWhiteSpace(allowlistConfig))
-        {
-            return true;
-        }
-
-        var idsPermitidos = allowlistConfig
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(id => id.Trim())
-            .Where(id => long.TryParse(id, out _))
-            .Select(long.Parse)
-            .ToHashSet();
-
-        return idsPermitidos.Contains(chatId);
     }
 
     private async Task HandleCommand(Message message, CancellationToken ct)

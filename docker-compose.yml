@@ -11,7 +11,6 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - Telegram__BotToken=${Telegram__BotToken}
-      - Telegram__ChatIdsPermitidos=${Telegram__ChatIdsPermitidos:-}
       - OpenRouter__ApiKey=${OpenRouter__ApiKey}
       - OpenRouter__BaseUrl=${OpenRouter__BaseUrl:-https://openrouter.ai/api/v1}
       - OpenRouter__DataCollection=${OpenRouter__DataCollection:-deny}

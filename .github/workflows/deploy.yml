@@ -1,0 +1,113 @@
+name: Deploy to VM
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+jobs:
+  ci:
+    name: CI Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity normal
+
+  deploy:
+    name: Deploy to Oracle VM
+    runs-on: ubuntu-latest
+    needs: ci
+    
+    steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT || 22 }}
+        script: |
+          set -e
+          
+          echo "=== Deploy DemoAgencia ==="
+          echo "Timestamp: $(date)"
+          
+          cd ~/demoagencia
+          
+          if [ ! -d ".git" ]; then
+            echo "Primeiro deploy - clonando repositorio..."
+            git clone ${{ github.server_url }}/${{ github.repository }}.git .
+          else
+            echo "Atualizando codigo..."
+            git fetch origin
+            git reset --hard origin/main
+          fi
+          
+          echo "Gerando arquivo .env..."
+          cat > .env << 'EOF'
+          Telegram__BotToken=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OpenRouter__ApiKey=${{ secrets.OPENROUTER_API_KEY }}
+          OpenRouter__BaseUrl=https://openrouter.ai/api/v1
+          OpenRouter__DataCollection=deny
+          Langfuse__PublicKey=${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          Langfuse__SecretKey=${{ secrets.LANGFUSE_SECRET_KEY }}
+          Langfuse__Host=https://cloud.langfuse.com
+          Seguranca__AnonimizarDados=true
+          Seguranca__MaxMensagensPorMinuto=5
+          EOF
+          
+          echo "Parando container existente..."
+          docker compose down || true
+          
+          echo "Construindo imagem..."
+          docker compose build --no-cache
+          
+          echo "Iniciando container..."
+          docker compose up -d
+          
+          echo "Aguardando inicializacao..."
+          sleep 10
+          
+          echo "Verificando status..."
+          docker compose ps
+          
+          echo "Verificando logs..."
+          docker compose logs --tail=20
+          
+          echo "=== Deploy concluido ==="
+
+    - name: Verify deployment
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.SSH_PORT || 22 }}
+        script: |
+          cd ~/demoagencia
+          
+          if docker compose ps | grep -q "Up"; then
+            echo "Container esta rodando"
+          else
+            echo "ERRO: Container nao esta rodando"
+            docker compose logs --tail=50
+            exit 1
+          fi
