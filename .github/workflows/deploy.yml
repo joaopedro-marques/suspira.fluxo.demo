@@ -70,12 +70,12 @@ jobs:
           OpenRouter__DefaultModel=openai/gpt-4o-mini
           Langfuse__PublicKey=${{ secrets.LANGFUSE_PUBLIC_KEY }}
           Langfuse__SecretKey=${{ secrets.LANGFUSE_SECRET_KEY }}
-          Langfuse__Host=https://cloud.langfuse.com
+          Langfuse__Host=${{ secrets.LANGFUSE_ENDPOINT }}
           Seguranca__AnonimizarDados=true
           Seguranca__MaxMensagensPorMinuto=5
-          GrafanaLoki__Endpoint=${{ secrets.GRAFANA_LOKI_ENDPOINT }}
-          GrafanaLoki__LoginId=${{ secrets.GRAFANA_LOKI_LOGIN_ID }}
-          GrafanaLoki__Password=${{ secrets.GRAFANA_LOKI_PASSWORD }}
+          GrafanaLoki__Endpoint=${{ secrets.GRAFANALOKI_ENDPOINT }}
+          GrafanaLoki__LoginId=${{ secrets.GRAFANALOKI_LOGINID }}
+          GrafanaLoki__Password=${{ secrets.GRAFANALOKI_PASSWORD }}
           EOF
           
           echo "Parando container existente..."
