@@ -25,17 +25,20 @@ public class TelegramBotGateway : ITelegramGateway
 
     public async Task<Message> SendMessageAsync(long chatId, string text, CancellationToken ct = default)
     {
-        return await _botClient.SendMessage(chatId: chatId, text: text, cancellationToken: ct);
+        var textoFormatado = TelegramTextFormatter.RemoverFormatacao(text);
+        return await _botClient.SendMessage(chatId: chatId, text: textoFormatado, cancellationToken: ct);
     }
 
     public async Task EditMessageTextAsync(long chatId, int messageId, string text, CancellationToken ct = default)
     {
-        await _botClient.EditMessageText(chatId: chatId, messageId: messageId, text: text, cancellationToken: ct);
+        var textoFormatado = TelegramTextFormatter.RemoverFormatacao(text);
+        await _botClient.EditMessageText(chatId: chatId, messageId: messageId, text: textoFormatado, cancellationToken: ct);
     }
 
     public async Task SendPhotoAsync(long chatId, Stream photo, string? caption, CancellationToken ct = default)
     {
-        await _botClient.SendPhoto(chatId: chatId, photo: photo, caption: caption, cancellationToken: ct);
+        var legendaFormatada = caption != null ? TelegramTextFormatter.RemoverFormatacao(caption) : caption;
+        await _botClient.SendPhoto(chatId: chatId, photo: photo, caption: legendaFormatada, cancellationToken: ct);
     }
 
     public async Task SendDocumentAsync(long chatId, Stream document, string fileName, string? caption, CancellationToken ct = default)
