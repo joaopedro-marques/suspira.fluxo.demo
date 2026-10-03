@@ -193,7 +193,7 @@ public class OrquestradorLoopService
                 case "finalizar":
                     var entregavel = !string.IsNullOrWhiteSpace(decisao.Entregavel)
                         ? decisao.Entregavel
-                        : context.UltimoOutputAgente ?? "";
+                        : context.Artefatos.LastOrDefault()?.Conteudo ?? context.UltimoOutputAgente ?? "";
                     context.Entregavel = entregavel;
 
                     if (!context.QaExecutado)
