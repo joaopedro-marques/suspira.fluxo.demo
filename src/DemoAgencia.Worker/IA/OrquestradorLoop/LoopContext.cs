@@ -10,6 +10,8 @@ public class LoopContext
 
     public string? Cliente { get; set; }
     public string? Entregavel { get; set; }
+    public string? UltimoAgente { get; set; }
+    public string? UltimoOutputAgente { get; set; }
     public bool QaExecutado { get; set; }
     public bool QaAprovado { get; set; }
     public string? FeedbackQa { get; set; }
