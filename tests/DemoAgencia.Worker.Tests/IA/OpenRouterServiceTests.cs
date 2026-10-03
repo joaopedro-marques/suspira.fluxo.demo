@@ -156,6 +156,35 @@ public class OpenRouterServiceTests
         result.Erro.Should().Contain("404");
     }
 
+    [Fact]
+    public async Task GerarImagemAsync_OnHttpError_ShouldFinalizeTrace()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Response = new HttpResponseMessage(HttpStatusCode.InternalServerError);
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var langfuseMock = new Mock<LangfuseInterceptor>(
+            Mock.Of<ILogger<LangfuseInterceptor>>(),
+            CreateLangfuseClient(),
+            CreateAnonimizador());
+        langfuseMock.Setup(x => x.FinalizarTraceAsync(
+            It.IsAny<DemoAgencia.Worker.Contracts.LangfuseTraceContext>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var loggerMock = new Mock<ILogger<OpenRouterService>>();
+        var optionsMock = new Mock<Microsoft.Extensions.Options.IOptions<OpenRouterOptions>>();
+        optionsMock.Setup(o => o.Value).Returns(CreateOptions());
+        var service = new OpenRouterService(loggerMock.Object, optionsMock.Object, langfuseMock.Object, httpClientFactory);
+
+        await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
+
+        langfuseMock.Verify(x => x.FinalizarTraceAsync(
+            It.IsAny<DemoAgencia.Worker.Contracts.LangfuseTraceContext>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static IHttpClientFactory CreateHttpClientFactory(CapturingTestHandler handler)
     {
         var client = new HttpClient(handler);
@@ -183,7 +212,17 @@ public class OpenRouterServiceTests
         var optionsMock = new Mock<Microsoft.Extensions.Options.IOptions<OpenRouterOptions>>();
         optionsMock.Setup(o => o.Value).Returns(options);
 
-        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+        var langfuseMock = new Mock<LangfuseInterceptor>(
+            Mock.Of<ILogger<LangfuseInterceptor>>(),
+            CreateLangfuseClient(),
+            CreateAnonimizador());
+
+        return new OpenRouterService(loggerMock.Object, optionsMock.Object, langfuseMock.Object, httpClientFactory);
+    }
+
+    private static LangfuseClient CreateLangfuseClient()
+    {
+        var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Langfuse:Host"] = "https://cloud.langfuse.com",
@@ -192,19 +231,16 @@ public class OpenRouterServiceTests
             })
             .Build();
 
-        var langfuseClient = new LangfuseClient(
+        return new LangfuseClient(
             Mock.Of<ILogger<LangfuseClient>>(),
             configuration);
+    }
 
-        var anonMock = new Mock<DemoAgencia.Worker.Seguranca.AnonimizadorService>(
+    private static DemoAgencia.Worker.Seguranca.AnonimizadorService CreateAnonimizador()
+    {
+        var mock = new Mock<DemoAgencia.Worker.Seguranca.AnonimizadorService>(
             Mock.Of<Microsoft.Extensions.Options.IOptions<DemoAgencia.Worker.Configuracoes.SegurancaOptions>>());
-
-        var langfuseMock = new Mock<LangfuseInterceptor>(
-            Mock.Of<ILogger<LangfuseInterceptor>>(),
-            langfuseClient,
-            anonMock.Object);
-
-        return new OpenRouterService(loggerMock.Object, optionsMock.Object, langfuseMock.Object, httpClientFactory);
+        return mock.Object;
     }
 
     private class CapturingTestHandler : HttpMessageHandler

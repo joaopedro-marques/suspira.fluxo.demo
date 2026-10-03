@@ -30,7 +30,7 @@ public class LangfuseInterceptor
         };
     }
 
-    public async Task FinalizarTraceAsync(
+    public virtual async Task FinalizarTraceAsync(
         LangfuseTraceContext contexto,
         string input,
         string output,
