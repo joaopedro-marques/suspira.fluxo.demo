@@ -670,4 +670,180 @@ public class OrquestradorLoopServiceTests
         var transcriptSent = firstOrqCall.Arguments[3].ToString();
         transcriptSent.Length.Should().BeLessThanOrEqualTo(500);
     }
+
+    [Fact]
+    public async Task ExecutarAsync_FinalizarSemEntregavel_ShouldUsarOutputDoAgente()
+    {
+        var orquestrador = CriarOrquestrador();
+        var dev = CriarAgente("Dev");
+        var qualidade = CriarAgente("Qualidade", "qualidade");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Dev")).Returns(dev);
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { dev }.AsReadOnly());
+
+        var codigoHtml = "<html><body><h1>Email completo</h1></body></html>";
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" => ++orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"Crie um email\"}"
+                        : "{\"acao\": \"finalizar\", \"entregavel\": \"\"}",
+                    "loop_agente_Dev" => codigoHtml,
+                    "loop_qualidade" => "{\"aprovado\": true, \"feedback\": \"OK\"}",
+                    _ => ""
+                };
+            });
+
+        var result = await _loop.ExecutarAsync(123, "crie um email");
+
+        result.RespostaFinal.Should().Be(codigoHtml);
+
+        var qaCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_qualidade")
+            .First();
+        var qaInput = qaCall.Arguments[3].ToString();
+        qaInput.Should().Contain(codigoHtml);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_FinalizarComEntregavel_ShouldUsarEntregavel()
+    {
+        var orquestrador = CriarOrquestrador();
+        var dev = CriarAgente("Dev");
+        var qualidade = CriarAgente("Qualidade", "qualidade");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Dev")).Returns(dev);
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { dev }.AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" => ++orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"Crie\"}"
+                        : "{\"acao\": \"finalizar\", \"entregavel\": \"entregavel formatado\"}",
+                    "loop_agente_Dev" => "codigo do dev",
+                    "loop_qualidade" => "{\"aprovado\": true, \"feedback\": \"OK\"}",
+                    _ => ""
+                };
+            });
+
+        var result = await _loop.ExecutarAsync(123, "crie algo");
+
+        result.RespostaFinal.Should().Be("entregavel formatado");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_FerramentaRepetidaComParametrosDiferentes_ShouldNaoBloquear()
+    {
+        var orquestrador = CriarOrquestrador();
+        var ferramentaMock = new Mock<IFerramenta>();
+        ferramentaMock.Setup(x => x.Nome).Returns("gerar_imagem");
+        ferramentaMock.Setup(x => x.Descricao).Returns("Gera imagem");
+        var callCount = 0;
+        ferramentaMock
+            .Setup(x => x.ExecutarAsync(It.IsAny<LoopContext>(), It.IsAny<System.Text.Json.JsonElement>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LoopContext ctx, System.Text.Json.JsonElement p, CancellationToken ct) =>
+            {
+                callCount++;
+                return $"Imagem {callCount} gerada";
+            });
+        _ferramentaRegistry.Registrar(ferramentaMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                orqCallCount++;
+                return orqCallCount switch
+                {
+                    1 => "{\"acao\": \"chamar_ferramenta\", \"ferramenta\": \"gerar_imagem\", \"parametros\": {\"prompt\": \"gato\"}}",
+                    2 => "{\"acao\": \"chamar_ferramenta\", \"ferramenta\": \"gerar_imagem\", \"parametros\": {\"prompt\": \"cachorro\"}}",
+                    3 => "{\"acao\": \"finalizar\", \"entregavel\": \"Duas imagens geradas\"}",
+                    _ => "{\"aprovado\": true, \"feedback\": \"OK\"}"
+                };
+            });
+
+        var result = await _loop.ExecutarAsync(123, "gere duas imagens");
+
+        callCount.Should().Be(2);
+        result.RespostaFinal.Should().Be("Duas imagens geradas");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_TranscriptTruncamento_ShouldManterTurnosRecentes()
+    {
+        var orquestrador = CriarOrquestrador();
+        var dev = CriarAgente("Dev");
+        var options = new LoopOptions
+        {
+            MaxTurnos = 8,
+            MaxRefacoesQa = 2,
+            MaxCharsContexto = 2000,
+            MaxCharsResultado = 5000,
+            MensagemFalha = "Falha no loop"
+        };
+
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Dev")).Returns(dev);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { dev }.AsReadOnly());
+
+        var outputDev = new string('X', 600);
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" => ++orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"Crie\"}"
+                        : "{\"acao\": \"finalizar\", \"entregavel\": \"OK\"}",
+                    "loop_agente_Dev" => outputDev,
+                    "loop_qualidade" => "{\"aprovado\": true}",
+                    _ => ""
+                };
+            });
+
+        await loop.ExecutarAsync(123, "mensagem");
+
+        var secondOrqCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_orquestrador")
+            .Skip(1)
+            .First();
+        var transcriptSent = secondOrqCall.Arguments[3].ToString();
+        transcriptSent.Should().Contain(outputDev);
+    }
 }
