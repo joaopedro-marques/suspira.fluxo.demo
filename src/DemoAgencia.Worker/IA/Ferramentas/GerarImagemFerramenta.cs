@@ -34,8 +34,7 @@ public class GerarImagemFerramenta : IFerramenta
 
         if (imagemBytes != null)
         {
-            context.Resultado.Imagem = imagemBytes;
-            context.Resultado.LegendaImagem = prompt;
+            context.Resultado.Imagens.Add(new ImagemGerada(imagemBytes, prompt));
             return $"Imagem gerada com sucesso. Prompt: {prompt}";
         }
 

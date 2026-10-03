@@ -227,13 +227,14 @@ public class TelegramService : BackgroundService
         }
 
         int? mensagemProgressoId = null;
+        ResultadoPipeline? resultado = null;
 
         try
         {
             var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
             mensagemProgressoId = msg.MessageId;
 
-            var resultado = await _loop.ExecutarAsync(
+            resultado = await _loop.ExecutarAsync(
                 message.Chat.Id,
                 text,
                 async (progresso) =>
@@ -252,15 +253,15 @@ public class TelegramService : BackgroundService
                 },
                 ct);
 
-            if (resultado.Imagem != null)
+            foreach (var imagem in resultado.Imagens)
             {
-                using var stream = new MemoryStream(resultado.Imagem);
-                await _gateway!.SendPhotoAsync(message.Chat.Id, stream, resultado.LegendaImagem ?? resultado.RespostaFinal, ct);
+                using var stream = new MemoryStream(imagem.Bytes);
+                await _gateway!.SendPhotoAsync(message.Chat.Id, stream, imagem.Legenda ?? resultado.RespostaFinal, ct);
             }
 
             if (!string.IsNullOrEmpty(resultado.RespostaFinal))
             {
-                if (mensagemProgressoId != null && resultado.Imagem == null)
+                if (mensagemProgressoId != null && resultado.Imagens.Count == 0)
                 {
                     try
                     {
@@ -271,7 +272,7 @@ public class TelegramService : BackgroundService
                         await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                     }
                 }
-                else if (resultado.Imagem != null)
+                else if (resultado.Imagens.Count > 0)
                 {
                     await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                 }
@@ -280,7 +281,23 @@ public class TelegramService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
-            
+
+            if (resultado?.Imagens.Count > 0)
+            {
+                foreach (var imagem in resultado.Imagens)
+                {
+                    try
+                    {
+                        using var stream = new MemoryStream(imagem.Bytes);
+                        await _gateway!.SendPhotoAsync(message.Chat.Id, stream, imagem.Legenda ?? "Imagem gerada", ct);
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "Erro ao enviar imagem parcial no catch");
+                    }
+                }
+            }
+
             if (mensagemProgressoId != null)
             {
                 try
