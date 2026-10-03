@@ -70,7 +70,7 @@ jobs:
           OpenRouter__DefaultModel=openai/gpt-4o-mini
           Langfuse__PublicKey=${{ secrets.LANGFUSE_PUBLIC_KEY }}
           Langfuse__SecretKey=${{ secrets.LANGFUSE_SECRET_KEY }}
-          Langfuse__Host=${{ secrets.LANGFUSE_ENDPOINT }}
+          Langfuse__Host=${{ secrets.LANGFUSE_HOST }}
           Seguranca__AnonimizarDados=true
           Seguranca__MaxMensagensPorMinuto=5
           GrafanaLoki__Endpoint=${{ secrets.GRAFANALOKI_ENDPOINT }}
