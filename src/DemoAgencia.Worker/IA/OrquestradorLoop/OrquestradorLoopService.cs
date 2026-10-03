@@ -78,6 +78,9 @@ public class OrquestradorLoopService
             await NotificarProgresso(onProgresso, $"🧠 Turno {context.Turnos}...");
 
             var transcriptText = MontarTranscript(transcript, _options.MaxCharsContexto);
+            var estadoTrabalho = EstadoTrabalhoBuilder.Build(context);
+            transcriptText += "\n\n" + estadoTrabalho;
+
             var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
                 chatId,
                 orquestrador.Persona,

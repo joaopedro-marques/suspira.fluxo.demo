@@ -678,7 +678,8 @@ public class OrquestradorLoopServiceTests
             .Where(i => i.Arguments[4].ToString() == "loop_orquestrador")
             .First();
         var transcriptSent = firstOrqCall.Arguments[3].ToString();
-        transcriptSent.Length.Should().BeLessThanOrEqualTo(500);
+        transcriptSent.Should().Contain("## Estado do trabalho");
+        transcriptSent.Should().Contain("Turno 1/8");
     }
 
     [Fact]
