@@ -112,8 +112,9 @@ public class OpenRouterServiceTests
 
         var result = await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
 
-        result.Should().NotBeNull();
-        result.Should().BeEquivalentTo(new byte[] { 1, 2, 3 });
+        result.Sucesso.Should().BeTrue();
+        result.Bytes.Should().BeEquivalentTo(new byte[] { 1, 2, 3 });
+        result.Erro.Should().BeNull();
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public class OpenRouterServiceTests
     }
 
     [Fact]
-    public async Task GerarImagemAsync_OnHttpError_ShouldReturnNull()
+    public async Task GerarImagemAsync_OnHttpError_ShouldReturnErrorReason()
     {
         var handler = new CapturingTestHandler();
         handler.Response = new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -150,7 +151,9 @@ public class OpenRouterServiceTests
 
         var result = await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
 
-        result.Should().BeNull();
+        result.Sucesso.Should().BeFalse();
+        result.Bytes.Should().BeNull();
+        result.Erro.Should().Contain("404");
     }
 
     private static IHttpClientFactory CreateHttpClientFactory(CapturingTestHandler handler)

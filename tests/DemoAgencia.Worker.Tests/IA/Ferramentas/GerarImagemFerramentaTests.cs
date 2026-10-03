@@ -18,7 +18,7 @@ public class GerarImagemFerramentaTests
         var imagemBytes = new byte[] { 1, 2, 3 };
         openRouterMock
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(imagemBytes);
+            .ReturnsAsync(new ResultadoImagem(imagemBytes, null));
 
         var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
         var context = new LoopContext { ChatId = 123 };
@@ -33,13 +33,13 @@ public class GerarImagemFerramentaTests
     }
 
     [Fact]
-    public async Task ExecutarAsync_WhenImageFails_ShouldReturnFailureMessage()
+    public async Task ExecutarAsync_WhenImageFails_ShouldReturnFailureMessageWithErrorReason()
     {
         var openRouterMock = new Mock<IGeradorImagem>();
 
         openRouterMock
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((byte[]?)null);
+            .ReturnsAsync(new ResultadoImagem(null, "HTTP 404 - endpoint not found"));
 
         var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
         var context = new LoopContext { ChatId = 123 };
@@ -48,6 +48,7 @@ public class GerarImagemFerramentaTests
         var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
 
         resultado.Should().Contain("Falha");
+        resultado.Should().Contain("HTTP 404");
         context.Resultado.Imagens.Should().BeEmpty();
     }
 
@@ -60,8 +61,8 @@ public class GerarImagemFerramentaTests
 
         openRouterMock
             .SetupSequence(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(img1)
-            .ReturnsAsync(img2);
+            .ReturnsAsync(new ResultadoImagem(img1, null))
+            .ReturnsAsync(new ResultadoImagem(img2, null));
 
         var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
         var context = new LoopContext { ChatId = 123 };

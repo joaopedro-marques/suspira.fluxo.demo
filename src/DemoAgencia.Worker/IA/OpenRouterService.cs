@@ -144,7 +144,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         }
     }
 
-    public virtual async Task<byte[]?> GerarImagemAsync(
+    public virtual async Task<ResultadoImagem> GerarImagemAsync(
         long chatId,
         string prompt,
         CancellationToken ct = default)
@@ -172,8 +172,9 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("Erro ao gerar imagem: {StatusCode}", response.StatusCode);
-                return null;
+                var erro = $"HTTP {(int)response.StatusCode} {response.StatusCode}";
+                _logger.LogError("Erro ao gerar imagem: {Erro}", erro);
+                return new ResultadoImagem(null, erro);
             }
 
             using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
@@ -181,26 +182,26 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
             if (data.GetArrayLength() == 0)
             {
                 _logger.LogError("Resposta sem imagens");
-                return null;
+                return new ResultadoImagem(null, "Resposta sem imagens");
             }
 
             var b64 = data[0].GetProperty("b64_json").GetString();
             if (string.IsNullOrEmpty(b64))
             {
                 _logger.LogError("b64_json vazio");
-                return null;
+                return new ResultadoImagem(null, "b64_json vazio");
             }
 
             _logger.LogInformation("Imagem gerada com sucesso");
 
             await _langfuse.FinalizarTraceAsync(traceContext, "[imagem gerada]", "[imagem gerada]", ct);
 
-            return Convert.FromBase64String(b64);
+            return new ResultadoImagem(Convert.FromBase64String(b64), null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao gerar imagem");
-            return null;
+            return new ResultadoImagem(null, $"Excecao: {ex.Message}");
         }
     }
 

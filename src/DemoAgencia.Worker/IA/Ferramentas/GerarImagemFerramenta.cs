@@ -30,14 +30,14 @@ public class GerarImagemFerramenta : IFerramenta
 
         _logger.LogInformation("Gerando imagem com prompt: {Prompt}", prompt);
 
-        var imagemBytes = await _openRouter.GerarImagemAsync(context.ChatId, prompt, ct);
+        var resultado = await _openRouter.GerarImagemAsync(context.ChatId, prompt, ct);
 
-        if (imagemBytes != null)
+        if (resultado.Sucesso)
         {
-            context.Resultado.Imagens.Add(new ImagemGerada(imagemBytes, prompt));
+            context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes!, prompt));
             return $"Imagem gerada com sucesso. Prompt: {prompt}";
         }
 
-        return "Falha ao gerar imagem";
+        return $"Falha ao gerar imagem: {resultado.Erro}";
     }
 }

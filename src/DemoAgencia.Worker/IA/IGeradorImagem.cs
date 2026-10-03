@@ -2,7 +2,7 @@ namespace DemoAgencia.Worker.IA;
 
 public interface IGeradorImagem
 {
-    Task<byte[]?> GerarImagemAsync(
+    Task<ResultadoImagem> GerarImagemAsync(
         long chatId,
         string prompt,
         CancellationToken ct = default);
