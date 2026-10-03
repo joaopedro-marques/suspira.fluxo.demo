@@ -21,4 +21,11 @@ public class LoopContext
 
     public int MaxTurnos { get; set; } = 8;
     public int MaxRefacoesQa { get; set; } = 2;
+
+    public List<Artefato> Artefatos { get; } = new();
+
+    public void AdicionarArtefato(Artefato artefato)
+    {
+        Artefatos.Add(artefato);
+    }
 }
