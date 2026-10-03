@@ -75,8 +75,7 @@ public class OrquestradorLoopService
 
             await NotificarProgresso(onProgresso, $"🧠 Turno {context.Turnos}...");
 
-            var transcriptText = string.Join("\n", transcript.Select(t => $"{t.role}: {t.content}"));
-            transcriptText = Truncar(transcriptText, _options.MaxCharsContexto);
+            var transcriptText = MontarTranscript(transcript, _options.MaxCharsContexto);
             var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
                 chatId,
                 orquestrador.Persona,
@@ -151,6 +150,9 @@ public class OrquestradorLoopService
                         temperature: agente.Temperatura,
                         ct: ct);
 
+                    context.UltimoAgente = agente.Nome;
+                    context.UltimoOutputAgente = output;
+
                     var outputTruncado = Truncar(output, _options.MaxCharsResultado);
                     transcript.Add(("assistant", respostaOrquestrador));
                     transcript.Add(("user", $"Resultado do agente {agente.Nome}: {outputTruncado}"));
@@ -177,7 +179,10 @@ public class OrquestradorLoopService
                     break;
 
                 case "finalizar":
-                    context.Entregavel = decisao.Entregavel;
+                    var entregavel = !string.IsNullOrWhiteSpace(decisao.Entregavel)
+                        ? decisao.Entregavel
+                        : context.UltimoOutputAgente ?? "";
+                    context.Entregavel = entregavel;
 
                     if (!context.QaExecutado)
                     {
@@ -187,7 +192,7 @@ public class OrquestradorLoopService
                         var qaResultado = await _gateQualidade.AvaliarAsync(
                             chatId,
                             context.Mensagem,
-                            decisao.Entregavel ?? "",
+                            entregavel,
                             ct);
 
                         context.QaAprovado = qaResultado.Aprovado;
@@ -212,8 +217,8 @@ public class OrquestradorLoopService
                         }
                     }
 
-                            context.Resultado.RespostaFinal = decisao.Entregavel ?? "";
-                            return context.Resultado;
+                    context.Resultado.RespostaFinal = entregavel;
+                    return context.Resultado;
 
                 default:
                     transcript.Add(("assistant", respostaOrquestrador));
@@ -242,7 +247,39 @@ public class OrquestradorLoopService
         var decisao = ParserDecisao.TentarExtrair(texto);
         if (decisao == null)
             return texto;
-        return $"{decisao.Acao}|{decisao.Agente}|{decisao.Briefing}|{decisao.Ferramenta}";
+        var parametros = decisao.Parametros?.GetRawText() ?? "";
+        return $"{decisao.Acao}|{decisao.Agente}|{decisao.Briefing}|{decisao.Ferramenta}|{parametros}";
+    }
+
+    private static string MontarTranscript(List<(string role, string content)> transcript, int maxChars)
+    {
+        var texto = string.Join("\n", transcript.Select(t => $"{t.role}: {t.content}"));
+        if (texto.Length <= maxChars)
+            return texto;
+
+        var cabecalho = transcript.Count >= 2
+            ? $"{transcript[0].role}: {transcript[0].content}\n{transcript[1].role}: {transcript[1].content}"
+            : $"{transcript[0].role}: {transcript[0].content}";
+
+        var separador = "\n... [contexto anterior truncado] ...\n";
+        var budgetRecentes = maxChars - cabecalho.Length - separador.Length;
+        if (budgetRecentes <= 0)
+            return Truncar(texto, maxChars);
+
+        var recentes = new List<string>();
+        for (var i = transcript.Count - 1; i >= 2; i--)
+        {
+            var linha = $"{transcript[i].role}: {transcript[i].content}";
+            var teste = string.Join("\n", recentes.Prepend(linha));
+            if (teste.Length > budgetRecentes)
+                break;
+            recentes.Insert(0, linha);
+        }
+
+        if (recentes.Count == 0)
+            return Truncar(texto, maxChars);
+
+        return cabecalho + separador + string.Join("\n", recentes);
     }
 
     private static async Task NotificarProgresso(Func<string, Task>? onProgresso, string mensagem)
