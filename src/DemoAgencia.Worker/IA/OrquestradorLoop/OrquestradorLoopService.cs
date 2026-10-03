@@ -95,6 +95,8 @@ public class OrquestradorLoopService
                     transcript.Add(("user", "Sua resposta nao continha JSON valido. Responda apenas com JSON."));
                     continue;
                 }
+                _logger.LogWarning("Orquestrador retornou JSON invalido 2x seguidas. Turno {Turno}, resposta {Length} chars. Trecho: {Trecho}",
+                    context.Turnos, respostaOrquestrador.Length, respostaOrquestrador[..Math.Min(200, respostaOrquestrador.Length)]);
                 context.Resultado.RespostaFinal = _options.MensagemFalha;
                 return context.Resultado;
             }
@@ -193,6 +195,8 @@ public class OrquestradorLoopService
                             context.RefacoesQa++;
                             if (context.RefacoesQa >= context.MaxRefacoesQa)
                             {
+                                _logger.LogWarning("MaxRefacoesQa excedido. Refacoes: {Refacoes}/{Max}. Feedback QA: {Feedback}",
+                                    context.RefacoesQa, context.MaxRefacoesQa, context.FeedbackQa);
                                 context.Resultado.RespostaFinal = _options.MensagemFalha;
                                 return context.Resultado;
                             }
@@ -214,6 +218,8 @@ public class OrquestradorLoopService
             }
         }
 
+        _logger.LogWarning("MaxTurnos esgotado. Turnos: {Turnos}/{Max}, ultima acao: {Acao}",
+            context.Turnos, context.MaxTurnos, context.UltimaAcaoHash);
         context.Resultado.RespostaFinal = _options.MensagemFalha;
         return context.Resultado;
     }

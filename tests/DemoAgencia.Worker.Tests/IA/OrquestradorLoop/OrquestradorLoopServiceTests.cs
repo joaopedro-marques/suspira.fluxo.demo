@@ -414,4 +414,111 @@ public class OrquestradorLoopServiceTests
 
         progressMessages.Should().NotBeEmpty();
     }
+
+    [Fact]
+    public async Task ExecutarAsync_InvalidJsonTwice_ShouldLogWarning()
+    {
+        var orquestrador = CriarOrquestrador();
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("JSON invalido");
+
+        var result = await _loop.ExecutarAsync(123, "mensagem");
+
+        result.RespostaFinal.Should().Be("Falha no loop");
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_MaxTurnosExceeded_ShouldLogWarning()
+    {
+        var orquestrador = CriarOrquestrador();
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"chamar_agente\", \"agente\": \"Inexistente\", \"briefing\": \"x\"}");
+
+        var options = new LoopOptions
+        {
+            MaxTurnos = 2,
+            MaxRefacoesQa = 2,
+            MensagemFalha = "Falha no loop"
+        };
+
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
+
+        var result = await loop.ExecutarAsync(123, "mensagem");
+
+        result.RespostaFinal.Should().Be("Falha no loop");
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_MaxRefacoesQaExceeded_ShouldLogWarning()
+    {
+        var orquestrador = CriarOrquestrador();
+        var qualidade = CriarAgente("Qualidade", "qualidade");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" => "{\"acao\": \"finalizar\", \"entregavel\": \"Entregavel\"}",
+                    "loop_qualidade" => "{\"aprovado\": false, \"feedback\": \"Ruim\"}",
+                    _ => ""
+                };
+            });
+
+        var result = await _loop.ExecutarAsync(123, "mensagem");
+
+        result.RespostaFinal.Should().Be("Falha no loop");
+        _loggerMock.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception, string>>()),
+            Times.AtLeastOnce);
+    }
 }
