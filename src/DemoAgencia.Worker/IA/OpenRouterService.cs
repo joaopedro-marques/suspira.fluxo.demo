@@ -159,10 +159,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         {
             model = "qwen/qwen-image-3-pro",
             prompt = prompt,
-            n = 1,
-            size = "1024x1024",
-            response_format = "b64_json",
-            provider = new { data_collection = _options.DataCollection }
+            n = 1
         };
 
         var json = System.Text.Json.JsonSerializer.Serialize(request);
@@ -170,7 +167,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         try
         {
-            var response = await httpClient.PostAsync($"{_options.BaseUrl}/images/generations", content, ct);
+            var response = await httpClient.PostAsync($"{_options.BaseUrl}/images", content, ct);
             var responseJson = await response.Content.ReadAsStringAsync(ct);
 
             if (!response.IsSuccessStatusCode)
