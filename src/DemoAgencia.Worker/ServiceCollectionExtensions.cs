@@ -68,13 +68,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OrquestradorLoopService>(sp =>
         {
             var logger = sp.GetRequiredService<ILogger<OrquestradorLoopService>>();
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
             var options = sp.GetRequiredService<IOptions<LoopOptions>>();
             var openRouter = sp.GetRequiredService<IServicoChat>();
             var agentes = sp.GetRequiredService<IAgentesCatalogo>();
             var refs = sp.GetRequiredService<IReferenciasCliente>();
             var ferramentas = sp.GetRequiredService<FerramentaRegistry>();
             var analisador = sp.GetRequiredService<IAnalisadorImagem>();
-            return new OrquestradorLoopService(logger, options, openRouter, agentes, refs, ferramentas, analisador);
+            return new OrquestradorLoopService(logger, loggerFactory, options, openRouter, agentes, refs, ferramentas, analisador);
         });
 
         services.AddSingleton<ITelegramGatewayFactory, TelegramGatewayFactory>();

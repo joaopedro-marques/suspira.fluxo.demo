@@ -21,6 +21,7 @@ public class OrquestradorLoopService
 
     public OrquestradorLoopService(
         ILogger<OrquestradorLoopService> logger,
+        ILoggerFactory loggerFactory,
         IOptions<LoopOptions> options,
         IServicoChat openRouter,
         IAgentesCatalogo agenteLoader,
@@ -36,7 +37,8 @@ public class OrquestradorLoopService
         _ferramentaRegistry = ferramentaRegistry;
         _gateQualidade = new GateQualidade(openRouter, agenteLoader);
         _promptBuilder = new PromptOrquestradorBuilder(agenteLoader, ferramentaRegistry);
-        _enriquecedor = new EnriquecedorContextoCliente(referenciaLoader, analisadorImagem);
+        var enriquecedorLogger = loggerFactory.CreateLogger<EnriquecedorContextoCliente>();
+        _enriquecedor = new EnriquecedorContextoCliente(referenciaLoader, analisadorImagem, enriquecedorLogger);
     }
 
     public virtual async Task<ResultadoPipeline> ExecutarAsync(

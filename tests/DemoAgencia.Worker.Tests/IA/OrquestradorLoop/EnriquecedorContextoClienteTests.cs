@@ -2,6 +2,7 @@ using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.OrquestradorLoop;
@@ -11,6 +12,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
     private readonly string _tempDir;
     private readonly Mock<IReferenciasCliente> _referenciasMock;
     private readonly Mock<IAnalisadorImagem> _analisadorMock;
+    private readonly Mock<ILogger<EnriquecedorContextoCliente>> _loggerMock;
 
     public EnriquecedorContextoClienteTests()
     {
@@ -18,6 +20,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         _referenciasMock = new Mock<IReferenciasCliente>();
         _analisadorMock = new Mock<IAnalisadorImagem>();
+        _loggerMock = new Mock<ILogger<EnriquecedorContextoCliente>>();
     }
 
     public void Dispose()
@@ -32,7 +35,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
         _referenciasMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("Manual de marca: cor #FF0000");
         _referenciasMock.Setup(x => x.ListarImagens("acme")).Returns(new List<string>().AsReadOnly());
 
-        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object);
+        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object, _loggerMock.Object);
         var contexto = await enriquecedor.ObterContextoAsync("acme");
 
         contexto.Should().Contain("Manual de marca");
@@ -49,7 +52,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
         _analisadorMock.Setup(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Logo circular com fundo azul");
 
-        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object);
+        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object, _loggerMock.Object);
         var contexto = await enriquecedor.ObterContextoAsync("acme");
 
         contexto.Should().Contain("Logo circular");
@@ -67,7 +70,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
         _analisadorMock.Setup(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("Banner com texto promocional");
 
-        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object);
+        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object, _loggerMock.Object);
         var contexto = await enriquecedor.ObterContextoAsync("acme");
 
         contexto.Should().Contain("Cores: vermelho");
@@ -80,7 +83,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
         _referenciasMock.Setup(x => x.ObterReferenciasTexto("unknown")).Returns("");
         _referenciasMock.Setup(x => x.ListarImagens("unknown")).Returns(new List<string>().AsReadOnly());
 
-        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object);
+        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object, _loggerMock.Object);
         var contexto = await enriquecedor.ObterContextoAsync("unknown");
 
         contexto.Should().BeEmpty();

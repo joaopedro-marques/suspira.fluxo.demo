@@ -99,19 +99,22 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         string? contexto,
         CancellationToken ct = default)
     {
-        var kernel = CriarKernel("qwen/qwen2.5-vl-72b-instruct");
+        var modeloVisao = "qwen/qwen2.5-vl-72b-instruct";
+        var traceContext = _langfuse.IniciarTrace(0, "image-analysis", modeloVisao);
+
+        var kernel = CriarKernel(modeloVisao);
         var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
         var chatHistory = new ChatHistory();
         chatHistory.AddSystemMessage("Voce e um assistente que analisa imagens. Descreva o que ve na imagem de forma clara e concisa.");
 
-        var prompt = string.IsNullOrEmpty(contexto) 
-            ? "Descreva esta imagem:" 
+        var prompt = string.IsNullOrEmpty(contexto)
+            ? "Descreva esta imagem:"
             : $"Contexto: {contexto}\n\nDescreva esta imagem:";
 
         var base64Image = Convert.ToBase64String(imagemBytes);
         var dataUri = $"data:image/png;base64,{base64Image}";
-        
+
         var chatMessage = new ChatMessageContent(
             AuthorRole.User,
             new ChatMessageContentItemCollection
@@ -133,13 +136,23 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
             var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
             var resposta = response.Content ?? "";
 
-            _logger.LogInformation("Imagem analisada com sucesso");
+            if (string.IsNullOrEmpty(resposta))
+            {
+                _logger.LogWarning("Analise de imagem retornou resposta vazia");
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[resposta vazia]", ct);
+            }
+            else
+            {
+                _logger.LogInformation("Imagem analisada com sucesso");
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, resposta, ct);
+            }
 
             return resposta;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao analisar imagem");
+            await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Erro: {ex.Message}", ct);
             throw;
         }
     }

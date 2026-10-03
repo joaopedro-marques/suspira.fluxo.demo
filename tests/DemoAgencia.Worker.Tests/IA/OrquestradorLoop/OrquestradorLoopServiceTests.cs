@@ -13,6 +13,7 @@ namespace DemoAgencia.Worker.Tests.IA.OrquestradorLoop;
 public class OrquestradorLoopServiceTests
 {
     private readonly Mock<ILogger<OrquestradorLoopService>> _loggerMock;
+    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<IServicoChat> _openRouterMock;
     private readonly Mock<IAgentesCatalogo> _agenteLoaderMock;
     private readonly Mock<IReferenciasCliente> _referenciaLoaderMock;
@@ -24,6 +25,9 @@ public class OrquestradorLoopServiceTests
     public OrquestradorLoopServiceTests()
     {
         _loggerMock = new Mock<ILogger<OrquestradorLoopService>>();
+        _loggerFactoryMock = new Mock<ILoggerFactory>();
+        _loggerFactoryMock.Setup(f => f.CreateLogger(It.IsAny<string>()))
+            .Returns(Mock.Of<ILogger>());
 
         _openRouterMock = new Mock<IServicoChat>();
 
@@ -45,6 +49,7 @@ public class OrquestradorLoopServiceTests
 
         _loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(_loopOptions),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -295,6 +300,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -465,6 +471,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -536,6 +543,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -582,6 +590,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -637,6 +646,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
@@ -807,6 +817,7 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
+            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,

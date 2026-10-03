@@ -39,6 +39,7 @@ public class TelegramServiceTests
 
         _loopMock = new Mock<OrquestradorLoopService>(
             Mock.Of<ILogger<OrquestradorLoopService>>(),
+            Mock.Of<ILoggerFactory>(),
             TestOptions.Create(new LoopOptions()),
             Mock.Of<IServicoChat>(),
             _agenteLoaderMock.Object,
