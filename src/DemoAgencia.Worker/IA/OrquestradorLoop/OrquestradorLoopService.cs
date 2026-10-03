@@ -158,9 +158,16 @@ public class OrquestradorLoopService
                     context.UltimoAgente = agente.Nome;
                     context.UltimoOutputAgente = output;
 
-                    var outputTruncado = Truncar(output, _options.MaxCharsResultado);
+                    var tipoArtefato = output.Contains("<html", StringComparison.OrdinalIgnoreCase)
+                        || output.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase)
+                        ? TipoArtefato.Html
+                        : TipoArtefato.Copy;
+                    var resumo = output.Length > 100 ? output[..100] + "..." : output;
+                    var artefato = Artefato.Criar(tipoArtefato, agente.Nome, output, resumo);
+                    context.AdicionarArtefato(artefato);
+
                     transcript.Add(("assistant", respostaOrquestrador));
-                    transcript.Add(("user", $"Resultado do agente {agente.Nome}: {outputTruncado}"));
+                    transcript.Add(("user", $"Agente {agente.Nome} produziu artefato {artefato.Id} ({tipoArtefato}, {output.Length} chars). Veja o estado do trabalho para detalhes."));
                     break;
 
                 case "chamar_ferramenta":

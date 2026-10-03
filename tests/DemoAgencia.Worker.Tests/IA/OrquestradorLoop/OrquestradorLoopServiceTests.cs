@@ -856,6 +856,8 @@ public class OrquestradorLoopServiceTests
             .Skip(1)
             .First();
         var transcriptSent = secondOrqCall.Arguments[3].ToString();
-        transcriptSent.Should().Contain(outputDev);
+        transcriptSent.Should().Contain("artefato art_");
+        transcriptSent.Should().Contain("600 chars");
+        transcriptSent.Should().Contain("## Estado do trabalho");
     }
 }
