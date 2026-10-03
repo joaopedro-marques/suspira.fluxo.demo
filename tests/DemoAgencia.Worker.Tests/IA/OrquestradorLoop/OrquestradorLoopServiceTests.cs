@@ -803,6 +803,53 @@ public class OrquestradorLoopServiceTests
     }
 
     [Fact]
+    public async Task ExecutarAsync_AgentCalledAfterPreviousAgent_ShouldIncludePreviousArtifactsInBriefing()
+    {
+        var orquestrador = CriarOrquestrador();
+        var estrategista = CriarAgente("Estrategista");
+        var redator = CriarAgente("Redator");
+        var qualidade = CriarAgente("Qualidade", "qualidade");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Estrategista")).Returns(estrategista);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Redator")).Returns(redator);
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { estrategista, redator }.AsReadOnly());
+
+        var outputEstrategista = "Plano estrategico: focar na etapa de vendas com funil simplificado";
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" => ++orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Estrategista\", \"briefing\": \"Planeje a campanha\"}"
+                        : orqCallCount == 2
+                            ? "{\"acao\": \"chamar_agente\", \"agente\": \"Redator\", \"briefing\": \"Escreva a copy\"}"
+                            : "{\"acao\": \"finalizar\", \"entregavel\": \"\"}",
+                    "loop_agente_Estrategista" => outputEstrategista,
+                    "loop_agente_Redator" => "Copy baseada no plano",
+                    "loop_qualidade" => "{\"aprovado\": true, \"feedback\": \"OK\"}",
+                    _ => ""
+                };
+            });
+
+        var result = await _loop.ExecutarAsync(123, "crie campanha para Acme Corp etapa de vendas");
+
+        var redatorCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_agente_Redator")
+            .First();
+        var briefingSent = redatorCall.Arguments[3].ToString();
+        briefingSent.Should().Contain("Trabalho previo de outros agentes");
+        briefingSent.Should().Contain(outputEstrategista);
+        briefingSent.Should().Contain("Output do Estrategista");
+    }
+
+    [Fact]
     public async Task ExecutarAsync_TranscriptTruncamento_ShouldManterTurnosRecentes()
     {
         var orquestrador = CriarOrquestrador();

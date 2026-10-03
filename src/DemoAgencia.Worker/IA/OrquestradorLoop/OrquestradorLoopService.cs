@@ -147,6 +147,16 @@ public class OrquestradorLoopService
                     context.Resultado.EtapasExecutadas.Add($"loop_agente_{agente.Nome}");
 
                     var briefing = decisao.Briefing ?? "";
+                    
+                    if (context.Artefatos.Count > 0)
+                    {
+                        briefing += "\n\n## Trabalho previo de outros agentes\n";
+                        foreach (var art in context.Artefatos)
+                        {
+                            briefing += $"\n### Output do {art.Agente} (artefato {art.Id}):\n{art.Conteudo}\n";
+                        }
+                    }
+                    
                     if (!string.IsNullOrEmpty(context.Cliente))
                     {
                         var refsCliente = _referenciaLoader.ObterReferenciasTexto(context.Cliente);
