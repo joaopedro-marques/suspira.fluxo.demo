@@ -76,6 +76,7 @@ public class OrquestradorLoopService
             await NotificarProgresso(onProgresso, $"🧠 Turno {context.Turnos}...");
 
             var transcriptText = string.Join("\n", transcript.Select(t => $"{t.role}: {t.content}"));
+            transcriptText = Truncar(transcriptText, _options.MaxCharsContexto);
             var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
                 chatId,
                 orquestrador.Persona,
@@ -150,8 +151,9 @@ public class OrquestradorLoopService
                         temperature: agente.Temperatura,
                         ct: ct);
 
+                    var outputTruncado = Truncar(output, _options.MaxCharsResultado);
                     transcript.Add(("assistant", respostaOrquestrador));
-                    transcript.Add(("user", $"Resultado do agente {agente.Nome}: {output}"));
+                    transcript.Add(("user", $"Resultado do agente {agente.Nome}: {outputTruncado}"));
                     break;
 
                 case "chamar_ferramenta":
@@ -169,8 +171,9 @@ public class OrquestradorLoopService
 
                     var toolResult = await ferramenta.ExecutarAsync(context, parametros, ct);
 
+                    var toolResultTruncado = Truncar(toolResult, _options.MaxCharsResultado);
                     transcript.Add(("assistant", respostaOrquestrador));
-                    transcript.Add(("user", $"Resultado da ferramenta {ferramenta.Nome}: {toolResult}"));
+                    transcript.Add(("user", $"Resultado da ferramenta {ferramenta.Nome}: {toolResultTruncado}"));
                     break;
 
                 case "finalizar":
@@ -248,5 +251,16 @@ public class OrquestradorLoopService
         {
             await onProgresso(mensagem);
         }
+    }
+
+    private static string Truncar(string texto, int maxChars)
+    {
+        if (string.IsNullOrEmpty(texto) || texto.Length <= maxChars)
+            return texto;
+        var sufixo = "... [truncado]";
+        var charsDisponiveis = maxChars - sufixo.Length;
+        if (charsDisponiveis <= 0)
+            return texto[..maxChars];
+        return texto[..charsDisponiveis] + sufixo;
     }
 }

@@ -566,4 +566,108 @@ public class OrquestradorLoopServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task ExecutarAsync_AgentOutputExceedsMaxCharsResultado_ShouldTruncateInTranscript()
+    {
+        var orquestrador = CriarOrquestrador();
+        var redator = CriarAgente("Redator");
+        var options = new LoopOptions
+        {
+            MaxTurnos = 8,
+            MaxRefacoesQa = 2,
+            MaxCharsResultado = 100,
+            MensagemFalha = "Falha no loop"
+        };
+
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Redator")).Returns(redator);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { redator }.AsReadOnly());
+
+        var hugeOutput = new string('x', 500);
+        var callCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                callCount++;
+                return etapa switch
+                {
+                    "loop_orquestrador" when callCount == 1 => "{\"acao\": \"chamar_agente\", \"agente\": \"Redator\", \"briefing\": \"Escreva\"}",
+                    "loop_agente_Redator" => hugeOutput,
+                    "loop_orquestrador" when callCount == 2 => "{\"acao\": \"finalizar\", \"entregavel\": \"OK\"}",
+                    "loop_qualidade" => "{\"aprovado\": true}",
+                    _ => ""
+                };
+            });
+
+        await loop.ExecutarAsync(123, "mensagem");
+
+        var secondOrqCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_orquestrador")
+            .Skip(1)
+            .First();
+        var transcriptSent = secondOrqCall.Arguments[3].ToString();
+        transcriptSent.Should().NotContain(hugeOutput);
+        transcriptSent.Length.Should().BeLessThan(hugeOutput.Length + 500);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_TranscriptExceedsMaxCharsContexto_ShouldTruncate()
+    {
+        var orquestrador = CriarOrquestrador();
+        var options = new LoopOptions
+        {
+            MaxTurnos = 8,
+            MaxRefacoesQa = 2,
+            MaxCharsContexto = 500,
+            MensagemFalha = "Falha no loop"
+        };
+
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var callCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                callCount++;
+                return callCount switch
+                {
+                    1 => "{\"acao\": \"responder_direto\", \"resposta\": \"OK\"}",
+                    _ => "{\"acao\": \"fora_contexto\"}"
+                };
+            });
+
+        await loop.ExecutarAsync(123, new string('y', 1000));
+
+        var firstOrqCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_orquestrador")
+            .First();
+        var transcriptSent = firstOrqCall.Arguments[3].ToString();
+        transcriptSent.Length.Should().BeLessThanOrEqualTo(500);
+    }
 }
