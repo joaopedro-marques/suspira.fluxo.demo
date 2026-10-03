@@ -167,6 +167,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         _logger.LogInformation("Gerando imagem ({Length} chars)", prompt.Length);
 
         var httpClient = _httpClientFactory.CreateClient("OpenRouter");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
 
         var request = new
         {
