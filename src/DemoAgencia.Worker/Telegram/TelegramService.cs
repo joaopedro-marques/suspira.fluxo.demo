@@ -268,12 +268,12 @@ public class TelegramService : BackgroundService
                     }
                     catch
                     {
-                        await _gateway!.SendMessageAsync(message.Chat.Id, resultado.RespostaFinal, ct);
+                        await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                     }
                 }
                 else if (resultado.Imagem != null)
                 {
-                    await _gateway!.SendMessageAsync(message.Chat.Id, resultado.RespostaFinal, ct);
+                    await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                 }
             }
         }
@@ -313,7 +313,7 @@ public class TelegramService : BackgroundService
             _historico.AdicionarMensagem(message.Chat.Id, "user", contexto ?? "[imagem]");
             _historico.AdicionarMensagem(message.Chat.Id, "assistant", resposta);
 
-            await _gateway!.SendMessageAsync(message.Chat.Id, resposta, ct);
+            await EnviarMensagemLongaAsync(message.Chat.Id, resposta, ct);
         }
         catch (Exception ex)
         {
@@ -352,5 +352,14 @@ public class TelegramService : BackgroundService
 
         var lines = agentes.Select(a => $"• {a.Nome} - {a.Descricao}\n  Comandos: {string.Join(", ", a.Comandos)}");
         return Task.FromResult("Agentes disponiveis:\n\n" + string.Join("\n\n", lines));
+    }
+
+    private async Task EnviarMensagemLongaAsync(long chatId, string texto, CancellationToken ct)
+    {
+        var partes = TelegramMessageSplitter.Dividir(texto);
+        foreach (var parte in partes)
+        {
+            await _gateway!.SendMessageAsync(chatId, parte, ct);
+        }
     }
 }
