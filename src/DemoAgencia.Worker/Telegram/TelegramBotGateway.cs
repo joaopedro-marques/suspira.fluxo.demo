@@ -38,6 +38,17 @@ public class TelegramBotGateway : ITelegramGateway
         await _botClient.SendPhoto(chatId: chatId, photo: photo, caption: caption, cancellationToken: ct);
     }
 
+    public async Task SendDocumentAsync(long chatId, Stream document, string fileName, string? caption, CancellationToken ct = default)
+    {
+        await _botClient.SendDocument(
+            chatId: chatId,
+            document: document,
+            caption: caption,
+            thumbnail: null,
+            disableContentTypeDetection: true,
+            cancellationToken: ct);
+    }
+
     public async Task SendChatActionAsync(long chatId, CancellationToken ct = default)
     {
         await _botClient.SendChatAction(chatId: chatId, action: ChatAction.Typing, cancellationToken: ct);
