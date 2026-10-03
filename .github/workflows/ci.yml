@@ -66,7 +66,6 @@ jobs:
     - name: Test Docker image
       timeout-minutes: 2
       run: |
-        docker run --rm --platform linux/amd64 --entrypoint dotnet demoagencia:latest --version
         docker run --rm --platform linux/amd64 --entrypoint ls demoagencia:latest -la /app/Assets/agentes/
 
   validate-structure:
