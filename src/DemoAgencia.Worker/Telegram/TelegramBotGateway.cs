@@ -38,6 +38,10 @@ public class TelegramBotGateway : ITelegramGateway
     public async Task SendPhotoAsync(long chatId, Stream photo, string? caption, CancellationToken ct = default)
     {
         var legendaFormatada = caption != null ? TelegramTextFormatter.RemoverFormatacao(caption) : caption;
+        if (legendaFormatada != null && legendaFormatada.Length > 1024)
+        {
+            legendaFormatada = legendaFormatada[..1024];
+        }
         await _botClient.SendPhoto(chatId: chatId, photo: photo, caption: legendaFormatada, cancellationToken: ct);
     }
 

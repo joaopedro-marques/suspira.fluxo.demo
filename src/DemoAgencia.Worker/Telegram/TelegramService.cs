@@ -255,8 +255,7 @@ public class TelegramService : BackgroundService
 
             foreach (var imagem in resultado.Imagens)
             {
-                using var stream = new MemoryStream(imagem.Bytes);
-                await _gateway!.SendPhotoAsync(message.Chat.Id, stream, imagem.Legenda ?? resultado.RespostaFinal, ct);
+                await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
             }
 
             if (!string.IsNullOrEmpty(resultado.RespostaFinal))
@@ -288,8 +287,7 @@ public class TelegramService : BackgroundService
                 {
                     try
                     {
-                        using var stream = new MemoryStream(imagem.Bytes);
-                        await _gateway!.SendPhotoAsync(message.Chat.Id, stream, imagem.Legenda ?? "Imagem gerada", ct);
+                        await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
                     }
                     catch (Exception imgEx)
                     {
@@ -375,6 +373,17 @@ public class TelegramService : BackgroundService
     {
         var partes = TelegramMessageSplitter.Dividir(texto);
         foreach (var parte in partes)
+        {
+            await _gateway!.SendMessageAsync(chatId, parte, ct);
+        }
+    }
+
+    private async Task EnviarFotoComLegendaAsync(long chatId, byte[] bytes, string? legenda, CancellationToken ct)
+    {
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+        using var stream = new MemoryStream(bytes);
+        await _gateway!.SendPhotoAsync(chatId, stream, caption, ct);
+        foreach (var parte in overflow)
         {
             await _gateway!.SendMessageAsync(chatId, parte, ct);
         }

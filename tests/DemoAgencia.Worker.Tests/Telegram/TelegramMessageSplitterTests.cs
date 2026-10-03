@@ -142,4 +142,93 @@ public class TelegramMessageSplitterTests
         var textoReconstruido = string.Join("\n", resultado);
         textoReconstruido.Should().Be(texto);
     }
+
+    [Fact]
+    public void DividirLegenda_LegendaNula_RetornaFallbackComoCaption()
+    {
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(null);
+
+        caption.Should().Be("Imagem gerada");
+        overflow.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaVazia_RetornaFallbackComoCaption()
+    {
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda("");
+
+        caption.Should().Be("Imagem gerada");
+        overflow.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaCurta_RetornaComoCaptionSemOverflow()
+    {
+        var legenda = "Legenda curta da imagem";
+
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+
+        caption.Should().Be(legenda);
+        overflow.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaExataNoLimite_RetornaComoCaptionSemOverflow()
+    {
+        var legenda = new string('a', 1000);
+
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+
+        caption.Should().HaveLength(1000);
+        overflow.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaAcimaDoLimite_DivideEmCaptionEOverflow()
+    {
+        var legenda = new string('a', 1500);
+
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+
+        caption.Should().HaveLength(1000);
+        overflow.Should().HaveCount(1);
+        overflow[0].Should().HaveLength(500);
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaMuitoLonga_DivideEmMultiplasPartes()
+    {
+        var legenda = new string('x', 3500);
+
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+
+        caption.Should().HaveLength(1000);
+        overflow.Should().HaveCount(3);
+        overflow[0].Should().HaveLength(1000);
+        overflow[1].Should().HaveLength(1000);
+        overflow[2].Should().HaveLength(500);
+    }
+
+    [Fact]
+    public void DividirLegenda_LegendaComQuebraDeLinha_DivideNaQuebra()
+    {
+        var linha1 = new string('a', 990);
+        var linha2 = new string('b', 200);
+        var legenda = $"{linha1}\n{linha2}";
+
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
+
+        caption.Should().Be(linha1);
+        overflow.Should().HaveCount(1);
+        overflow[0].Should().Be(linha2);
+    }
+
+    [Fact]
+    public void DividirLegenda_ComFallbackCustomizado_UsaFallback()
+    {
+        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(null, "Fallback custom");
+
+        caption.Should().Be("Fallback custom");
+        overflow.Should().BeEmpty();
+    }
 }

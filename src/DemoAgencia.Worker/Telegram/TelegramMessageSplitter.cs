@@ -3,6 +3,14 @@ namespace DemoAgencia.Worker.Telegram;
 public static class TelegramMessageSplitter
 {
     public const int LimiteTelegram = 4000;
+    public const int LimiteLegenda = 1000;
+
+    public static (string Caption, List<string> Overflow) DividirLegenda(string? legenda, string fallback = "Imagem gerada")
+    {
+        var texto = string.IsNullOrWhiteSpace(legenda) ? fallback : legenda;
+        var partes = Dividir(texto, LimiteLegenda);
+        return (partes[0], partes.Skip(1).ToList());
+    }
 
     public static List<string> Dividir(string texto, int limite = LimiteTelegram)
     {
