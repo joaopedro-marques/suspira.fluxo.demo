@@ -146,11 +146,21 @@ public class OrquestradorLoopService
                     await NotificarProgresso(onProgresso, $"✍️ {agente.Nome} trabalhando...");
                     context.Resultado.EtapasExecutadas.Add($"loop_agente_{agente.Nome}");
 
+                    var briefing = decisao.Briefing ?? "";
+                    if (!string.IsNullOrEmpty(context.Cliente))
+                    {
+                        var refsCliente = _referenciaLoader.ObterReferenciasTexto(context.Cliente);
+                        if (!string.IsNullOrEmpty(refsCliente))
+                        {
+                            briefing += $"\n\n## Referencias do cliente {context.Cliente}\n{refsCliente}";
+                        }
+                    }
+
                     var output = await _openRouter.ChamarAgenteAsync(
                         chatId,
                         agente.Persona,
                         agente.ModeloAlvo,
-                        decisao.Briefing ?? "",
+                        briefing,
                         $"loop_agente_{agente.Nome}",
                         temperature: agente.Temperatura,
                         maxTokens: agente.MaxTokens > 0 ? agente.MaxTokens : 2000,
