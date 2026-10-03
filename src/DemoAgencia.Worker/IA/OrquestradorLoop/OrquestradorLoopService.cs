@@ -83,6 +83,7 @@ public class OrquestradorLoopService
                 transcriptText,
                 "loop_orquestrador",
                 temperature: orquestrador.Temperatura,
+                maxTokens: _options.MaxTokensOrquestrador,
                 ct: ct);
 
             var decisao = ParserDecisao.TentarExtrair(respostaOrquestrador);

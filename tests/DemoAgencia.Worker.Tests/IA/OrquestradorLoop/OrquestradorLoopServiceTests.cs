@@ -521,4 +521,49 @@ public class OrquestradorLoopServiceTests
                 It.IsAny<Func<It.IsAnyType, Exception, string>>()),
             Times.AtLeastOnce);
     }
+
+    [Fact]
+    public async Task ExecutarAsync_OrchestratorCall_ShouldPassExplicitMaxTokens()
+    {
+        var orquestrador = CriarOrquestrador();
+        var options = new LoopOptions
+        {
+            MaxTurnos = 8,
+            MaxRefacoesQa = 2,
+            MaxTokensOrquestrador = 4000,
+            MensagemFalha = "Falha no loop"
+        };
+
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"fora_contexto\"}");
+
+        await loop.ExecutarAsync(123, "mensagem");
+
+        _openRouterMock.Verify(
+            x => x.ChamarAgenteAsync(
+                It.IsAny<long>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                "loop_orquestrador",
+                It.IsAny<double>(),
+                4000,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }
