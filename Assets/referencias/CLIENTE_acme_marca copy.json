@@ -1,0 +1,23 @@
+{
+  "cliente": "Acme Corp",
+  "marca": {
+    "cores_primarias": ["#FF6B35", "#004E89"],
+    "cores_secundarias": ["#F7F7F7", "#2D2D2D"],
+    "fontes": {
+      "titulo": "Montserrat Bold",
+      "corpo": "Open Sans Regular"
+    },
+    "tom_de_voz": "moderno, acessivel, confiante",
+    "estilo_visual": "clean, minimalista, com espacos em branco generosos"
+  },
+  "publico_alvo": {
+    "faixa_etaria": "25-45 anos",
+    "interesses": ["tecnologia", "inovacao", "produtividade"],
+    "tom_preferido": "profissional mas nao formal"
+  },
+  "restricoes": [
+    "Nunca usar vermelho puro (#FF0000)",
+    "Evitar jargoes tecnicos excessivos",
+    "Sempre incluir CTA claro"
+  ]
+}

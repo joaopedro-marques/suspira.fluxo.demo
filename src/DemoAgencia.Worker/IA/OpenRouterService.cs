@@ -149,7 +149,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         string prompt,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", "qwen/qwen-image-3-pro");
+        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", _options.ImageModel);
 
         _logger.LogInformation("Gerando imagem ({Length} chars)", prompt.Length);
 
@@ -157,7 +157,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         var request = new
         {
-            model = "qwen/qwen-image-3-pro",
+            model = _options.ImageModel,
             prompt = prompt,
             n = 1
         };

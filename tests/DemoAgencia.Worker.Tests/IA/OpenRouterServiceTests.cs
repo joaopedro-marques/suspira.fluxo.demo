@@ -117,6 +117,29 @@ public class OpenRouterServiceTests
     }
 
     [Fact]
+    public async Task GerarImagemAsync_ShouldUseImageModelFromConfig()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"data\":[{\"b64_json\":\"AQID\"}]}",
+                Encoding.UTF8, "application/json")
+        };
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.ImageModel = "custom/image-model";
+        var service = CreateService(httpClientFactory, options);
+
+        await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
+
+        var body = await handler.CapturedContent!.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        doc.RootElement.GetProperty("model").GetString().Should().Be("custom/image-model");
+    }
+
+    [Fact]
     public async Task GerarImagemAsync_OnHttpError_ShouldReturnNull()
     {
         var handler = new CapturingTestHandler();

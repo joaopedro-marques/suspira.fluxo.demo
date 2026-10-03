@@ -7,4 +7,5 @@ public class OpenRouterOptions
     public string BaseUrl { get; set; } = "https://openrouter.ai/api/v1";
     public string DataCollection { get; set; } = "deny";
     public string DefaultModel { get; set; } = "openai/gpt-4o-mini";
+    public string ImageModel { get; set; } = "qwen/qwen-image-3-pro";
 }
