@@ -4,6 +4,7 @@ descricao: Especialista em desenvolvimento de pagina html
 modelo_alvo: qwen/qwen-2.5-coder-32b-instruct
 papel: producao
 temperatura: 0.2
+max_tokens: 16000
 comandos:
   - /dev
 ---

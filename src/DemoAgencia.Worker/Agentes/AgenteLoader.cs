@@ -96,6 +96,11 @@ public class AgenteLoader : IHostedService, IAgentesCatalogo
                     if (double.TryParse(trimmed.Substring(12).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var temp))
                         agente.Temperatura = temp;
                 }
+                else if (trimmed.StartsWith("max_tokens:", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (int.TryParse(trimmed.Substring(11).Trim(), out var maxTokens))
+                        agente.MaxTokens = maxTokens;
+                }
                 else if (trimmed.StartsWith("- /", StringComparison.OrdinalIgnoreCase))
                     agente.Comandos.Add(trimmed.Substring(2).Trim());
             }

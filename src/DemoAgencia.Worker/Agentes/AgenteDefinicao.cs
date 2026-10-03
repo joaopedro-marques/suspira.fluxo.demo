@@ -8,6 +8,7 @@ public class AgenteDefinicao
     public string Papel { get; set; } = "producao";
     public bool Interno { get; set; } = false;
     public double Temperatura { get; set; } = 0.7;
+    public int MaxTokens { get; set; } = 0;
     public List<string> Comandos { get; set; } = new();
     public string Persona { get; set; } = string.Empty;
 }

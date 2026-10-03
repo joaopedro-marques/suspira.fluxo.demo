@@ -153,6 +153,7 @@ public class OrquestradorLoopService
                         decisao.Briefing ?? "",
                         $"loop_agente_{agente.Nome}",
                         temperature: agente.Temperatura,
+                        maxTokens: agente.MaxTokens > 0 ? agente.MaxTokens : 2000,
                         ct: ct);
 
                     context.UltimoAgente = agente.Nome;
