@@ -120,8 +120,17 @@ public class OrquestradorLoopService
 
             if (!string.IsNullOrEmpty(decisao.Cliente) && string.IsNullOrEmpty(context.Cliente))
             {
-                context.Cliente = decisao.Cliente;
-                await InjectClientReferencesAsync(transcript, decisao.Cliente, ct);
+                var registrados = _referenciaLoader.ListarClientes() ?? Array.Empty<string>();
+                var registrado = registrados.Any(c => string.Equals(c, decisao.Cliente, StringComparison.OrdinalIgnoreCase));
+                if (registrado)
+                {
+                    context.Cliente = decisao.Cliente;
+                    await InjectClientReferencesAsync(transcript, decisao.Cliente, ct);
+                }
+                else
+                {
+                    _logger.LogWarning("Orquestrador atribuiu cliente '{Cliente}' nao registrado. Ignorado.", decisao.Cliente);
+                }
             }
 
             switch (decisao.Acao)
