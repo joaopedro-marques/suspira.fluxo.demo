@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-239-green)
+![Tests](https://img.shields.io/badge/tests-267-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram com loop de orquestração e referências visuais de clientes.
@@ -35,8 +35,9 @@ Mensagem Livre → PipelinePreFlightService (Intake):
 - **Orquestrador**: Loop supervisor que decide ações a cada turno (JSON protocol)
 - **Agentes de produção**: Executam tarefas (Redator, Dev, Estrategista, Prompt para Imagens)
 - **Agentes pre-flight**: Refinador e Montador de Briefing (internos, sem comando direto)
-- **Qualidade**: Revisor crítico independente (obrigatório antes de entregar)
-- **Ferramentas**: Registry genérico (gerar_imagem)
+- **Qualidade**: Revisor crítico independente (obrigatório antes de entregar; ciente do inventario de imagens)
+- **Ferramentas**: Registry genérico (gerar_imagem, planejar_deck)
+- **Deck de imagens**: Sistema de plano (planejar_deck) + geracao com papel + substituicao posicao-a-posicao; entrega como album (media group) no Telegram
 - **Referências de clientes**: Texto + imagens analisadas automaticamente quando cliente identificado
 - **Pós-criação**: Anexação automática de assets reservados + zip para entregáveis HTML
 
@@ -136,7 +137,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**239 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, EnriquecedorContextoCliente, FerramentaRegistry, GerarImagemFerramenta, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, PipelinePreFlightService, ParserRefinamento, ParserBriefing, ConversaPendenteStore.
+**267 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, GateQualidade, EnriquecedorContextoCliente, FerramentaRegistry, GerarImagemFerramenta, PlanejarDeckFerramenta, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, PipelinePreFlightService, ParserRefinamento, ParserBriefing, ConversaPendenteStore.
 
 ## CI/CD
 
