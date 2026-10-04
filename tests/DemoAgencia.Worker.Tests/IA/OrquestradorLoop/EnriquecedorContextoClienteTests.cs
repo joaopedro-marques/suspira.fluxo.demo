@@ -57,6 +57,7 @@ public class EnriquecedorContextoClienteTests : IDisposable
 
         contexto.Should().Contain("Logo circular");
         contexto.Should().Contain("logo.png");
+        contexto.Should().Contain("Catalogo de assets");
     }
 
     [Fact]

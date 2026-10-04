@@ -41,7 +41,7 @@ public class EnriquecedorContextoCliente
                 if (!string.IsNullOrEmpty(descricao))
                 {
                     var nomeArquivo = Path.GetFileName(caminho);
-                    blocos.Add($"## {nomeArquivo}\n{descricao}");
+                    blocos.Add($"- {nomeArquivo}: {descricao}");
                 }
                 else
                 {
@@ -54,6 +54,11 @@ public class EnriquecedorContextoCliente
             }
         }
 
-        return string.Join("\n\n", blocos);
+        if (imagens.Any())
+        {
+            blocos.Insert(blocos.Count - imagens.Count(), "## Catalogo de assets visuais");
+        }
+
+        return string.Join("\n", blocos);
     }
 }
