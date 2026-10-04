@@ -120,8 +120,27 @@ public class PipelinePreFlightService
 
         if (!string.IsNullOrEmpty(refinamento.Cliente) && string.IsNullOrEmpty(estado.Cliente))
         {
-            estado.Cliente = refinamento.Cliente;
-            estado.ContextoCliente = await _enriquecedor.ObterContextoAsync(refinamento.Cliente, ct);
+            var clienteLower = refinamento.Cliente.ToLowerInvariant();
+            var registrados = _referencias.ListarClientes() ?? Array.Empty<string>();
+            var registrado = registrados.Any(c => string.Equals(c, clienteLower, StringComparison.OrdinalIgnoreCase));
+
+            if (registrado)
+            {
+                estado.Cliente = clienteLower;
+                estado.ContextoCliente = await _enriquecedor.ObterContextoAsync(clienteLower, ct);
+            }
+            else if (estado.RodadasPerguntas >= 1 || estado.RodadasPerguntas >= _options.MaxRodadasPerguntas)
+            {
+                _logger.LogWarning("Cliente '{Cliente}' nao possui registros. Pedido bloqueado para chat {ChatId}", refinamento.Cliente, estado.ChatId);
+                _store.Remover(estado.ChatId);
+                return ResultadoPreFlight.Bloqueado($"Cliente '{refinamento.Cliente}' nao possui registros. Pedido bloqueado.");
+            }
+            else
+            {
+                estado.PerguntasAtuais = new List<string> { $"O cliente '{refinamento.Cliente}' nao possui registros. Confirme o cliente correto para prosseguir." };
+                _store.Guardar(estado.ChatId, estado);
+                return ResultadoPreFlight.PrecisaEsclarecimento(estado.PerguntasAtuais);
+            }
         }
 
         if (refinamento.Simples)
