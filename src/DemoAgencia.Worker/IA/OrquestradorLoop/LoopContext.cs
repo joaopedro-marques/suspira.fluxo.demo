@@ -28,9 +28,20 @@ public class LoopContext
     public int RetriesGratis { get; set; }
 
     public List<Artefato> Artefatos { get; } = new();
+    public List<ItemDeckImagem> ImagensDeck { get; } = new();
 
     public void AdicionarArtefato(Artefato artefato)
     {
         Artefatos.Add(artefato);
+    }
+
+    public void AdicionarImagemNoDeck(ItemDeckImagem item)
+    {
+        ImagensDeck.Add(item);
+    }
+
+    public void SubstituirImagemNoDeck(int indice, ItemDeckImagem item)
+    {
+        ImagensDeck[indice] = item;
     }
 }

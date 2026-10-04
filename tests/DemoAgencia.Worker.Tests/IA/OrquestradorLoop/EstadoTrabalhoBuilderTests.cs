@@ -57,4 +57,31 @@ public class EstadoTrabalhoBuilderTests
 
         estado.Should().Contain("Turno 3/8");
     }
+
+    [Fact]
+    public void Build_WithImages_ShouldShowImagesSection()
+    {
+        var context = new LoopContext();
+        context.ImagensDeck.Add(new ItemDeckImagem("img_1", "capa", "Vistoria MRV", "A professional..."));
+        context.ImagensDeck.Add(new ItemDeckImagem("img_2", "como_funciona", "Passo a passo", "Step by step..."));
+
+        var estado = EstadoTrabalhoBuilder.Build(context);
+
+        estado.Should().Contain("Imagens geradas (2)");
+        estado.Should().Contain("[img_1]");
+        estado.Should().Contain("capa");
+        estado.Should().Contain("Vistoria MRV");
+        estado.Should().Contain("[img_2]");
+        estado.Should().Contain("como_funciona");
+    }
+
+    [Fact]
+    public void Build_WithNoImages_ShouldShowNoImages()
+    {
+        var context = new LoopContext();
+
+        var estado = EstadoTrabalhoBuilder.Build(context);
+
+        estado.Should().Contain("Imagens geradas: nenhuma");
+    }
 }

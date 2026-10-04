@@ -27,6 +27,22 @@ public static class EstadoTrabalhoBuilder
 
         linhas.Add("");
 
+        if (context.ImagensDeck.Count == 0)
+        {
+            linhas.Add("Imagens geradas: nenhuma");
+        }
+        else
+        {
+            linhas.Add($"Imagens geradas ({context.ImagensDeck.Count}):");
+            foreach (var img in context.ImagensDeck)
+            {
+                var legendaDisplay = !string.IsNullOrEmpty(img.Legenda) ? $" — \"{img.Legenda}\"" : "";
+                linhas.Add($"- [{img.Id}] {img.Papel}{legendaDisplay}");
+            }
+        }
+
+        linhas.Add("");
+
         if (context.Resultado.EtapasExecutadas.Count > 0)
         {
             linhas.Add("Etapas executadas:");

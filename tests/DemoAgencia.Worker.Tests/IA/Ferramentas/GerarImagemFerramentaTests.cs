@@ -48,7 +48,7 @@ public class GerarImagemFerramentaTests : IDisposable
 
         var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
 
-        resultado.Should().Contain("Imagem gerada");
+        resultado.Should().Contain("gerada");
         context.Resultado.Imagens.Should().HaveCount(1);
         context.Resultado.Imagens[0].Bytes.Should().BeEquivalentTo(imagemBytes);
     }
@@ -148,7 +148,7 @@ public class GerarImagemFerramentaTests : IDisposable
         var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
 
         resultado.Should().NotContain(promptLongo);
-        resultado.Should().Contain("Imagem gerada");
+        resultado.Should().Contain("gerada");
     }
 
     [Fact]
@@ -180,5 +180,88 @@ public class GerarImagemFerramentaTests : IDisposable
             It.IsAny<long>(),
             It.Is<string>(p => p.Contains("Visual identity references") && p.Contains("Header azul")),
             It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ShouldRegisterInImagensDeckWithSequentialId()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\", \"papel\": \"capa\"}");
+
+        var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        resultado.Should().Contain("img_1");
+        resultado.Should().Contain("capa");
+        context.ImagensDeck.Should().HaveCount(1);
+        context.ImagensDeck[0].Id.Should().Be("img_1");
+        context.ImagensDeck[0].Papel.Should().Be("capa");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutPapel_ShouldDefaultPapelToId()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\"}");
+
+        await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        context.ImagensDeck[0].Papel.Should().Be("img_1");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_MultipleCalls_ShouldAssignSequentialIds()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .SetupSequence(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 2 }, null))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 3 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"capa\"}")!, CancellationToken.None);
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p2\", \"papel\": \"slide_1\"}")!, CancellationToken.None);
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p3\", \"papel\": \"slide_2\"}")!, CancellationToken.None);
+
+        context.ImagensDeck.Should().HaveCount(3);
+        context.ImagensDeck[0].Id.Should().Be("img_1");
+        context.ImagensDeck[1].Id.Should().Be("img_2");
+        context.ImagensDeck[2].Id.Should().Be("img_3");
+        context.ImagensDeck.Select(i => i.Papel).Should().ContainInOrder("capa", "slide_1", "slide_2");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ResultShouldContainDeckSummary()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\", \"papel\": \"capa\", \"legenda\": \"Capa\"}");
+
+        var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        resultado.Should().Contain("img_1");
+        resultado.Should().Contain("capa");
+        resultado.Should().Contain("Deck: 1");
+        context.ImagensDeck[0].Legenda.Should().Be("Capa");
+        context.ImagensDeck[0].PromptResumo.Should().Contain("um gato");
     }
 }

@@ -37,6 +37,10 @@ public class GerarImagemFerramenta : IFerramenta
             ? legEl.GetString()
             : null;
 
+        var papel = parametros.TryGetProperty("papel", out var papelEl)
+            ? papelEl.GetString()
+            : null;
+
         var promptEnriquecido = await EnriquecerComAssetsAsync(prompt, parametros, context, ct);
 
         _logger.LogInformation("Gerando imagem com prompt: {Prompt}", promptEnriquecido);
@@ -45,8 +49,16 @@ public class GerarImagemFerramenta : IFerramenta
 
         if (resultado.Sucesso)
         {
-            context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes!, legenda));
-            return "Imagem gerada com sucesso.";
+            var id = $"img_{context.ImagensDeck.Count + 1}";
+            papel ??= id;
+            var promptResumo = prompt.Length > 80 ? prompt[..80] + "..." : prompt;
+
+            var item = new ImagemGerada(resultado.Bytes!, legenda);
+            context.Resultado.Imagens.Add(item);
+            context.AdicionarImagemNoDeck(new ItemDeckImagem(id, papel, legenda, promptResumo));
+
+            var papeis = string.Join(", ", context.ImagensDeck.Select(i => i.Papel));
+            return $"Imagem {id} ({papel}) gerada com sucesso. Deck: {context.ImagensDeck.Count} imagens [{papeis}].";
         }
 
         return $"Falha ao gerar imagem: {resultado.Erro}";
