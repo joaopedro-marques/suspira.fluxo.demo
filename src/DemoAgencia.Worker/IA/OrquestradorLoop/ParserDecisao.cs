@@ -10,7 +10,8 @@ public record DecisaoOrquestrador(
     JsonElement? Parametros = null,
     string? Resposta = null,
     string? Entregavel = null,
-    string? Cliente = null);
+    string? Cliente = null,
+    IReadOnlyList<string>? ArtefatosIds = null);
 
 public static class ParserDecisao
 {
@@ -39,13 +40,24 @@ public static class ParserDecisao
             var entregavel = root.TryGetProperty("entregavel", out var enEl) ? enEl.GetString() : null;
             var cliente = root.TryGetProperty("cliente", out var clEl) ? clEl.GetString() : null;
 
+            var artefatosIds = new List<string>();
+            if (root.TryGetProperty("artefatos", out var artEl) && artEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in artEl.EnumerateArray())
+                {
+                    var id = item.GetString();
+                    if (!string.IsNullOrEmpty(id))
+                        artefatosIds.Add(id);
+                }
+            }
+
             JsonElement? parametros = null;
             if (root.TryGetProperty("parametros", out var paramEl))
             {
                 parametros = paramEl.Clone();
             }
 
-            return new DecisaoOrquestrador(acao, agente, briefing, ferramenta, parametros, resposta, entregavel, cliente);
+            return new DecisaoOrquestrador(acao, agente, briefing, ferramenta, parametros, resposta, entregavel, cliente, artefatosIds);
         }
         catch
         {

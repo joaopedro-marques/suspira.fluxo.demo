@@ -846,7 +846,7 @@ public class OrquestradorLoopServiceTests
         var briefingSent = redatorCall.Arguments[3].ToString();
         briefingSent.Should().Contain("Trabalho previo de outros agentes");
         briefingSent.Should().Contain(outputEstrategista);
-        briefingSent.Should().Contain("Output do Estrategista");
+        briefingSent.Should().Contain("Estrategista (artefato art_");
     }
 
     [Fact]
@@ -950,5 +950,64 @@ public class OrquestradorLoopServiceTests
         transcriptSent.Should().Contain("Post de 1 paragrafo");
         transcriptSent.Should().Contain("Contexto interno do agente");
         transcriptSent.Should().NotContain("Post completo do redator");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ChamarAgente_WithArtefatosIds_ShouldIncludeOnlySelectedEntregaveisInBriefing()
+    {
+        var orquestrador = CriarOrquestrador();
+        var estrategista = CriarAgente("Estrategista");
+        var redator = CriarAgente("Redator");
+        var dev = CriarAgente("Dev");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Estrategista")).Returns(estrategista);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Redator")).Returns(redator);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Dev")).Returns(dev);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { estrategista, redator, dev }.AsReadOnly());
+
+        var orqCallCount = 0;
+        string? estrategistaArtId = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                if (etapa == "loop_orquestrador")
+                {
+                    orqCallCount++;
+                    if (orqCallCount == 1) return "{\"acao\": \"chamar_agente\", \"agente\": \"Estrategista\", \"briefing\": \"plano\"}";
+                    if (orqCallCount == 2)
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(instrucoes, @"Agente Estrategista produziu artefato (art_\d+)");
+                        estrategistaArtId = match.Success ? match.Groups[1].Value : null;
+                        return "{\"acao\": \"chamar_agente\", \"agente\": \"Redator\", \"briefing\": \"copy\"}";
+                    }
+                    if (orqCallCount == 3)
+                        return $"{{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"html\", \"artefatos\": [\"{estrategistaArtId}\"]}}";
+                    return "{\"acao\": \"finalizar\"}";
+                }
+                if (etapa == "loop_agente_Estrategista")
+                    return "{\"entregavel\": \"ENTREGAVEL_ESTRATEGISTA\", \"notas\": \"NOTA_ESTRATEGISTA\", \"resumo\": \"plano resumo\"}";
+                if (etapa == "loop_agente_Redator")
+                    return "{\"entregavel\": \"ENTREGAVEL_REDATOR\", \"notas\": \"NOTA_REDATOR\", \"resumo\": \"copy resumo\"}";
+                if (etapa == "loop_agente_Dev")
+                    return "DEV_OUTPUT";
+                return "{\"aprovado\": true}";
+            });
+
+        await _loop.ExecutarAsync(123, "email");
+
+        var devCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_agente_Dev")
+            .First();
+        var briefingDev = devCall.Arguments[3].ToString();
+
+        estrategistaArtId.Should().NotBeNull();
+        briefingDev.Should().Contain("ENTREGAVEL_ESTRATEGISTA");
+        briefingDev.Should().Contain("NOTA_ESTRATEGISTA");
+        briefingDev.Should().NotContain("ENTREGAVEL_REDATOR");
+        briefingDev.Should().Contain("NOTA_REDATOR");
     }
 }

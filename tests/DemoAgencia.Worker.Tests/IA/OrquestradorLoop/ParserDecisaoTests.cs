@@ -87,4 +87,26 @@ public class ParserDecisaoTests
 
         json.Should().BeNull();
     }
+
+    [Fact]
+    public void TentarExtrair_WithArtefatosArray_ShouldParseIds()
+    {
+        var texto = "{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"monte\", \"artefatos\": [\"art_1\", \"art_3\"]}";
+
+        var decisao = ParserDecisao.TentarExtrair(texto);
+
+        decisao.Should().NotBeNull();
+        decisao!.ArtefatosIds.Should().BeEquivalentTo("art_1", "art_3");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithoutArtefatos_ShouldReturnEmpty()
+    {
+        var texto = "{\"acao\": \"chamar_agente\", \"agente\": \"Dev\", \"briefing\": \"monte\"}";
+
+        var decisao = ParserDecisao.TentarExtrair(texto);
+
+        decisao.Should().NotBeNull();
+        decisao!.ArtefatosIds.Should().BeEmpty();
+    }
 }

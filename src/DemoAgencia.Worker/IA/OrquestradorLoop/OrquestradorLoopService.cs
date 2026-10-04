@@ -151,9 +151,20 @@ public class OrquestradorLoopService
                     if (context.Artefatos.Count > 0)
                     {
                         briefing += "\n\n## Trabalho previo de outros agentes\n";
+                        var idsSelecionados = decisao.ArtefatosIds?.Count > 0
+                            ? new HashSet<string>(decisao.ArtefatosIds)
+                            : new HashSet<string> { context.Artefatos[^1].Id };
+
                         foreach (var art in context.Artefatos)
                         {
-                            briefing += $"\n### Output do {art.Agente} (artefato {art.Id}):\n{art.Entregavel}\n";
+                            var incluirEntregavel = idsSelecionados.Contains(art.Id);
+                            briefing += $"\n### {art.Agente} (artefato {art.Id})";
+                            if (incluirEntregavel)
+                                briefing += $":\n{art.Entregavel}\n";
+                            else
+                                briefing += "\n";
+                            if (!string.IsNullOrEmpty(art.Notas))
+                                briefing += $"Notas: {art.Notas}\n";
                         }
                     }
                     
