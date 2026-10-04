@@ -907,4 +907,48 @@ public class OrquestradorLoopServiceTests
         transcriptSent.Should().Contain("600 chars");
         transcriptSent.Should().Contain("## Estado do trabalho");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_ChamarAgente_WhenAgentReturnsJson_TranscriptShouldContainOnlyResumoAndNotas()
+    {
+        var orquestrador = CriarOrquestrador();
+        var redator = CriarAgente("Redator");
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Redator")).Returns(redator);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { redator }.AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                if (etapa == "loop_orquestrador")
+                {
+                    orqCallCount++;
+                    return orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Redator\", \"briefing\": \"Escreva um post\"}"
+                        : "{\"acao\": \"finalizar\"}";
+                }
+                if (etapa == "loop_agente_Redator")
+                    return "{\"entregavel\": \"Post completo do redator\", \"notas\": \"Contexto interno do agente\", \"resumo\": \"Post de 1 paragrafo\"}";
+                return "{\"aprovado\": true}";
+            });
+
+        var result = await _loop.ExecutarAsync(123, "crie um post");
+
+        (result.RespostaFinal == "Post completo do redator").Should().BeTrue(
+            "o entregavel deve ser o campo 'entregavel' do JSON, nao o JSON cru");
+
+        var secondOrqCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_orquestrador")
+            .Skip(1)
+            .First();
+        var transcriptSent = secondOrqCall.Arguments[3].ToString();
+        transcriptSent.Should().Contain("Post de 1 paragrafo");
+        transcriptSent.Should().Contain("Contexto interno do agente");
+        transcriptSent.Should().NotContain("Post completo do redator");
+    }
 }

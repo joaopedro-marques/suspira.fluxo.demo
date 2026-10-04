@@ -179,16 +179,28 @@ public class OrquestradorLoopService
                     context.UltimoAgente = agente.Nome;
                     context.UltimoOutputAgente = output;
 
-                    var tipoArtefato = output.Contains("<html", StringComparison.OrdinalIgnoreCase)
-                        || output.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase)
+                    var parsed = ParserOutputAgente.Extrair(output);
+                    var entregavelAgente = parsed.Entregavel ?? string.Empty;
+                    var notas = parsed.Notas;
+                    var resumo = parsed.Resumo ?? (entregavelAgente.Length > 100 ? entregavelAgente[..100] + "..." : entregavelAgente);
+
+                    var tipoArtefato = entregavelAgente.Contains("<html", StringComparison.OrdinalIgnoreCase)
+                        || entregavelAgente.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase)
                         ? TipoArtefato.Html
                         : TipoArtefato.Copy;
-                    var resumo = output.Length > 100 ? output[..100] + "..." : output;
-                    var artefato = Artefato.Criar(tipoArtefato, agente.Nome, output, resumo);
+                    var artefato = Artefato.Criar(tipoArtefato, agente.Nome, entregavelAgente, resumo, notas);
                     context.AdicionarArtefato(artefato);
 
                     transcript.Add(("assistant", respostaOrquestrador));
-                    transcript.Add(("user", $"Agente {agente.Nome} produziu artefato {artefato.Id} ({tipoArtefato}, {output.Length} chars). Veja o estado do trabalho para detalhes."));
+                    var stubPartes = new List<string>
+                    {
+                        $"Agente {agente.Nome} produziu artefato {artefato.Id} ({tipoArtefato}, {entregavelAgente.Length} chars)"
+                    };
+                    if (!string.IsNullOrEmpty(resumo))
+                        stubPartes.Add($"Resumo: {resumo}");
+                    if (!string.IsNullOrEmpty(notas))
+                        stubPartes.Add($"Notas: {notas}");
+                    transcript.Add(("user", string.Join(". ", stubPartes)));
                     break;
 
                 case "chamar_ferramenta":
