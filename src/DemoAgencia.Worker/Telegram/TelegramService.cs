@@ -258,9 +258,14 @@ public class TelegramService : BackgroundService
                 await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
             }
 
+            foreach (var asset in resultado.AssetsAnexados)
+            {
+                await EnviarFotoComLegendaAsync(message.Chat.Id, asset.Bytes, asset.Legenda, ct);
+            }
+
             if (!string.IsNullOrEmpty(resultado.RespostaFinal))
             {
-                if (mensagemProgressoId != null && resultado.Imagens.Count == 0)
+                if (mensagemProgressoId != null && resultado.Imagens.Count == 0 && resultado.AssetsAnexados.Count == 0)
                 {
                     try
                     {
@@ -271,7 +276,7 @@ public class TelegramService : BackgroundService
                         await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                     }
                 }
-                else if (resultado.Imagens.Count > 0)
+                else if (resultado.Imagens.Count > 0 || resultado.AssetsAnexados.Count > 0)
                 {
                     await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                 }
