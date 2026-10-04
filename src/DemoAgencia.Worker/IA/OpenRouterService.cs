@@ -236,20 +236,22 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
     {
         var traceContext = _langfuse.IniciarTrace(chatId, etapaNome, modelo);
 
-        var kernel = CriarKernel(modelo);
-        var chatService = kernel.GetRequiredService<IChatCompletionService>();
-
-        var chatHistory = new ChatHistory();
-
-        if (!string.IsNullOrEmpty(persona))
-        {
-            chatHistory.AddSystemMessage(persona);
-        }
-
-        chatHistory.AddUserMessage(instrucoes);
-
         try
         {
+            var desativarRaciocinio = etapaNome.StartsWith("preflight_", StringComparison.OrdinalIgnoreCase);
+            ReasoningDisablingHandler.IsActive = desativarRaciocinio;
+            var kernel = CriarKernel(modelo);
+            var chatService = kernel.GetRequiredService<IChatCompletionService>();
+
+            var chatHistory = new ChatHistory();
+
+            if (!string.IsNullOrEmpty(persona))
+            {
+                chatHistory.AddSystemMessage(persona);
+            }
+
+            chatHistory.AddUserMessage(instrucoes);
+
             var settings = new OpenAIPromptExecutionSettings
             {
                 Temperature = temperature,
@@ -259,7 +261,16 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
             var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
             var resposta = response.Content ?? "";
 
-            _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modelo, resposta.Length);
+            if (string.IsNullOrEmpty(resposta))
+            {
+                var finishReason = response.Metadata?.TryGetValue("FinishReason", out var fr) == true ? fr?.ToString() : "unknown";
+                _logger.LogWarning("Agente ({Etapa}) com {Modelo} retornou resposta vazia. FinishReason: {FinishReason}",
+                    etapaNome, modelo, finishReason);
+            }
+            else
+            {
+                _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modelo, resposta.Length);
+            }
 
             await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, resposta, ct);
 
@@ -286,5 +297,46 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         }
 
         return null;
+    }
+}
+
+internal class ReasoningDisablingHandler : DelegatingHandler
+{
+    private static readonly System.Threading.AsyncLocal<bool> Active = new();
+
+    public static bool IsActive { get => Active.Value; set => Active.Value = value; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        if (Active.Value && request.Content != null && request.RequestUri?.AbsolutePath.Contains("/chat/completions") == true)
+        {
+            try
+            {
+                var originalBody = await request.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = System.Text.Json.JsonDocument.Parse(originalBody);
+                var dict = new Dictionary<string, object?>();
+
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    dict[prop.Name] = prop.Value.ValueKind switch
+                    {
+                        System.Text.Json.JsonValueKind.String => prop.Value.GetString(),
+                        System.Text.Json.JsonValueKind.Number => prop.Value.GetDouble(),
+                        System.Text.Json.JsonValueKind.True => true,
+                        System.Text.Json.JsonValueKind.False => false,
+                        System.Text.Json.JsonValueKind.Null => null,
+                        _ => prop.Value.GetRawText()
+                    };
+                }
+
+                dict["reasoning"] = new Dictionary<string, object> { ["enabled"] = false };
+
+                var newBody = System.Text.Json.JsonSerializer.Serialize(dict);
+                request.Content = new StringContent(newBody, System.Text.Encoding.UTF8, "application/json");
+            }
+            catch { }
+        }
+
+        return await base.SendAsync(request, cancellationToken);
     }
 }

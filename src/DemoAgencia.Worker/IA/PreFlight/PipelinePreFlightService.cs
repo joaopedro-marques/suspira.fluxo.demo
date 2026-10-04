@@ -180,8 +180,19 @@ public class PipelinePreFlightService
             respostaMontador[..Math.Min(200, respostaMontador.Length)],
             respostaMontador[^Math.Min(200, respostaMontador.Length)..]);
 
-        var promptRetry = promptMontador + "\n\n## ATENCAO\nSua resposta anterior nao foi parseada como JSON valido. Responda APENAS com JSON valido, sem markdown, sem fences ```json, e sem aspas nao escapadas dentro dos textos.";
-        var respostaRetry = await ChamarMontadorAsync(estado, montador, promptRetry, ct, "preflight_montador_retry");
+        string respostaRetry;
+        if (string.IsNullOrWhiteSpace(respostaMontador))
+        {
+            var tokensOriginais = montador.MaxTokens > 0 ? montador.MaxTokens : 2000;
+            var tokensDobrados = Math.Min(tokensOriginais * 2, 8000);
+            _logger.LogWarning("Retry do Montador com tokens dobrados ({Tokens}) por resposta vazia", tokensDobrados);
+            respostaRetry = await ChamarMontadorAsync(estado, montador, promptMontador, ct, "preflight_montador_retry", tokensDobrados);
+        }
+        else
+        {
+            var promptRetry = promptMontador + "\n\n## ATENCAO\nSua resposta anterior nao foi parseada como JSON valido. Responda APENAS com JSON valido, sem markdown, sem fences ```json, e sem aspas nao escapadas dentro dos textos.";
+            respostaRetry = await ChamarMontadorAsync(estado, montador, promptRetry, ct, "preflight_montador_retry");
+        }
 
         var parseRetry = ParserBriefing.TentarExtrairComDiagnostico(respostaRetry);
         if (parseRetry.Resultado != null)
@@ -200,8 +211,10 @@ public class PipelinePreFlightService
         AgenteDefinicao montador,
         string prompt,
         CancellationToken ct,
-        string etapaNome)
+        string etapaNome,
+        int? maxTokensOverride = null)
     {
+        var maxTokens = maxTokensOverride ?? (montador.MaxTokens > 0 ? montador.MaxTokens : 2000);
         var resposta = await _servicoChat.ChamarAgenteAsync(
             estado.ChatId,
             montador.Persona,
@@ -209,7 +222,7 @@ public class PipelinePreFlightService
             prompt,
             etapaNome,
             temperature: montador.Temperatura,
-            maxTokens: montador.MaxTokens > 0 ? montador.MaxTokens : 2000,
+            maxTokens: maxTokens,
             ct: ct);
         return resposta ?? string.Empty;
     }

@@ -185,9 +185,63 @@ public class OpenRouterServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task ChamarAgenteAsync_WithPreflightEtapa_ShouldSendReasoningDisabled()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                ChatCompletionResponse("resposta ok"),
+                Encoding.UTF8, "application/json")
+        };
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var service = CreateService(httpClientFactory, CreateOptions());
+
+        await service.ChamarAgenteAsync(1, "persona", "test-model", "instrucoes", "preflight_montador");
+
+        handler.CapturedBody.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(handler.CapturedBody!);
+        var root = doc.RootElement;
+
+        root.TryGetProperty("reasoning", out var reasoningEl).Should().BeTrue();
+        reasoningEl.TryGetProperty("enabled", out var enabledEl).Should().BeTrue();
+        enabledEl.GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ChamarAgenteAsync_WithNonPreflightEtapa_ShouldNotSendReasoning()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                ChatCompletionResponse("resposta ok"),
+                Encoding.UTF8, "application/json")
+        };
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var service = CreateService(httpClientFactory, CreateOptions());
+
+        await service.ChamarAgenteAsync(1, "persona", "test-model", "instrucoes", "chat-user");
+
+        handler.CapturedBody.Should().NotBeNull();
+        using var doc = JsonDocument.Parse(handler.CapturedBody!);
+        var root = doc.RootElement;
+
+        root.TryGetProperty("reasoning", out _).Should().BeFalse();
+    }
+
+    private static string ChatCompletionResponse(string content)
+    {
+        return $"{{\"id\":\"chatcmpl-123\",\"object\":\"chat.completion\",\"created\":1234567890,\"model\":\"test-model\",\"choices\":[{{\"index\":0,\"message\":{{\"role\":\"assistant\",\"content\":\"{content}\"}},\"finish_reason\":\"stop\"}}],\"usage\":{{\"prompt_tokens\":10,\"completion_tokens\":10,\"total_tokens\":20}}}}";
+    }
+
     private static IHttpClientFactory CreateHttpClientFactory(CapturingTestHandler handler)
     {
-        var client = new HttpClient(handler);
+        var reasoningHandler = new ReasoningDisablingHandler { InnerHandler = handler };
+        var client = new HttpClient(reasoningHandler);
         var mock = new Mock<IHttpClientFactory>();
         mock.Setup(f => f.CreateClient("OpenRouter")).Returns(client);
         return mock.Object;
@@ -247,13 +301,16 @@ public class OpenRouterServiceTests
     {
         public Uri? CapturedUri { get; private set; }
         public HttpContent? CapturedContent { get; private set; }
+        public string? CapturedBody { get; private set; }
         public HttpResponseMessage Response { get; set; } = new(HttpStatusCode.OK);
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             CapturedUri = request.RequestUri;
             CapturedContent = request.Content;
-            return Task.FromResult(Response);
+            if (request.Content != null)
+                CapturedBody = await request.Content.ReadAsStringAsync(cancellationToken);
+            return Response;
         }
     }
 }

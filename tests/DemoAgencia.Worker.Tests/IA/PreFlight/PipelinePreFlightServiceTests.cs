@@ -305,6 +305,25 @@ public class PipelinePreFlightServiceTests
         resultado2.Cliente.Should().Be("acme");
     }
 
+    [Fact]
+    public async Task IniciarAsync_WithEmptyMontadorResponse_ShouldRetryWithDoubledMaxTokens()
+    {
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Acme", "simples": false}""")
+            .ReturnsAsync("")
+            .ReturnsAsync("""{"briefing": "Briefing via retry com tokens dobrados", "assets_reservados": ["asset_1"]}""");
+
+        var resultado = await _service.IniciarAsync(123, "post para acme");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado.Briefing.Should().Be("Briefing via retry com tokens dobrados");
+        _chatMock.Verify(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            "preflight_montador_retry", It.IsAny<double>(), 4000, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private DateTimeOffset _now = DateTimeOffset.UtcNow;

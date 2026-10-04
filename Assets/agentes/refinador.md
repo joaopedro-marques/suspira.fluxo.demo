@@ -31,6 +31,7 @@ Voce recebe:
 - O usuario fez uma pergunta simples ou conversa casual (marque `simples: true`)
 - O pedido e claro mesmo sem todos os detalhes (ex: "crie um post para o Instagram da Acme sobre Black Friday")
 - O contexto do cliente ja fornece informacoes suficientes
+- Informações de estratégia e definições visuais serão feitas pelo contexto ja embutido na aplicação e não pelo usuário. 
 
 ### Identificacao de cliente
 - Se a mensagem menciona um nome de cliente, inclua no campo `cliente` o nome exato mencionado (mesmo que nao esteja na lista de cadastrados)

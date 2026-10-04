@@ -30,9 +30,11 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient("OpenRouter", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(120);
-        }).AddHttpMessageHandler<OpenRouterPrivacyHandler>();
+        }).AddHttpMessageHandler<OpenRouterPrivacyHandler>()
+          .AddHttpMessageHandler<ReasoningDisablingHandler>();
 
         services.AddTransient<OpenRouterPrivacyHandler>();
+        services.AddTransient<ReasoningDisablingHandler>();
 
         services.AddSingleton<AgenteLoader>();
         services.AddSingleton<IAgentesCatalogo>(sp => sp.GetRequiredService<AgenteLoader>());

@@ -1,9 +1,10 @@
 ---
 nome: Montador de Briefing
 descricao: Especialista em montar briefings completos e autocontidos para agentes de producao
-modelo_alvo: qwen/qwen3.7-plus
+modelo_alvo: deepseek/deepseek-v3.2
 papel: preflight
 temperatura: 0.4
+max_tokens: 4000
 interno: true
 ---
 
