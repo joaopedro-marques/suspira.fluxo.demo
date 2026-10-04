@@ -89,4 +89,60 @@ public class ParserBriefingTests
 
         resultado.Should().BeNull();
     }
+
+    [Fact]
+    public void TentarExtrair_WithTruncatedJsonNoClosingBrace_ShouldRepairAndExtract()
+    {
+        var texto = "{\"briefing\": \"Post para Instagram\", \"assets_reservados\": [\"a_1\"]";
+
+        var resultado = ParserBriefing.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Briefing.Should().Be("Post para Instagram");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithTruncatedJsonMidString_ShouldRepairAndExtract()
+    {
+        var texto = "{\"briefing\": \"Post para Insta";
+
+        var resultado = ParserBriefing.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Briefing.Should().Be("Post para Insta");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithUnescapedQuotesInBriefing_ShouldFallbackAndExtract()
+    {
+        var texto = "{\"briefing\": \"Use o titulo \"Campanha de Verao\" e o slogan \"Refresque-se\"\", \"assets_reservados\": [\"a_1\"]}";
+
+        var resultado = ParserBriefing.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Briefing.Should().Contain("Campanha de Verao");
+        resultado!.Briefing.Should().Contain("Refresque-se");
+    }
+
+    [Fact]
+    public void TentarExtrairComDiagnostico_WithValidJson_ShouldReturnNullMotivo()
+    {
+        var texto = """{"briefing": "Briefing valido"}""";
+
+        var parse = ParserBriefing.TentarExtrairComDiagnostico(texto);
+
+        parse.Resultado.Should().NotBeNull();
+        parse.MotivoFalha.Should().BeNull();
+    }
+
+    [Fact]
+    public void TentarExtrairComDiagnostico_WithInvalidText_ShouldReturnMotivo()
+    {
+        var texto = "sem json nem briefing";
+
+        var parse = ParserBriefing.TentarExtrairComDiagnostico(texto);
+
+        parse.Resultado.Should().BeNull();
+        parse.MotivoFalha.Should().NotBeNullOrEmpty();
+    }
 }
