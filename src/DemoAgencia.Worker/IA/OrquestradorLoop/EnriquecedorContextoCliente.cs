@@ -28,6 +28,8 @@ public class EnriquecedorContextoCliente
         }
 
         var imagens = _referencias.ListarImagens(cliente) ?? Array.Empty<string>();
+        var indiceCatalogo = blocos.Count;
+
         foreach (var caminho in imagens)
         {
             try
@@ -54,9 +56,9 @@ public class EnriquecedorContextoCliente
             }
         }
 
-        if (imagens.Any())
+        if (blocos.Count > indiceCatalogo)
         {
-            blocos.Insert(blocos.Count - imagens.Count(), "## Catalogo de assets visuais");
+            blocos.Insert(indiceCatalogo, "## Catalogo de assets visuais");
         }
 
         return string.Join("\n", blocos);
