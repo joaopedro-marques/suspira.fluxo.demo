@@ -34,7 +34,7 @@ public class PipelinePreFlightService
         _logger = logger;
     }
 
-    public async Task<ResultadoPreFlight> IniciarAsync(
+    public virtual async Task<ResultadoPreFlight> IniciarAsync(
         long chatId,
         string mensagem,
         CancellationToken ct = default)
@@ -62,7 +62,7 @@ public class PipelinePreFlightService
         return await ExecutarRefinamentoAsync(estado, ct);
     }
 
-    public async Task<ResultadoPreFlight> ResumirAsync(
+    public virtual async Task<ResultadoPreFlight> ResumirAsync(
         long chatId,
         string resposta,
         CancellationToken ct = default)

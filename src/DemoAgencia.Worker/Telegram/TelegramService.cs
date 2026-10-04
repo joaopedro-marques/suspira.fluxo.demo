@@ -1,7 +1,10 @@
+using System.IO.Compression;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.PreFlight;
+using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using Microsoft.Extensions.Options;
 using Telegram.Bot.Types;
@@ -20,6 +23,9 @@ public class TelegramService : BackgroundService
     private readonly IStreamingService _streaming;
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
+    private readonly PipelinePreFlightService _preFlight;
+    private readonly IReferenciasCliente _referencias;
+    private readonly ConversaPendenteStore _pendencias;
     private ITelegramGateway? _gateway;
     private readonly Dictionary<long, string> _agentesPorChat = new();
 
@@ -33,7 +39,10 @@ public class TelegramService : BackgroundService
         IHistoricoChat historico,
         IStreamingService streaming,
         RateLimiterService rateLimiter,
-        ITelegramGatewayFactory gatewayFactory)
+        ITelegramGatewayFactory gatewayFactory,
+        PipelinePreFlightService preFlight,
+        IReferenciasCliente referencias,
+        ConversaPendenteStore pendencias)
     {
         _logger = logger;
         _options = options.Value;
@@ -45,6 +54,9 @@ public class TelegramService : BackgroundService
         _streaming = streaming;
         _rateLimiter = rateLimiter;
         _gatewayFactory = gatewayFactory;
+        _preFlight = preFlight;
+        _referencias = referencias;
+        _pendencias = pendencias;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -135,6 +147,8 @@ public class TelegramService : BackgroundService
 
     private async Task HandleCommand(Message message, CancellationToken ct)
     {
+        _pendencias.Remover(message.Chat.Id);
+
         var parts = message.Text!.Split(' ', 2);
         var command = parts[0].ToLowerInvariant();
         var args = parts.Length > 1 ? parts[1] : string.Empty;
@@ -162,6 +176,7 @@ public class TelegramService : BackgroundService
         if (command == "/limpar")
         {
             _historico.LimparHistorico(message.Chat.Id);
+            _pendencias.Remover(message.Chat.Id);
             await _gateway!.SendMessageAsync(message.Chat.Id, "Historico limpo.", ct);
             return;
         }
@@ -170,6 +185,7 @@ public class TelegramService : BackgroundService
         {
             _agentesPorChat.Remove(message.Chat.Id);
             _historico.LimparHistorico(message.Chat.Id);
+            _pendencias.Remover(message.Chat.Id);
             await _gateway!.SendMessageAsync(message.Chat.Id, "Agente deselecionado e historico limpo.", ct);
             return;
         }
@@ -226,17 +242,48 @@ public class TelegramService : BackgroundService
             }
         }
 
+        var pendente = _pendencias.Obter(message.Chat.Id);
+        ResultadoPreFlight resultadoPreFlight;
+
+        if (pendente != null)
+        {
+            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Retomando com suas respostas...", ct);
+            resultadoPreFlight = await _preFlight.ResumirAsync(message.Chat.Id, text, ct);
+            await ProcessarResultadoPreFlight(message.Chat.Id, resultadoPreFlight, msg.MessageId, ct);
+            return;
+        }
+
         int? mensagemProgressoId = null;
-        ResultadoPipeline? resultado = null;
 
         try
         {
             var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
             mensagemProgressoId = msg.MessageId;
 
-            resultado = await _loop.ExecutarAsync(
+            resultadoPreFlight = await _preFlight.IniciarAsync(message.Chat.Id, text, ct);
+
+            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.PrecisaEsclarecimento)
+            {
+                var perguntas = string.Join("\n", resultadoPreFlight.Perguntas!.Select((p, i) => $"{i + 1}. {p}"));
+                var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
+                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, textoPerguntas, ct);
+                return;
+            }
+
+            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.Falha)
+            {
+                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "Nao consegui entender seu pedido. Pode reformular?", ct);
+                return;
+            }
+
+            var briefing = resultadoPreFlight.Briefing!;
+            var assetsReservados = resultadoPreFlight.AssetsReservados;
+
+            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "🚀 Produzindo...", ct);
+
+            var resultado = await _loop.ExecutarAsync(
                 message.Chat.Id,
-                text,
+                briefing,
                 async (progresso) =>
                 {
                     if (mensagemProgressoId != null)
@@ -253,53 +300,47 @@ public class TelegramService : BackgroundService
                 },
                 ct);
 
-            foreach (var imagem in resultado.Imagens)
-            {
-                await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
-            }
+            AnexarAssetsReservados(assetsReservados, resultadoPreFlight.Cliente, resultado);
 
-            foreach (var asset in resultado.AssetsAnexados)
+            if (IsEntregavelHtml(resultado.RespostaFinal))
             {
-                await EnviarFotoComLegendaAsync(message.Chat.Id, asset.Bytes, asset.Legenda, ct);
+                await EnviarHtmlZipAsync(message.Chat.Id, resultado, ct);
             }
-
-            if (!string.IsNullOrEmpty(resultado.RespostaFinal))
+            else
             {
-                if (mensagemProgressoId != null && resultado.Imagens.Count == 0 && resultado.AssetsAnexados.Count == 0)
+                foreach (var imagem in resultado.Imagens)
                 {
-                    try
+                    await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
+                }
+
+                foreach (var asset in resultado.AssetsAnexados)
+                {
+                    await EnviarFotoComLegendaAsync(message.Chat.Id, asset.Bytes, asset.Legenda, ct);
+                }
+
+                if (!string.IsNullOrEmpty(resultado.RespostaFinal))
+                {
+                    if (resultado.Imagens.Count == 0 && resultado.AssetsAnexados.Count == 0)
                     {
-                        await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultado.RespostaFinal, ct);
+                        try
+                        {
+                            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultado.RespostaFinal, ct);
+                        }
+                        catch
+                        {
+                            await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
+                        }
                     }
-                    catch
+                    else
                     {
                         await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                     }
-                }
-                else if (resultado.Imagens.Count > 0 || resultado.AssetsAnexados.Count > 0)
-                {
-                    await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
                 }
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
-
-            if (resultado?.Imagens.Count > 0)
-            {
-                foreach (var imagem in resultado.Imagens)
-                {
-                    try
-                    {
-                        await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
-                    }
-                    catch (Exception imgEx)
-                    {
-                        _logger.LogWarning(imgEx, "Erro ao enviar imagem parcial no catch");
-                    }
-                }
-            }
 
             if (mensagemProgressoId != null)
             {
@@ -313,6 +354,163 @@ public class TelegramService : BackgroundService
                 }
             }
         }
+    }
+
+    private async Task ProcessarResultadoPreFlight(long chatId, ResultadoPreFlight resultado, int mensagemProgressoId, CancellationToken ct)
+    {
+        if (resultado.Tipo == TipoResultadoPreFlight.PrecisaEsclarecimento)
+        {
+            var perguntas = string.Join("\n", resultado.Perguntas!.Select((p, i) => $"{i + 1}. {p}"));
+            var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
+            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
+            return;
+        }
+
+        if (resultado.Tipo == TipoResultadoPreFlight.Falha)
+        {
+            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui entender seu pedido. Pode reformular?", ct);
+            return;
+        }
+
+        var briefing = resultado.Briefing!;
+        var assetsReservados = resultado.AssetsReservados;
+
+        await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
+
+        var resultadoLoop = await _loop.ExecutarAsync(
+            chatId,
+            briefing,
+            async (progresso) =>
+            {
+                try
+                {
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, progresso, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Erro ao atualizar progresso");
+                }
+            },
+            ct);
+
+        AnexarAssetsReservados(assetsReservados, resultado.Cliente, resultadoLoop);
+
+        if (IsEntregavelHtml(resultadoLoop.RespostaFinal))
+        {
+            await EnviarHtmlZipAsync(chatId, resultadoLoop, ct);
+        }
+        else
+        {
+            foreach (var imagem in resultadoLoop.Imagens)
+            {
+                await EnviarFotoComLegendaAsync(chatId, imagem.Bytes, imagem.Legenda, ct);
+            }
+
+            foreach (var asset in resultadoLoop.AssetsAnexados)
+            {
+                await EnviarFotoComLegendaAsync(chatId, asset.Bytes, asset.Legenda, ct);
+            }
+
+            if (!string.IsNullOrEmpty(resultadoLoop.RespostaFinal))
+            {
+                if (resultadoLoop.Imagens.Count == 0 && resultadoLoop.AssetsAnexados.Count == 0)
+                {
+                    try
+                    {
+                        await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultadoLoop.RespostaFinal, ct);
+                    }
+                    catch
+                    {
+                        await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
+                    }
+                }
+                else
+                {
+                    await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
+                }
+            }
+        }
+    }
+
+    private void AnexarAssetsReservados(List<string> assetsReservados, string? cliente, ResultadoPipeline resultado)
+    {
+        if (!assetsReservados.Any() || string.IsNullOrEmpty(cliente))
+            return;
+
+        var assets = _referencias.ListarAssets(cliente);
+        foreach (var assetId in assetsReservados)
+        {
+            var asset = assets.FirstOrDefault(a => a.Id == assetId);
+            if (asset == null) continue;
+
+            try
+            {
+                var bytes = File.ReadAllBytes(asset.Caminho);
+                resultado.AssetsAnexados.Add(new ImagemGerada(bytes, $"{asset.Tipo}/{asset.Nome}"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao ler asset reservado {AssetId}", assetId);
+            }
+        }
+    }
+
+    private static bool IsEntregavelHtml(string entregavel)
+    {
+        return entregavel.Contains("<html", StringComparison.OrdinalIgnoreCase)
+            || entregavel.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task EnviarHtmlZipAsync(long chatId, ResultadoPipeline resultado, CancellationToken ct)
+    {
+        using var memoryStream = new MemoryStream();
+        using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var htmlEntry = archive.CreateEntry("entregavel.html");
+            using (var entryStream = htmlEntry.Open())
+            using (var writer = new StreamWriter(entryStream))
+            {
+                await writer.WriteAsync(resultado.RespostaFinal);
+            }
+
+            var imageIndex = 0;
+            foreach (var imagem in resultado.Imagens)
+            {
+                imageIndex++;
+                var ext = DetectarExtensaoImagem(imagem.Bytes);
+                var imgEntry = archive.CreateEntry($"imagens/gerada_{imageIndex}{ext}");
+                using var entryStream = imgEntry.Open();
+                await entryStream.WriteAsync(imagem.Bytes, ct);
+            }
+
+            var assetIndex = 0;
+            foreach (var asset in resultado.AssetsAnexados)
+            {
+                assetIndex++;
+                var ext = DetectarExtensaoImagem(asset.Bytes);
+                var nomeSeguro = (asset.Legenda ?? $"asset_{assetIndex}")
+                    .Replace("/", "_").Replace("\\", "_").Replace(" ", "_");
+                var assetEntry = archive.CreateEntry($"assets/{nomeSeguro}{ext}");
+                using var entryStream = assetEntry.Open();
+                await entryStream.WriteAsync(asset.Bytes, ct);
+            }
+        }
+
+        memoryStream.Position = 0;
+        await _gateway!.SendDocumentAsync(chatId, memoryStream, "entregavel.zip", "Entregavel HTML completo com assets", ct);
+    }
+
+    private static string DetectarExtensaoImagem(byte[] bytes)
+    {
+        if (bytes.Length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
+            return ".png";
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8)
+            return ".jpg";
+        if (bytes.Length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46)
+            return ".gif";
+        if (bytes.Length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46)
+            return ".webp";
+        return ".bin";
     }
 
     private async Task HandlePhoto(Message message, CancellationToken ct)

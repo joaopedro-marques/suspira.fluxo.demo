@@ -3,6 +3,7 @@ using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.PreFlight;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using DemoAgencia.Worker.Telegram;
@@ -24,6 +25,9 @@ public class TelegramServiceTests
     private readonly Mock<IStreamingService> _streamingMock;
     private readonly Mock<RateLimiterService> _rateLimiterMock;
     private readonly Mock<ITelegramGatewayFactory> _gatewayFactoryMock;
+    private readonly Mock<PipelinePreFlightService> _preFlightMock;
+    private readonly Mock<IReferenciasCliente> _referenciasMock;
+    private readonly ConversaPendenteStore _pendencias;
 
     public TelegramServiceTests()
     {
@@ -35,9 +39,9 @@ public class TelegramServiceTests
         _openRouterMock = new Mock<IStreamingChat>();
         _analisadorImagemMock = new Mock<IAnalisadorImagem>();
 
-        var referenciaLoaderMock = new Mock<IReferenciasCliente>();
+        _referenciasMock = new Mock<IReferenciasCliente>();
         var enriquecedor = new EnriquecedorContextoCliente(
-            referenciaLoaderMock.Object,
+            _referenciasMock.Object,
             _analisadorImagemMock.Object,
             Mock.Of<ILogger<EnriquecedorContextoCliente>>());
 
@@ -46,7 +50,7 @@ public class TelegramServiceTests
             TestOptions.Create(new LoopOptions()),
             Mock.Of<IServicoChat>(),
             _agenteLoaderMock.Object,
-            referenciaLoaderMock.Object,
+            _referenciasMock.Object,
             new FerramentaRegistry(),
             enriquecedor);
 
@@ -54,6 +58,23 @@ public class TelegramServiceTests
         _streamingMock = new Mock<IStreamingService>();
         _rateLimiterMock = new Mock<RateLimiterService>(TestOptions.Create(new SegurancaOptions()));
         _gatewayFactoryMock = new Mock<ITelegramGatewayFactory>();
+
+        _preFlightMock = new Mock<PipelinePreFlightService>(
+            _referenciasMock.Object,
+            _agenteLoaderMock.Object,
+            Mock.Of<IServicoChat>(),
+            enriquecedor,
+            new ConversaPendenteStore(
+                TestOptions.Create(new PreFlightOptions()),
+                TimeProvider.System,
+                Mock.Of<ILogger<ConversaPendenteStore>>()),
+            TestOptions.Create(new PreFlightOptions()),
+            Mock.Of<ILogger<PipelinePreFlightService>>());
+
+        _pendencias = new ConversaPendenteStore(
+            TestOptions.Create(new PreFlightOptions()),
+            TimeProvider.System,
+            Mock.Of<ILogger<ConversaPendenteStore>>());
     }
 
     [Fact]
@@ -69,7 +90,10 @@ public class TelegramServiceTests
             _historicoMock.Object,
             _streamingMock.Object,
             _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object);
+            _gatewayFactoryMock.Object,
+            _preFlightMock.Object,
+            _referenciasMock.Object,
+            _pendencias);
 
         act.Should().NotThrow();
     }
@@ -89,7 +113,10 @@ public class TelegramServiceTests
             _historicoMock.Object,
             _streamingMock.Object,
             _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object);
+            _gatewayFactoryMock.Object,
+            _preFlightMock.Object,
+            _referenciasMock.Object,
+            _pendencias);
 
         act.Should().NotThrow();
     }
