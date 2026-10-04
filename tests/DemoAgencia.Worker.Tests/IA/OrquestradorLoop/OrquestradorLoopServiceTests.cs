@@ -374,6 +374,7 @@ public class OrquestradorLoopServiceTests
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes()).Returns(new List<string> { "acme" }.AsReadOnly());
         _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("Manual de marca: cor #FF6B35");
         _referenciaLoaderMock.Setup(x => x.ListarImagens("acme")).Returns(new List<string>().AsReadOnly());
 
@@ -394,6 +395,28 @@ public class OrquestradorLoopServiceTests
 
         result.RespostaFinal.Should().Be("OK");
         _referenciaLoaderMock.Verify(x => x.ObterReferenciasTexto("acme"), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ClienteNaoRegistrado_ShouldNotInjectReferences()
+    {
+        var orquestrador = CriarOrquestrador();
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ListarClientes()).Returns(new List<string> { "acme" }.AsReadOnly());
+        _referenciaLoaderMock.Setup(x => x.ObterReferenciasTexto("enel")).Returns("deveria nao ser chamado");
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"acao\": \"responder_direto\", \"resposta\": \"OK\", \"cliente\": \"enel\"}");
+
+        var result = await _loop.ExecutarAsync(123, "post para enel");
+
+        result.RespostaFinal.Should().Be("OK");
+        _referenciaLoaderMock.Verify(x => x.ObterReferenciasTexto("enel"), Times.Never);
     }
 
     [Fact]

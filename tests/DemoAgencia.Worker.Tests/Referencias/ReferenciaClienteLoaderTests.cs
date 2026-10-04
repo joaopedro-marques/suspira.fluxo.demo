@@ -35,9 +35,9 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var acmeExemplo = "<html><body>Exemplo</body></html>";
         var betaMarca = """{"cores": ["#0000FF"], "tom": "formal"}""";
 
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), acmeMarca);
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_exemplo.html"), acmeExemplo);
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_beta_marca.json"), betaMarca);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), acmeMarca);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_exemplo.html"), acmeExemplo);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "beta_marca.json"), betaMarca);
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -52,8 +52,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var marcaContent = """{"cores": ["#FF0000"], "tom": "moderno"}""";
         var exemploContent = "<html><body>Exemplo</body></html>";
 
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), marcaContent);
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_exemplo.html"), exemploContent);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), marcaContent);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_exemplo.html"), exemploContent);
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -70,7 +70,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     public async Task ObterReferenciasTexto_ShouldTruncateAtConfiguredLimit()
     {
         var longContent = new string('A', 5000);
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), longContent);
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), longContent);
 
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -91,9 +91,9 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarImagens_ShouldReturnImagePaths()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_logo.png"), new byte[] { 0x89, 0x50, 0x4E, 0x47 });
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_banner.jpg"), new byte[] { 0xFF, 0xD8, 0xFF });
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_logo.png"), new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_banner.jpg"), new byte[] { 0xFF, 0xD8, 0xFF });
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -106,16 +106,18 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
-    public async Task StartAsync_ShouldIgnoreFilesWithoutPrefix()
+    public async Task StartAsync_ShouldIgnoreFilesWithoutUnderscore()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "random_file.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "randomfile.json"), "{}");
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "another.md"), "content");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
 
         loader.ObterReferenciasTexto("acme").Should().NotBeEmpty();
+        loader.ObterReferenciasTexto("randomfile").Should().BeEmpty();
+        loader.ListarClientes().Should().NotContain("another");
     }
 
     [Fact]
@@ -142,7 +144,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ObterReferenciasTexto_WithUnknownClient_ShouldReturnEmpty()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -155,7 +157,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarImagens_WithUnknownClient_ShouldReturnEmpty()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -168,8 +170,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task StartAsync_ShouldNormalizeClientName()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_Acme_marca.json"), "{}");
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_BETA_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "Acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "BETA_marca.json"), "{}");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -181,9 +183,9 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarAssets_WithTypedAssets_ShouldParseTypeFromFilename()
     {
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_principal.png"), new byte[] { 1 });
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_footer_padrao.png"), new byte[] { 2 });
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_icon_logo.png"), new byte[] { 3 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_header_principal.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_footer_padrao.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_icon_logo.png"), new byte[] { 3 });
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -199,8 +201,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarAssets_WithLegacyImageName_ShouldInferTypeFromSecondPart()
     {
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_logo.png"), new byte[] { 1 });
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_foto_equipe.jpg"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_logo.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_foto_equipe.jpg"), new byte[] { 2 });
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -215,7 +217,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarAssets_WithUnknownClient_ShouldReturnEmpty()
     {
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_main.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_header_main.png"), new byte[] { 1 });
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -228,7 +230,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarAssets_ShouldIncludeIdAndCliente()
     {
-        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_main.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "acme_header_main.png"), new byte[] { 1 });
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -243,8 +245,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarClientes_WithMultipleClients_ShouldReturnAll()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_beta_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "beta_marca.json"), "{}");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -270,8 +272,8 @@ public class ReferenciaClienteLoaderTests : IDisposable
     [Fact]
     public async Task ListarClientes_ShouldReturnLowercase()
     {
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_Acme_marca.json"), "{}");
-        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_BETA_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "Acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "BETA_marca.json"), "{}");
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -280,5 +282,23 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         clientes.Should().Contain("acme");
         clientes.Should().Contain("beta");
+    }
+
+    [Fact]
+    public async Task StartAsync_WithMrvFiles_ShouldRegisterAsMrvClient()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "MRV_html_visitatecnica.html"), "<html>visita</html>");
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "MRV_logoMRV.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "MRV_logo_sensia.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var clientes = loader.ListarClientes();
+        clientes.Should().Contain("mrv");
+
+        loader.ObterReferenciasTexto("mrv").Should().Contain("visita");
+        loader.ListarImagens("mrv").Should().HaveCount(2);
+        loader.ListarAssets("mrv").Should().HaveCount(2);
     }
 }

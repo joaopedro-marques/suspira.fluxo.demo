@@ -230,6 +230,60 @@ public class PipelinePreFlightServiceTests
         resultado.AssetsReservados.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task IniciarAsync_WithUnregisteredClient_ShouldReturnPrecisaEsclarecimento()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "acme" });
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "preflight_refinador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Enel", "cliente": "enel", "simples": false}""");
+
+        var resultado = await _service.IniciarAsync(123, "post para enel");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.PrecisaEsclarecimento);
+        resultado.Perguntas.Should().ContainSingle(p => p.Contains("enel"));
+        _enriquecedorLoggerMock.Object.GetType();
+        _refsMock.Verify(r => r.ObterReferenciasTexto("enel"), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResumirAsync_WithStillUnregisteredClient_ShouldReturnBloqueado()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "acme" });
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Enel", "cliente": "enel", "simples": false}""")
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Enel", "cliente": "enel", "simples": false}""");
+
+        var resultado1 = await _service.IniciarAsync(123, "post para enel");
+        resultado1.Tipo.Should().Be(TipoResultadoPreFlight.PrecisaEsclarecimento);
+
+        var resultado2 = await _service.ResumirAsync(123, "sim, enel");
+        resultado2.Tipo.Should().Be(TipoResultadoPreFlight.Bloqueado);
+        resultado2.MensagemBloqueio.Should().Contain("enel");
+    }
+
+    [Fact]
+    public async Task ResumirAsync_WithRegisteredClientAfterClarification_ShouldReturnConcluido()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "acme" });
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post", "cliente": "desconhecido", "simples": false}""")
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Acme", "cliente": "acme", "simples": false}""")
+            .ReturnsAsync("""{"briefing": "Post para Acme", "assets_reservados": []}""");
+
+        var resultado1 = await _service.IniciarAsync(123, "post");
+        resultado1.Tipo.Should().Be(TipoResultadoPreFlight.PrecisaEsclarecimento);
+
+        var resultado2 = await _service.ResumirAsync(123, "na verdade e acme");
+        resultado2.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado2.Cliente.Should().Be("acme");
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private DateTimeOffset _now = DateTimeOffset.UtcNow;
