@@ -36,16 +36,19 @@ public class TelegramServiceTests
         _analisadorImagemMock = new Mock<IAnalisadorImagem>();
 
         var referenciaLoaderMock = new Mock<IReferenciasCliente>();
+        var enriquecedor = new EnriquecedorContextoCliente(
+            referenciaLoaderMock.Object,
+            _analisadorImagemMock.Object,
+            Mock.Of<ILogger<EnriquecedorContextoCliente>>());
 
         _loopMock = new Mock<OrquestradorLoopService>(
             Mock.Of<ILogger<OrquestradorLoopService>>(),
-            Mock.Of<ILoggerFactory>(),
             TestOptions.Create(new LoopOptions()),
             Mock.Of<IServicoChat>(),
             _agenteLoaderMock.Object,
             referenciaLoaderMock.Object,
             new FerramentaRegistry(),
-            Mock.Of<IAnalisadorImagem>());
+            enriquecedor);
 
         _historicoMock = new Mock<IHistoricoChat>();
         _streamingMock = new Mock<IStreamingService>();

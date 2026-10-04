@@ -13,30 +13,22 @@ namespace DemoAgencia.Worker.Tests.IA.OrquestradorLoop;
 public class OrquestradorLoopServiceTests
 {
     private readonly Mock<ILogger<OrquestradorLoopService>> _loggerMock;
-    private readonly Mock<ILoggerFactory> _loggerFactoryMock;
     private readonly Mock<IServicoChat> _openRouterMock;
     private readonly Mock<IAgentesCatalogo> _agenteLoaderMock;
     private readonly Mock<IReferenciasCliente> _referenciaLoaderMock;
     private readonly Mock<IAnalisadorImagem> _analisadorImagemMock;
     private readonly FerramentaRegistry _ferramentaRegistry;
     private readonly LoopOptions _loopOptions;
+    private readonly EnriquecedorContextoCliente _enriquecedor;
     private readonly OrquestradorLoopService _loop;
 
     public OrquestradorLoopServiceTests()
     {
         _loggerMock = new Mock<ILogger<OrquestradorLoopService>>();
-        _loggerFactoryMock = new Mock<ILoggerFactory>();
-        _loggerFactoryMock.Setup(f => f.CreateLogger(It.IsAny<string>()))
-            .Returns(Mock.Of<ILogger>());
-
         _openRouterMock = new Mock<IServicoChat>();
-
         _agenteLoaderMock = new Mock<IAgentesCatalogo>();
-
         _referenciaLoaderMock = new Mock<IReferenciasCliente>();
-
         _analisadorImagemMock = new Mock<IAnalisadorImagem>();
-
         _ferramentaRegistry = new FerramentaRegistry();
 
         _loopOptions = new LoopOptions
@@ -47,15 +39,19 @@ public class OrquestradorLoopServiceTests
             MensagemFalha = "Falha no loop"
         };
 
+        _enriquecedor = new EnriquecedorContextoCliente(
+            _referenciaLoaderMock.Object,
+            _analisadorImagemMock.Object,
+            Mock.Of<ILogger<EnriquecedorContextoCliente>>());
+
         _loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(_loopOptions),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
     }
 
     private AgenteDefinicao CriarOrquestrador() => new()
@@ -300,13 +296,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         var result = await loop.ExecutarAsync(123, "mensagem");
 
@@ -471,13 +466,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         var result = await loop.ExecutarAsync(123, "mensagem");
 
@@ -543,13 +537,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
@@ -590,13 +583,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ObterPorNome("Redator")).Returns(redator);
@@ -646,13 +638,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
@@ -865,13 +856,12 @@ public class OrquestradorLoopServiceTests
 
         var loop = new OrquestradorLoopService(
             _loggerMock.Object,
-            _loggerFactoryMock.Object,
             TestOptions.Create(options),
             _openRouterMock.Object,
             _agenteLoaderMock.Object,
             _referenciaLoaderMock.Object,
             _ferramentaRegistry,
-            _analisadorImagemMock.Object);
+            _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ObterPorNome("Dev")).Returns(dev);
@@ -1066,9 +1056,9 @@ public class OrquestradorLoopServiceTests
             MensagemFalha = "Falha"
         };
         var loop = new OrquestradorLoopService(
-            _loggerMock.Object, _loggerFactoryMock.Object, TestOptions.Create(options),
+            _loggerMock.Object, TestOptions.Create(options),
             _openRouterMock.Object, _agenteLoaderMock.Object, _referenciaLoaderMock.Object,
-            _ferramentaRegistry, _analisadorImagemMock.Object);
+            _ferramentaRegistry, _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
@@ -1108,9 +1098,9 @@ public class OrquestradorLoopServiceTests
             MensagemFalha = "Falha"
         };
         var loop = new OrquestradorLoopService(
-            _loggerMock.Object, _loggerFactoryMock.Object, TestOptions.Create(options),
+            _loggerMock.Object, TestOptions.Create(options),
             _openRouterMock.Object, _agenteLoaderMock.Object, _referenciaLoaderMock.Object,
-            _ferramentaRegistry, _analisadorImagemMock.Object);
+            _ferramentaRegistry, _enriquecedor);
 
         _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
         _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
