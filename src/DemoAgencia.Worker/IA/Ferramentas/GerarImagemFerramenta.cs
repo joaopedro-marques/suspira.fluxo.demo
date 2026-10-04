@@ -28,14 +28,18 @@ public class GerarImagemFerramenta : IFerramenta
             return "Falha: prompt vazio";
         }
 
+        var legenda = parametros.TryGetProperty("legenda", out var legEl)
+            ? legEl.GetString()
+            : null;
+
         _logger.LogInformation("Gerando imagem com prompt: {Prompt}", prompt);
 
         var resultado = await _openRouter.GerarImagemAsync(context.ChatId, prompt, ct);
 
         if (resultado.Sucesso)
         {
-            context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes!, prompt));
-            return $"Imagem gerada com sucesso. Prompt: {prompt}";
+            context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes!, legenda));
+            return "Imagem gerada com sucesso.";
         }
 
         return $"Falha ao gerar imagem: {resultado.Erro}";
