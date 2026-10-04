@@ -864,6 +864,22 @@ cat .env
 docker compose config
 ```
 
+### 9.9 Loki 401 "authentication error: invalid scope requested"
+
+**Sintoma**: no log aparece `Received failure on HTTP shipping (401): {"status":"error","error":"authentication error: invalid scope requested"}` seguido de `N log events will be dropped`. Os logs deixam de chegar ao Grafana Cloud.
+
+**Causa**: o token da Grafana Cloud configurado em `GrafanaLoki__Password` não possui o scope `logs:write` exigido pelo endpoint de push do Loki.
+
+**Correção**:
+
+1. No portal Grafana Cloud, acesse **Security → Access policies** (ou **API Keys**) e crie um novo token com scope **`logs:write`** (ou **All scopes**).
+2. Copie o `LoginId` (ID numérico) na página **Grafana Loki → Details → Connection details** (Username / Instance ID).
+3. Atualize as variáveis:
+   - **Local**: `.env` com `GrafanaLoki__LoginId=<id-numerico>` e `GrafanaLoki__Password=<novo-token>`
+   - **Deploy**: GitHub → **Settings → Secrets** → `GRAFANALOKI_LOGINID` e `GRAFANALOKI_PASSWORD`
+4. Reinicie a aplicação: `docker compose restart`
+5. Valide nos logs iniciais que não há mais `HTTP shipping (401)` nem eventos dropados.
+
 ---
 
 ## 10. Segurança
