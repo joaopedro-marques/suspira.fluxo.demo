@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.OrquestradorLoop;
@@ -7,6 +8,7 @@ public class EnriquecedorContextoCliente
     private readonly IReferenciasCliente _referencias;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly ILogger<EnriquecedorContextoCliente> _logger;
+    private readonly ConcurrentDictionary<string, string> _cacheDescricoes = new();
 
     public EnriquecedorContextoCliente(IReferenciasCliente referencias, IAnalisadorImagem analisadorImagem, ILogger<EnriquecedorContextoCliente> logger)
     {
@@ -30,8 +32,12 @@ public class EnriquecedorContextoCliente
         {
             try
             {
-                var bytes = await File.ReadAllBytesAsync(caminho, ct);
-                var descricao = await _analisadorImagem.DescreverImagemAsync(bytes, null, ct);
+                var descricao = _cacheDescricoes.GetOrAdd(caminho, _ =>
+                {
+                    var bytes = File.ReadAllBytes(caminho);
+                    return _analisadorImagem.DescreverImagemAsync(bytes, null, ct).GetAwaiter().GetResult();
+                });
+
                 if (!string.IsNullOrEmpty(descricao))
                 {
                     var nomeArquivo = Path.GetFileName(caminho);

@@ -88,4 +88,22 @@ public class EnriquecedorContextoClienteTests : IDisposable
 
         contexto.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task ObterContextoAsync_SameImageTwice_ShouldCallAnalisadorOnlyOnce()
+    {
+        var imagePath = Path.Combine(_tempDir, "logo.png");
+        await File.WriteAllBytesAsync(imagePath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        _referenciasMock.Setup(x => x.ObterReferenciasTexto("acme")).Returns("");
+        _referenciasMock.Setup(x => x.ListarImagens("acme")).Returns(new List<string> { imagePath }.AsReadOnly());
+        _analisadorMock.Setup(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Logo circular");
+
+        var enriquecedor = new EnriquecedorContextoCliente(_referenciasMock.Object, _analisadorMock.Object, _loggerMock.Object);
+        await enriquecedor.ObterContextoAsync("acme");
+        await enriquecedor.ObterContextoAsync("acme");
+
+        _analisadorMock.Verify(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
