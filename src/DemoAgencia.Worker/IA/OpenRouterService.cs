@@ -115,16 +115,6 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
         var base64Image = Convert.ToBase64String(imagemBytes);
         var dataUri = $"data:image/png;base64,{base64Image}";
 
-        var chatMessage = new ChatMessageContent(
-            AuthorRole.User,
-            new ChatMessageContentItemCollection
-            {
-                new ImageContent(new Uri(dataUri)),
-                new TextContent(prompt)
-            });
-
-        chatHistory.Add(chatMessage);
-
         var settings = new OpenAIPromptExecutionSettings
         {
             Temperature = 0.5,
@@ -133,6 +123,16 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         try
         {
+            var chatMessage = new ChatMessageContent(
+                AuthorRole.User,
+                new ChatMessageContentItemCollection
+                {
+                    new ImageContent(dataUri),
+                    new TextContent(prompt)
+                });
+
+            chatHistory.Add(chatMessage);
+
             var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
             var resposta = response.Content ?? "";
 
