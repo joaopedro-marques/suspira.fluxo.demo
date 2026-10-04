@@ -1,11 +1,19 @@
 using DemoAgencia.Worker;
 using Serilog;
+using Serilog.Debugging;
+
+SelfLog.Enable(Console.Error);
 
 try
 {
+    var builder = Host.CreateApplicationBuilder(args);
+    
+    Log.Logger = new LoggerConfiguration()
+        .ReadFrom.Configuration(builder.Configuration)
+        .CreateLogger();
+    
     Log.Information("Iniciando DemoAgencia Worker...");
 
-    var builder = Host.CreateApplicationBuilder(args);
     builder.Logging.ClearProviders();
     builder.Services.AddDemoAgencia(builder.Configuration);
 

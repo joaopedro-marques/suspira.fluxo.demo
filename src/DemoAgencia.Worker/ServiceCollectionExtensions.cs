@@ -16,8 +16,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddDemoAgencia(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSerilog(config => config
-            .ReadFrom.Configuration(configuration));
+        services.AddSerilog();
 
         services.Configure<LoopOptions>(configuration.GetSection(LoopOptions.Section));
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.Section));
