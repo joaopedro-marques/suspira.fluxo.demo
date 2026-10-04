@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-103-green)
+![Tests](https://img.shields.io/badge/tests-239-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram com loop de orquestração e referências visuais de clientes.
@@ -17,19 +17,28 @@ Prova de Conceito (PoC) para validação de agentes de IA operando via Telegram 
 
 ## Arquitetura
 
-O sistema utiliza um **loop de orquestração** (padrão supervisor/hub-and-spoke):
+O sistema utiliza uma pipeline de **pre-flight (intake)** seguida de um **loop de orquestração** (padrão supervisor/hub-and-spoke):
 
 ```
-Mensagem Livre → OrquestradorLoopService → Loop (max 8 turnos):
-  Orquestrador decide: chamar_agente | chamar_ferramenta | responder_direto | fora_contexto | finalizar
-  → finalizar aciona QA obrigatório → Resposta Final
+Mensagem Livre → PipelinePreFlightService (Intake):
+  1. Identificar cliente (determinístico)
+  2. Carregar contexto do cliente (referências + análise de imagens)
+  3. Refinar pedido (agente Refinador — perguntas de esclarecimento se necessário)
+  4. Montar briefing (agente Montador de Briefing — briefing autocontido + assets reservados)
+  → OrquestradorLoopService (Loop com max 24 turnos):
+    Orquestrador decide: chamar_agente | chamar_ferramenta | responder_direto | fora_contexto | finalizar
+    → finalizar aciona QA obrigatório → Resposta Final
+  → Pós-criação: anexar assets reservados + zip HTML se aplicável
 ```
 
+- **Pre-Flight (Intake)**: Pipeline de preparação (identificar cliente, carregar contexto, refinar pedido, montar briefing)
 - **Orquestrador**: Loop supervisor que decide ações a cada turno (JSON protocol)
 - **Agentes de produção**: Executam tarefas (Redator, Dev, Estrategista, Prompt para Imagens)
+- **Agentes pre-flight**: Refinador e Montador de Briefing (internos, sem comando direto)
 - **Qualidade**: Revisor crítico independente (obrigatório antes de entregar)
 - **Ferramentas**: Registry genérico (gerar_imagem)
 - **Referências de clientes**: Texto + imagens analisadas automaticamente quando cliente identificado
+- **Pós-criação**: Anexação automática de assets reservados + zip para entregáveis HTML
 
 ## Estrutura
 
@@ -38,9 +47,10 @@ src/DemoAgencia.Worker/
   ├── Telegram/              # Cliente Telegram (ITelegramGateway) e handlers
   ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
   ├── IA/                    # OrquestradorLoop, OpenRouterService, Ferramentas/
-  │   └── OrquestradorLoop/  # ParserDecisao, GateQualidade, EnriquecedorContextoCliente
+  │   ├── OrquestradorLoop/  # ParserDecisao, GateQualidade, EnriquecedorContextoCliente
+  │   └── PreFlight/         # PipelinePreFlightService, ConversaPendenteStore, Parsers
   ├── Referencias/           # IReferenciasCliente (texto + imagens)
-  ├── Configuracoes/         # Options pattern (LoopOptions, OpenRouterOptions, etc.)
+  ├── Configuracoes/         # Options pattern (LoopOptions, PreFlightOptions, etc.)
   ├── Seguranca/             # AnonimizadorService, RateLimiterService
   ├── Observabilidade/       # Serilog e Langfuse
   └── Contracts/             # LangfuseTrace, LangfuseTraceContext
@@ -126,7 +136,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**103 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, EnriquecedorContextoCliente, FerramentaRegistry, GerarImagemFerramenta, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader.
+**239 testes** cobrindo: AgenteLoader, HistoricoChat, OrquestradorLoopService, ParserDecisao, EnriquecedorContextoCliente, FerramentaRegistry, GerarImagemFerramenta, OpenRouterService, StreamingService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, PipelinePreFlightService, ParserRefinamento, ParserBriefing, ConversaPendenteStore.
 
 ## CI/CD
 

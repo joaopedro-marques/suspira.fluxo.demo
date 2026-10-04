@@ -18,6 +18,8 @@ graph TB
     
     subgraph "DemoAgencia Worker"
         TS[TelegramService]
+        PF[PipelinePreFlightService]
+        PS[ConversaPendenteStore]
         AL[AgenteLoader]
         OL[OrquestradorLoopService]
         OR[OpenRouterService]
@@ -26,6 +28,7 @@ graph TB
         LI[LangfuseInterceptor]
         FR[FerramentaRegistry]
         RC[ReferenciaClienteLoader]
+        EC[EnriquecedorContextoCliente]
     end
     
     subgraph "Servicos Externos"
@@ -43,10 +46,14 @@ graph TB
     User -->|Mensagens| Bot
     Bot -->|Long Polling| TS
     TS -->|Carrega| AL
+    TS -->|Pre-Flight| PF
+    PF -->|Pendencias| PS
+    PF -->|Contexto| EC
     TS -->|Loop| OL
     OL -->|Executa| OR
     OL -->|Ferramentas| FR
-    OL -->|Referencias| RC
+    OL -->|Contexto| EC
+    EC -->|Referencias| RC
     OR -->|API| OR_API
     OR -->|Traces| LI
     LI -->|Envia| LF
@@ -57,6 +64,67 @@ graph TB
     TS -->|Logs| LOG
     LOG --> GL
 ```
+
+## Pipeline Pre-Flight (Intake)
+
+Antes do loop de orquestracao, o sistema executa uma etapa de **pre-flight** (intake) que prepara o trabalho:
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant T as TelegramService
+    participant PF as PipelinePreFlightService
+    participant R as Refinador (LLM)
+    participant M as Montador de Briefing (LLM)
+    participant PS as ConversaPendenteStore
+    
+    U->>T: Mensagem livre
+    T->>PF: IniciarAsync()
+    
+    PF->>PF: 1. Detectar cliente (match deterministico)
+    PF->>PF: 2. Carregar contexto (EnriquecedorContextoCliente)
+    PF->>R: 3. Refinar pedido
+    R-->>PF: JSON (precisa_esclarecimento?)
+    
+    alt Precisa esclarecimento
+        PF->>PS: Guardar estado
+        PF-->>T: PrecisaEsclarecimento(perguntas)
+        T-->>U: Perguntas
+        U->>T: Respostas
+        T->>PF: ResumirAsync()
+        PF->>R: Re-refinar com respostas
+        R-->>PF: JSON (pedido refinado)
+    end
+    
+    PF->>M: 4. Montar briefing
+    M-->>PF: JSON (briefing + assets_reservados)
+    PF->>PF: 5. Validar assets reservados
+    PF-->>T: Concluido(briefing, assets)
+    
+    Note over T: Loop de Orquestracao (ver abaixo)
+    Note over T: Pos-criacao: anexar assets + zip HTML
+```
+
+### Etapas do Pre-Flight
+
+| Etapa | Executor | Descricao |
+|-------|----------|-----------|
+| 1. Identificar cliente | C# (deterministico) | Match do nome do cliente na mensagem contra `ListarClientes()` |
+| 2. Carregar contexto | `EnriquecedorContextoCliente` | Referencias de texto (manual de marca) + analise de imagens |
+| 3. Refinar pedido | Agente `Refinador` (LLM) | Analisa intencao; faz perguntas se necessario (max 2 rodadas) |
+| 4. Montar briefing | Agente `Montador de Briefing` (LLM) | Briefing autocontido + lista de assets reservados |
+| 5. Validar assets | C# (deterministico) | Filtra IDs invalidos contra `ListarAssets(cliente)` |
+
+### Mensagens Simples
+
+Quando o Refinador detecta que a mensagem e uma pergunta casual/conversa (campo `simples: true`), o pre-flight retorna diretamente com a mensagem original como briefing, pulando o Montador. O orquestrador decidira `responder_direto` ou `fora_contexto`.
+
+### Pos-Criacao
+
+Apos o loop de orquestracao finalizar:
+- **Assets reservados** sao anexados automaticamente ao resultado
+- Se o entregavel for **HTML**: zip (HTML + imagens geradas + assets reservados) enviado como documento
+- Caso contrario: texto + imagens como fotos + assets como fotos
 
 ## Orquestrador Loop (Supervisor)
 
