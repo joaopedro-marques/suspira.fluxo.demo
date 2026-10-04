@@ -171,6 +171,19 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return assets.AsReadOnly();
     }
 
+    public virtual IReadOnlyCollection<string> ListarClientes()
+    {
+        var todos = _referenciasPorCliente.Keys
+            .Union(_imagensPorCliente.Keys)
+            .Union(_assetsPorCliente.Keys)
+            .Select(c => c.ToLowerInvariant())
+            .Distinct()
+            .OrderBy(c => c, StringComparer.Ordinal)
+            .ToList();
+
+        return todos.AsReadOnly();
+    }
+
     private static (TipoAsset tipo, string nome) ParseTipoENome(string nomeSemExt)
     {
         var partes = nomeSemExt.Split('_', 2);

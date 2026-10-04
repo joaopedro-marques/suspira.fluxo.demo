@@ -239,4 +239,46 @@ public class ReferenciaClienteLoaderTests : IDisposable
         assets.First().Id.Should().NotBeEmpty();
         assets.First().Cliente.Should().Be("acme");
     }
+
+    [Fact]
+    public async Task ListarClientes_WithMultipleClients_ShouldReturnAll()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_beta_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var clientes = loader.ListarClientes();
+
+        clientes.Should().HaveCount(2);
+        clientes.Should().Contain("acme");
+        clientes.Should().Contain("beta");
+    }
+
+    [Fact]
+    public async Task ListarClientes_WithNoFiles_ShouldReturnEmpty()
+    {
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var clientes = loader.ListarClientes();
+
+        clientes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListarClientes_ShouldReturnLowercase()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_Acme_marca.json"), "{}");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "CLIENTE_BETA_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var clientes = loader.ListarClientes();
+
+        clientes.Should().Contain("acme");
+        clientes.Should().Contain("beta");
+    }
 }
