@@ -8,19 +8,19 @@ public class ArtefatoTests
     [Fact]
     public void Artefato_ShouldGenerateUniqueId()
     {
-        var art1 = Artefato.Criar(TipoArtefato.Copy, "Redator", "Conteudo", "Resumo");
-        var art2 = Artefato.Criar(TipoArtefato.Copy, "Redator", "Conteudo", "Resumo");
+        var art1 = Artefato.Criar(TipoArtefato.Copy, "Redator", "Entregavel", "Resumo");
+        var art2 = Artefato.Criar(TipoArtefato.Copy, "Redator", "Entregavel", "Resumo");
 
         art1.Id.Should().NotBe(art2.Id);
     }
 
     [Fact]
-    public void Artefato_ShouldStoreFullContent()
+    public void Artefato_ShouldStoreEntregavel()
     {
-        var conteudo = new string('x', 50000);
-        var art = Artefato.Criar(TipoArtefato.Html, "Dev", conteudo, "HTML grande");
+        var entregavel = new string('x', 50000);
+        var art = Artefato.Criar(TipoArtefato.Html, "Dev", entregavel, "HTML grande");
 
-        art.Conteudo.Should().Be(conteudo);
+        art.Entregavel.Should().Be(entregavel);
         art.Tamanho.Should().Be(50000);
     }
 
@@ -32,6 +32,22 @@ public class ArtefatoTests
         art.Resumo.Should().Be("Imagem de um gato");
         art.Tipo.Should().Be(TipoArtefato.Imagem);
         art.Agente.Should().Be("Prompt");
+    }
+
+    [Fact]
+    public void Artefato_ShouldStoreNotas()
+    {
+        var art = Artefato.Criar(TipoArtefato.Copy, "Redator", "Copy final", "Copy principal", notas: "Publico: jovens 18-25");
+
+        art.Notas.Should().Be("Publico: jovens 18-25");
+    }
+
+    [Fact]
+    public void Artefato_ShouldDefaultNotasToNull()
+    {
+        var art = Artefato.Criar(TipoArtefato.Copy, "Redator", "Copy", "Resumo");
+
+        art.Notas.Should().BeNull();
     }
 
     [Fact]

@@ -15,13 +15,14 @@ public class Artefato
     public string Id { get; init; } = string.Empty;
     public TipoArtefato Tipo { get; init; }
     public string Agente { get; init; } = string.Empty;
-    public string Conteudo { get; init; } = string.Empty;
+    public string Entregavel { get; init; } = string.Empty;
+    public string? Notas { get; init; }
     public string Resumo { get; init; } = string.Empty;
-    public int Tamanho => Conteudo.Length;
+    public int Tamanho => Entregavel.Length;
 
     private static int _contador;
 
-    public static Artefato Criar(TipoArtefato tipo, string agente, string conteudo, string resumo)
+    public static Artefato Criar(TipoArtefato tipo, string agente, string entregavel, string resumo, string? notas = null)
     {
         var id = $"art_{Interlocked.Increment(ref _contador)}";
         return new Artefato
@@ -29,7 +30,8 @@ public class Artefato
             Id = id,
             Tipo = tipo,
             Agente = agente,
-            Conteudo = conteudo,
+            Entregavel = entregavel,
+            Notas = notas,
             Resumo = resumo
         };
     }

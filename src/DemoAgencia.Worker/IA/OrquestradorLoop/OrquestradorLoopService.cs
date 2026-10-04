@@ -153,7 +153,7 @@ public class OrquestradorLoopService
                         briefing += "\n\n## Trabalho previo de outros agentes\n";
                         foreach (var art in context.Artefatos)
                         {
-                            briefing += $"\n### Output do {art.Agente} (artefato {art.Id}):\n{art.Conteudo}\n";
+                            briefing += $"\n### Output do {art.Agente} (artefato {art.Id}):\n{art.Entregavel}\n";
                         }
                     }
                     
@@ -214,7 +214,7 @@ public class OrquestradorLoopService
                 case "finalizar":
                     var entregavel = !string.IsNullOrWhiteSpace(decisao.Entregavel)
                         ? decisao.Entregavel
-                        : context.Artefatos.LastOrDefault()?.Conteudo ?? context.UltimoOutputAgente ?? "";
+                        : context.Artefatos.LastOrDefault()?.Entregavel ?? context.UltimoOutputAgente ?? "";
                     context.Entregavel = entregavel;
 
                     if (!context.QaExecutado)
