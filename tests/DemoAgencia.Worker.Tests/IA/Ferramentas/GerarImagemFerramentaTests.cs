@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -8,19 +9,40 @@ using System.Text.Json;
 
 namespace DemoAgencia.Worker.Tests.IA.Ferramentas;
 
-public class GerarImagemFerramentaTests
+public class GerarImagemFerramentaTests : IDisposable
 {
+    private readonly string _tempDir;
+    private readonly Mock<IReferenciasCliente> _referenciasMock;
+    private readonly Mock<IAnalisadorImagem> _analisadorMock;
+
+    public GerarImagemFerramentaTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDir);
+        _referenciasMock = new Mock<IReferenciasCliente>();
+        _analisadorMock = new Mock<IAnalisadorImagem>();
+        _referenciasMock.Setup(x => x.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>().AsReadOnly());
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+            Directory.Delete(_tempDir, true);
+    }
+
+    private GerarImagemFerramenta CriarFerramenta(Mock<IGeradorImagem> openRouterMock)
+        => new(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object, _referenciasMock.Object, _analisadorMock.Object);
+
     [Fact]
     public async Task ExecutarAsync_ShouldCallOpenRouterAndReturnDescription()
     {
         var openRouterMock = new Mock<IGeradorImagem>();
-
         var imagemBytes = new byte[] { 1, 2, 3 };
         openRouterMock
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoImagem(imagemBytes, null));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
         var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\"}");
 
@@ -32,14 +54,14 @@ public class GerarImagemFerramentaTests
     }
 
     [Fact]
-    public async Task ExecutarAsync_WhenNoLegenda_ShouldUseEmptyCaption()
+    public async Task ExecutarAsync_WhenNoLegenda_ShouldUseNullCaption()
     {
         var openRouterMock = new Mock<IGeradorImagem>();
         openRouterMock
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
         var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\"}");
 
@@ -56,7 +78,7 @@ public class GerarImagemFerramentaTests
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
         var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\", \"legenda\": \"Foto de um gato\"}");
 
@@ -69,12 +91,11 @@ public class GerarImagemFerramentaTests
     public async Task ExecutarAsync_WhenImageFails_ShouldReturnFailureMessageWithErrorReason()
     {
         var openRouterMock = new Mock<IGeradorImagem>();
-
         openRouterMock
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoImagem(null, "HTTP 404 - endpoint not found"));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
         var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"um gato\"}");
 
@@ -97,7 +118,7 @@ public class GerarImagemFerramentaTests
             .ReturnsAsync(new ResultadoImagem(img1, null))
             .ReturnsAsync(new ResultadoImagem(img2, null));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
 
         var p1 = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"gato\", \"legenda\": \"Gato\"}");
@@ -119,7 +140,7 @@ public class GerarImagemFerramentaTests
             .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
 
-        var ferramenta = new GerarImagemFerramenta(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object);
+        var ferramenta = CriarFerramenta(openRouterMock);
         var context = new LoopContext { ChatId = 123 };
         var promptLongo = "A professional marketing photograph of a modern minimalist workspace";
         var parametros = JsonSerializer.Deserialize<JsonElement>($"{{\"prompt\": \"{promptLongo}\"}}");
@@ -128,5 +149,36 @@ public class GerarImagemFerramentaTests
 
         resultado.Should().NotContain(promptLongo);
         resultado.Should().Contain("Imagem gerada");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithAssets_ShouldEnrichPromptWithDescriptions()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var assetPath = Path.Combine(_tempDir, "header.png");
+        await File.WriteAllBytesAsync(assetPath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        _referenciasMock.Setup(x => x.ListarAssets("acme")).Returns(new List<AssetVisual>
+        {
+            new() { Id = "asset_1", Cliente = "acme", Tipo = TipoAsset.Header, Nome = "principal", Caminho = assetPath }
+        }.AsReadOnly());
+
+        _analisadorMock.Setup(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Header azul com logo branco");
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123, Cliente = "acme" };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"post para instagram\", \"assets\": [\"asset_1\"]}");
+
+        await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        openRouterMock.Verify(x => x.GerarImagemAsync(
+            It.IsAny<long>(),
+            It.Is<string>(p => p.Contains("Visual identity references") && p.Contains("Header azul")),
+            It.IsAny<CancellationToken>()));
     }
 }
