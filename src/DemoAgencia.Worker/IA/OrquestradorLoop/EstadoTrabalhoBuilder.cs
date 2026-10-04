@@ -41,6 +41,14 @@ public static class EstadoTrabalhoBuilder
             }
         }
 
+        if (context.PlanoDeck.Count > 0)
+        {
+            linhas.Add("");
+            var papeisGerados = new HashSet<string>(context.ImagensDeck.Select(i => i.Papel));
+            var count = context.PlanoDeck.Count(p => papeisGerados.Contains(p));
+            linhas.Add($"Plano do deck: {count}/{context.PlanoDeck.Count} papeis gerados [{string.Join(", ", context.PlanoDeck)}]");
+        }
+
         linhas.Add("");
 
         if (context.Resultado.EtapasExecutadas.Count > 0)

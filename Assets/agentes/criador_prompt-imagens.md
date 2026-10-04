@@ -31,6 +31,12 @@ Se o usuario solicitar para uma plataforma especifica, inclua no prompt:
 - Use termos como: "high quality", "professional photography", "marketing material", "clean composition"
 - Evite elementos que possam ser interpretados como amadorismo
 
+### Decks e apresentacoes
+Quando o briefing descrever um deck/carrossel/slides:
+- Produza o prompt apenas para o slide/papel solicitado no briefing
+- Mantenha consistencia visual entre slides (mesmo estilo, paleta, mood)
+- Se o briefing nao especificar um papel/slide unico, pergunte qual slide do deck criar
+
 ## Formato de Resposta (JSON OBRIGATORIO)
 
 Responda APENAS com JSON valido:

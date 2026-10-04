@@ -68,11 +68,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<FerramentaRegistry>(sp =>
         {
             var registry = new FerramentaRegistry();
+            var loopOptions = sp.GetRequiredService<IOptions<LoopOptions>>().Value;
             registry.Registrar(new GerarImagemFerramenta(
                 sp.GetRequiredService<ILogger<GerarImagemFerramenta>>(),
                 sp.GetRequiredService<IGeradorImagem>(),
                 sp.GetRequiredService<IReferenciasCliente>(),
-                sp.GetRequiredService<IAnalisadorImagem>()));
+                sp.GetRequiredService<IAnalisadorImagem>(),
+                loopOptions));
+            registry.Registrar(new PlanejarDeckFerramenta(
+                sp.GetRequiredService<ILogger<PlanejarDeckFerramenta>>()));
             registry.Registrar(new ListarAssetsFerramenta(
                 sp.GetRequiredService<ILogger<ListarAssetsFerramenta>>(),
                 sp.GetRequiredService<IReferenciasCliente>()));

@@ -29,6 +29,7 @@ public class LoopContext
 
     public List<Artefato> Artefatos { get; } = new();
     public List<ItemDeckImagem> ImagensDeck { get; } = new();
+    public List<string> PlanoDeck { get; } = new();
 
     public void AdicionarArtefato(Artefato artefato)
     {

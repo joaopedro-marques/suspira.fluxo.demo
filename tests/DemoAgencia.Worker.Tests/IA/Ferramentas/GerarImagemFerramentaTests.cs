@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
@@ -30,8 +31,8 @@ public class GerarImagemFerramentaTests : IDisposable
             Directory.Delete(_tempDir, true);
     }
 
-    private GerarImagemFerramenta CriarFerramenta(Mock<IGeradorImagem> openRouterMock)
-        => new(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object, _referenciasMock.Object, _analisadorMock.Object);
+    private GerarImagemFerramenta CriarFerramenta(Mock<IGeradorImagem> openRouterMock, LoopOptions? options = null)
+        => new(Mock.Of<ILogger<GerarImagemFerramenta>>(), openRouterMock.Object, _referenciasMock.Object, _analisadorMock.Object, options ?? new LoopOptions());
 
     [Fact]
     public async Task ExecutarAsync_ShouldCallOpenRouterAndReturnDescription()
@@ -263,5 +264,147 @@ public class GerarImagemFerramentaTests : IDisposable
         resultado.Should().Contain("Deck: 1");
         context.ImagensDeck[0].Legenda.Should().Be("Capa");
         context.ImagensDeck[0].PromptResumo.Should().Contain("um gato");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenPapelAlreadyExistsWithoutSubstituir_ShouldBlock()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"capa\"}")!, CancellationToken.None);
+
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p2\", \"papel\": \"capa\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("Falha");
+        resultado.Should().Contain("capa");
+        resultado.Should().Contain("img_1");
+        resultado.Should().Contain("substituir");
+        context.ImagensDeck.Should().HaveCount(1);
+        context.Resultado.Imagens.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenPapelNotInPlan_ShouldBlock()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+        context.PlanoDeck.AddRange(["capa", "slide_1"]);
+
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"slide_inexistente\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("Falha");
+        resultado.Should().Contain("plano");
+        context.ImagensDeck.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenPlanNotSet_ShouldAllowWithoutPapelGuard()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"qualquer\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("gerada");
+        context.ImagensDeck.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithSubstituir_ShouldReplaceAtSamePosition()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        var img1Bytes = new byte[] { 1, 2, 3 };
+        var newBytes = new byte[] { 9, 9, 9 };
+        var img2Bytes = new byte[] { 4, 5, 6 };
+
+        openRouterMock
+            .SetupSequence(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(img1Bytes, null))
+            .ReturnsAsync(new ResultadoImagem(img2Bytes, null))
+            .ReturnsAsync(new ResultadoImagem(newBytes, null));
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"capa\"}")!, CancellationToken.None);
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p2\", \"papel\": \"slide_1\"}")!, CancellationToken.None);
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p3\", \"papel\": \"capa\", \"substituir\": \"img_1\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("img_1");
+        resultado.Should().Contain("substituida");
+        context.ImagensDeck.Should().HaveCount(2);
+        context.ImagensDeck[0].Id.Should().Be("img_1");
+        context.ImagensDeck[0].Papel.Should().Be("capa");
+        context.Resultado.Imagens.Should().HaveCount(2);
+        context.Resultado.Imagens[0].Bytes.Should().BeEquivalentTo(newBytes);
+        context.Resultado.Imagens[1].Bytes.Should().BeEquivalentTo(img2Bytes);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithSubstituir_NonExistentId_ShouldBlock()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123 };
+        context.ImagensDeck.Add(new ItemDeckImagem("img_1", "capa", null, "prompt"));
+
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"capa\", \"substituir\": \"img_99\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("Falha");
+        resultado.Should().Contain("img_99");
+        context.Resultado.Imagens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenMaxImagesReached_ShouldBlock()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var options = new LoopOptions { MaxImagensPorDeck = 2 };
+        var ferramenta = CriarFerramenta(openRouterMock, options);
+        var context = new LoopContext { ChatId = 123 };
+
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"a\"}")!, CancellationToken.None);
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p2\", \"papel\": \"b\"}")!, CancellationToken.None);
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p3\", \"papel\": \"c\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("Falha");
+        resultado.Should().Contain("limite");
+        context.ImagensDeck.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithSubstituir_ShouldNotCountTowardsMax()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var options = new LoopOptions { MaxImagensPorDeck = 2 };
+        var ferramenta = CriarFerramenta(openRouterMock, options);
+        var context = new LoopContext { ChatId = 123 };
+
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p1\", \"papel\": \"a\"}")!, CancellationToken.None);
+        await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p2\", \"papel\": \"b\"}")!, CancellationToken.None);
+        var resultado = await ferramenta.ExecutarAsync(context, JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"p3\", \"papel\": \"a\", \"substituir\": \"img_1\"}")!, CancellationToken.None);
+
+        resultado.Should().Contain("substituida");
+        context.ImagensDeck.Should().HaveCount(2);
     }
 }

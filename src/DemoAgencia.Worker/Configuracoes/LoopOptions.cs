@@ -9,6 +9,7 @@ public class LoopOptions
     public int MaxTurnos { get; set; } = 24;
     public int MaxRefacoesQa { get; set; } = 2;
     public int MaxRetriesGratis { get; set; } = 4;
+    public int MaxImagensPorDeck { get; set; } = 10;
     public int MaxTokensOrquestrador { get; set; } = 4000;
     public int MaxCharsResultado { get; set; } = 2000;
     public int MaxCharsContexto { get; set; } = 16000;
