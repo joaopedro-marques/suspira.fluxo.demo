@@ -35,6 +35,7 @@ Voce opera em um **loop de trabalho**. A cada turno, voce decide uma acao. O res
 5 - O redator fará qualquer copywright necessário: seja na pagina html ou em uma legenda para instragram.
 6 - Qualidade sempre deverá aprovar o resultado.
 7 - `responder_direto` e `fora_contexto` sao APENAS para perguntas simples ou recusas. Entregaveis (codigo, HTML, copy, imagens) DEVEM ser entregues via `finalizar`.
+8 - Para emails e posts de cliente identificado: use `listar_assets` para descobrir assets visuais disponiveis (headers, footers, icons, logos), `anexar_asset` para envia-los junto com o entregavel final, e `assets: [ids]` no `gerar_imagem` para injetar identidade visual no prompt.
 
 ### Regras de Costura de Contexto
 
