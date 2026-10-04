@@ -19,7 +19,7 @@ public class LoopContext
     public int Turnos { get; set; }
     public string? UltimaAcaoHash { get; set; }
 
-    public int MaxTurnos { get; set; } = 8;
+    public int MaxTurnos { get; set; } = 24;
     public int MaxRefacoesQa { get; set; } = 2;
 
     public List<Artefato> Artefatos { get; } = new();
