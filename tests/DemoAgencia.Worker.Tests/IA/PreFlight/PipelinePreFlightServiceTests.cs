@@ -141,11 +141,32 @@ public class PipelinePreFlightServiceTests
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post", "simples": false}""")
-            .ReturnsAsync("Texto sem JSON");
+            .ReturnsAsync("Texto sem JSON")
+            .ReturnsAsync("Ainda sem JSON valido");
 
         var resultado = await _service.IniciarAsync(123, "criar post");
 
         resultado.Tipo.Should().Be(TipoResultadoPreFlight.Falha);
+        _chatMock.Verify(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            "preflight_montador_retry", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IniciarAsync_WithMontadorFailureAndRetrySuccess_ShouldReturnConcluido()
+    {
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post para Acme", "simples": false}""")
+            .ReturnsAsync("resposta invalida sem json")
+            .ReturnsAsync("""{"briefing": "Briefing via retry", "assets_reservados": ["asset_1"]}""");
+
+        var resultado = await _service.IniciarAsync(123, "post para acme");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado.Briefing.Should().Be("Briefing via retry");
+        resultado.AssetsReservados.Should().Contain("asset_1");
     }
 
     [Fact]

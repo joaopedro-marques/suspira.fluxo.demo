@@ -165,28 +165,53 @@ public class PipelinePreFlightService
         }
 
         var promptMontador = MontarPromptMontador(estado, pedidoRefinado);
-        var respostaMontador = await _servicoChat.ChamarAgenteAsync(
+        var respostaMontador = await ChamarMontadorAsync(estado, montador, promptMontador, ct, "preflight_montador");
+
+        var parse = ParserBriefing.TentarExtrairComDiagnostico(respostaMontador);
+        if (parse.Resultado != null)
+        {
+            var assetsValidos = ValidarAssets(estado.Cliente, parse.Resultado.AssetsReservados);
+            _store.Remover(estado.ChatId);
+            return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, assetsValidos, estado.Cliente);
+        }
+
+        _logger.LogWarning("ParserBriefing falhou ({Motivo}). Resposta (inicio): {Inicio} | Resposta (fim): {Fim}",
+            parse.MotivoFalha,
+            respostaMontador[..Math.Min(200, respostaMontador.Length)],
+            respostaMontador[^Math.Min(200, respostaMontador.Length)..]);
+
+        var promptRetry = promptMontador + "\n\n## ATENCAO\nSua resposta anterior nao foi parseada como JSON valido. Responda APENAS com JSON valido, sem markdown, sem fences ```json, e sem aspas nao escapadas dentro dos textos.";
+        var respostaRetry = await ChamarMontadorAsync(estado, montador, promptRetry, ct, "preflight_montador_retry");
+
+        var parseRetry = ParserBriefing.TentarExtrairComDiagnostico(respostaRetry);
+        if (parseRetry.Resultado != null)
+        {
+            var assetsValidos = ValidarAssets(estado.Cliente, parseRetry.Resultado.AssetsReservados);
+            _store.Remover(estado.ChatId);
+            return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, assetsValidos, estado.Cliente);
+        }
+
+        _logger.LogWarning("Retry do Montador tambem falhou ({Motivo}).", parseRetry.MotivoFalha);
+        return ResultadoPreFlight.Falha();
+    }
+
+    private async Task<string> ChamarMontadorAsync(
+        EstadoPreFlight estado,
+        AgenteDefinicao montador,
+        string prompt,
+        CancellationToken ct,
+        string etapaNome)
+    {
+        var resposta = await _servicoChat.ChamarAgenteAsync(
             estado.ChatId,
             montador.Persona,
             montador.ModeloAlvo,
-            promptMontador,
-            "preflight_montador",
+            prompt,
+            etapaNome,
             temperature: montador.Temperatura,
             maxTokens: montador.MaxTokens > 0 ? montador.MaxTokens : 2000,
             ct: ct);
-
-        var briefing = ParserBriefing.TentarExtrair(respostaMontador);
-        if (briefing == null)
-        {
-            _logger.LogWarning("ParserBriefing retornou nulo. Resposta: {Resposta}",
-                respostaMontador[..Math.Min(200, respostaMontador.Length)]);
-            return ResultadoPreFlight.Falha();
-        }
-
-        var assetsValidos = ValidarAssets(estado.Cliente, briefing.AssetsReservados);
-        _store.Remover(estado.ChatId);
-
-        return ResultadoPreFlight.Concluido(briefing.Briefing, assetsValidos, estado.Cliente);
+        return resposta ?? string.Empty;
     }
 
     private string DetectarCliente(string mensagem)
