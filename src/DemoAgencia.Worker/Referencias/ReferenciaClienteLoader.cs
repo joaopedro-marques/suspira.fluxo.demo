@@ -7,6 +7,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private readonly string? _customPath;
     private readonly Dictionary<string, List<string>> _referenciasPorCliente = new();
     private readonly Dictionary<string, List<string>> _imagensPorCliente = new();
+    private readonly Dictionary<string, List<AssetVisual>> _assetsPorCliente = new();
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -18,6 +19,13 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     {
         ".json", ".html", ".htm", ".md", ".txt", ".css"
     };
+
+    private static readonly HashSet<string> TiposConhecidos = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "header", "footer", "icon", "logo", "foto", "post"
+    };
+
+    private static int _assetIdCounter;
 
     public ReferenciaClienteLoader(
         ILogger<ReferenciaClienteLoader> logger,
@@ -66,18 +74,33 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 var idxPrimeiroUnderscore = semPrefixo.IndexOf('_');
                 if (idxPrimeiroUnderscore <= 0)
                 {
-                    _logger.LogWarning("Arquivo sem sufixo de tipo ignorado: {File}", fileName);
+                    _logger.LogWarning("Arquivo sem sufixo ignorado: {File}", fileName);
                     continue;
                 }
 
                 var cliente = semPrefixo.Substring(0, idxPrimeiroUnderscore).ToLowerInvariant();
+                var restante = semPrefixo.Substring(idxPrimeiroUnderscore + 1);
                 var extensao = Path.GetExtension(file);
+                var nomeSemExt = Path.GetFileNameWithoutExtension(restante);
 
                 if (ExtencoesImagem.Contains(extensao))
                 {
                     if (!_imagensPorCliente.ContainsKey(cliente))
                         _imagensPorCliente[cliente] = new List<string>();
                     _imagensPorCliente[cliente].Add(file);
+
+                    var (tipo, nome) = ParseTipoENome(nomeSemExt);
+                    var asset = new AssetVisual
+                    {
+                        Id = $"asset_{Interlocked.Increment(ref _assetIdCounter)}",
+                        Cliente = cliente,
+                        Tipo = tipo,
+                        Nome = nome,
+                        Caminho = file
+                    };
+                    if (!_assetsPorCliente.ContainsKey(cliente))
+                        _assetsPorCliente[cliente] = new List<AssetVisual>();
+                    _assetsPorCliente[cliente].Add(asset);
                 }
                 else if (ExtencoesTexto.Contains(extensao))
                 {
@@ -96,10 +119,11 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             }
         }
 
-        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Imagens} imagens",
+        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Imagens} imagens, {Assets} assets",
             _referenciasPorCliente.Keys.Union(_imagensPorCliente.Keys).Count(),
             _referenciasPorCliente.Values.Sum(v => v.Count),
-            _imagensPorCliente.Values.Sum(v => v.Count));
+            _imagensPorCliente.Values.Sum(v => v.Count),
+            _assetsPorCliente.Values.Sum(v => v.Count));
 
         return Task.CompletedTask;
     }
@@ -137,5 +161,29 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             return Array.Empty<string>().ToList().AsReadOnly();
 
         return imagens.AsReadOnly();
+    }
+
+    public virtual IReadOnlyCollection<AssetVisual> ListarAssets(string cliente)
+    {
+        if (!_assetsPorCliente.TryGetValue(cliente.ToLowerInvariant(), out var assets))
+            return Array.Empty<AssetVisual>().ToList().AsReadOnly();
+
+        return assets.AsReadOnly();
+    }
+
+    private static (TipoAsset tipo, string nome) ParseTipoENome(string nomeSemExt)
+    {
+        var partes = nomeSemExt.Split('_', 2);
+        if (partes.Length >= 2 && TiposConhecidos.Contains(partes[0]))
+        {
+            return (AssetVisual.ParseTipo(partes[0]), partes[1]);
+        }
+
+        if (partes.Length == 1 && TiposConhecidos.Contains(partes[0]))
+        {
+            return (AssetVisual.ParseTipo(partes[0]), partes[0]);
+        }
+
+        return (TipoAsset.Outro, nomeSemExt);
     }
 }

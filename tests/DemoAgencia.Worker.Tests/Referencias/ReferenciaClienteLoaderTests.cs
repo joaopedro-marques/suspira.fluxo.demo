@@ -177,4 +177,66 @@ public class ReferenciaClienteLoaderTests : IDisposable
         loader.ObterReferenciasTexto("acme").Should().NotBeEmpty();
         loader.ObterReferenciasTexto("beta").Should().NotBeEmpty();
     }
+
+    [Fact]
+    public async Task ListarAssets_WithTypedAssets_ShouldParseTypeFromFilename()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_principal.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_footer_padrao.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_icon_logo.png"), new byte[] { 3 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("acme");
+
+        assets.Should().HaveCount(3);
+        assets.Should().Contain(a => a.Tipo == TipoAsset.Header && a.Nome == "principal");
+        assets.Should().Contain(a => a.Tipo == TipoAsset.Footer && a.Nome == "padrao");
+        assets.Should().Contain(a => a.Tipo == TipoAsset.Icon && a.Nome == "logo");
+    }
+
+    [Fact]
+    public async Task ListarAssets_WithLegacyImageName_ShouldInferTypeFromSecondPart()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_logo.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_foto_equipe.jpg"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("acme");
+
+        assets.Should().HaveCount(2);
+        assets.Should().Contain(a => a.Tipo == TipoAsset.Logo);
+        assets.Should().Contain(a => a.Tipo == TipoAsset.Foto);
+    }
+
+    [Fact]
+    public async Task ListarAssets_WithUnknownClient_ShouldReturnEmpty()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_main.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("unknown");
+
+        assets.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListarAssets_ShouldIncludeIdAndCliente()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "CLIENTE_acme_header_main.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("acme");
+
+        assets.Should().HaveCount(1);
+        assets.First().Id.Should().NotBeEmpty();
+        assets.First().Cliente.Should().Be("acme");
+    }
 }
