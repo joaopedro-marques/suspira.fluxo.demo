@@ -39,7 +39,7 @@ graph TB
     
     subgraph "Armazenamento"
         MD[Agentes .md]
-        REF[Referencias CLIENTE_*]
+        REF[Referencias {cliente}_*]
         LOG[Logs]
     end
     
@@ -201,16 +201,16 @@ Novas ferramentas = novo `.cs` implementando `IFerramenta` + registro no `Ferram
 
 ### Referencias de Cliente
 
-O sistema suporta carregar referencias de clientes (manuais de marca, exemplos, imagens) para personalizar a producao. As referencias ficam em `Assets/referencias/` com o padrao `CLIENTE_{nome}_{tipo}.ext`.
+O sistema suporta carregar referencias de clientes (manuais de marca, exemplos, imagens) para personalizar a producao. As referencias ficam em `Assets/referencias/` com o padrao `{cliente}_{nome}.ext`. O primeiro token antes do underscore e o identificador do cliente (case-insensitive).
 
 **Fluxo de referencias:**
 
 ```mermaid
 flowchart LR
     subgraph "Assets/referencias/"
-        JSON[CLIENTE_acme_marca.json]
-        HTML[CLIENTE_acme_exemplo.html]
-        IMG[CLIENTE_acme_ref-visual.png]
+        JSON[acme_marca.json]
+        HTML[acme_exemplo.html]
+        IMG[acme_ref-visual.png]
     end
 
     subgraph "Loop"
@@ -458,7 +458,7 @@ graph TD
         end
 
         subgraph "Referencias/"
-            RCL[ReferenciaClienteLoader.cs<br/>Parser CLIENTE_ prefix]
+            RCL[ReferenciaClienteLoader.cs<br/>Parser {cliente}_* prefix]
         end
 
         subgraph "IA/"
@@ -487,7 +487,7 @@ graph TD
     
     subgraph "Assets/"
         MD2[agentes/*.md<br/>Definicoes dos agentes]
-        REF[referencias/CLIENTE_*<br/>Referencias de clientes]
+        REF[referencias/{cliente}_*<br/>Referencias de clientes]
     end
     
     subgraph "tests/"

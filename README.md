@@ -57,7 +57,7 @@ src/DemoAgencia.Worker/
 
 /Assets/
   ├── agentes/               # Definições dos agentes (.md)
-  └── referencias/           # CLIENTE_{nome}_{tipo}.ext (json, html, png, jpg)
+  └── referencias/           # {cliente}_{nome}.ext (json, html, png, jpg)
 ```
 
 ## Execução Local

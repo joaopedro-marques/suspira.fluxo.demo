@@ -406,14 +406,15 @@ Carrega **informacoes de clientes** (manuais de marca, exemplos, imagens) para p
 As referencias ficam em `Assets/referencias/` com o padrao de nomenclatura:
 
 ```
-CLIENTE_{nome}_{tipo}.ext
+{cliente}_{nome}.ext
 ```
 
-Exemplos:
+O primeiro token antes do underscore e o identificador do cliente (case-insensitive). Exemplos:
 ```
-CLIENTE_acme_marca.json        <-- Manual de marca
-CLIENTE_acme_exemplo.html      <-- Exemplo de conteudo
-CLIENTE_acme_ref-visual.png    <-- Referencia visual
+acme_marca.json        <-- Manual de marca
+acme_exemplo.html      <-- Exemplo de conteudo
+acme_ref-visual.png    <-- Referencia visual
+mrv_logoMRV.png        <-- Logo do cliente MRV
 ```
 
 ### Fluxo de Enriquecimento
