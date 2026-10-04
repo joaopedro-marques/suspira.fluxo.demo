@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.Configuracoes;
 
+[ExcludeFromCodeCoverage]
 public class OpenRouterOptions
 {
     public const string Section = "OpenRouter";

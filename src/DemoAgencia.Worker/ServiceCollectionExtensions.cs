@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
@@ -12,6 +13,7 @@ using Serilog;
 
 namespace DemoAgencia.Worker;
 
+[ExcludeFromCodeCoverage]
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddDemoAgencia(this IServiceCollection services, IConfiguration configuration)

@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.Contracts;
 
+[ExcludeFromCodeCoverage]
 public class LangfuseTrace
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();

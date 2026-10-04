@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace DemoAgencia.Worker.Telegram;
 
+[ExcludeFromCodeCoverage]
 public class TelegramBotGateway : ITelegramGateway
 {
     private readonly TelegramBotClient _botClient;
@@ -70,6 +72,7 @@ public class TelegramBotGateway : ITelegramGateway
     }
 }
 
+[ExcludeFromCodeCoverage]
 public class TelegramGatewayFactory : ITelegramGatewayFactory
 {
     public ITelegramGateway Create(string botToken)

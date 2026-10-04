@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.IA.OrquestradorLoop;
 
+[ExcludeFromCodeCoverage]
 public class LoopContext
 {
     public long ChatId { get; init; }

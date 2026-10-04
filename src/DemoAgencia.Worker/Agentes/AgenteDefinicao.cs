@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.Agentes;
 
+[ExcludeFromCodeCoverage]
 public class AgenteDefinicao
 {
     public string Nome { get; set; } = string.Empty;

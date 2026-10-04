@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.Referencias;
 
 public enum TipoAsset
@@ -11,6 +13,7 @@ public enum TipoAsset
     Outro
 }
 
+[ExcludeFromCodeCoverage]
 public class AssetVisual
 {
     public string Id { get; init; } = string.Empty;

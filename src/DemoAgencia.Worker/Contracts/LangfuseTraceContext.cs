@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace DemoAgencia.Worker.Contracts;
 
+[ExcludeFromCodeCoverage]
 public class LangfuseTraceContext
 {
     public long ChatId { get; set; }
