@@ -313,26 +313,11 @@ internal class ReasoningDisablingHandler : DelegatingHandler
             try
             {
                 var originalBody = await request.Content.ReadAsStringAsync(cancellationToken);
-                using var doc = System.Text.Json.JsonDocument.Parse(originalBody);
-                var dict = new Dictionary<string, object?>();
-
-                foreach (var prop in doc.RootElement.EnumerateObject())
+                if (System.Text.Json.Nodes.JsonNode.Parse(originalBody) is System.Text.Json.Nodes.JsonObject obj)
                 {
-                    dict[prop.Name] = prop.Value.ValueKind switch
-                    {
-                        System.Text.Json.JsonValueKind.String => prop.Value.GetString(),
-                        System.Text.Json.JsonValueKind.Number => prop.Value.GetDouble(),
-                        System.Text.Json.JsonValueKind.True => true,
-                        System.Text.Json.JsonValueKind.False => false,
-                        System.Text.Json.JsonValueKind.Null => null,
-                        _ => prop.Value.GetRawText()
-                    };
+                    obj["reasoning"] = new System.Text.Json.Nodes.JsonObject { ["enabled"] = false };
+                    request.Content = new StringContent(obj.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
                 }
-
-                dict["reasoning"] = new Dictionary<string, object> { ["enabled"] = false };
-
-                var newBody = System.Text.Json.JsonSerializer.Serialize(dict);
-                request.Content = new StringContent(newBody, System.Text.Encoding.UTF8, "application/json");
             }
             catch { }
         }
