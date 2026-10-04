@@ -67,19 +67,15 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             try
             {
                 var fileName = Path.GetFileName(file);
-                if (!fileName.StartsWith("CLIENTE_", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var semPrefixo = fileName.Substring("CLIENTE_".Length);
-                var idxPrimeiroUnderscore = semPrefixo.IndexOf('_');
+                var idxPrimeiroUnderscore = fileName.IndexOf('_');
                 if (idxPrimeiroUnderscore <= 0)
                 {
                     _logger.LogWarning("Arquivo sem sufixo ignorado: {File}", fileName);
                     continue;
                 }
 
-                var cliente = semPrefixo.Substring(0, idxPrimeiroUnderscore).ToLowerInvariant();
-                var restante = semPrefixo.Substring(idxPrimeiroUnderscore + 1);
+                var cliente = fileName.Substring(0, idxPrimeiroUnderscore).ToLowerInvariant();
+                var restante = fileName.Substring(idxPrimeiroUnderscore + 1);
                 var extensao = Path.GetExtension(file);
                 var nomeSemExt = Path.GetFileNameWithoutExtension(restante);
 
