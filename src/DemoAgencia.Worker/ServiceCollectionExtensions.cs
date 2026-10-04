@@ -61,6 +61,9 @@ public static class ServiceCollectionExtensions
             registry.Registrar(new GerarImagemFerramenta(
                 sp.GetRequiredService<ILogger<GerarImagemFerramenta>>(),
                 sp.GetRequiredService<IGeradorImagem>()));
+            registry.Registrar(new ListarAssetsFerramenta(
+                sp.GetRequiredService<ILogger<ListarAssetsFerramenta>>(),
+                sp.GetRequiredService<IReferenciasCliente>()));
             return registry;
         });
 
