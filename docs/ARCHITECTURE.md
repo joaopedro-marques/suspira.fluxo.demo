@@ -75,7 +75,7 @@ sequenceDiagram
     U->>T: Mensagem livre
     T->>L: ExecutarAsync()
 
-    loop Max 8 turnos
+    loop Max 24 turnos (retries gratis ate 4)
         L->>O: Transcript + acao anterior
         O-->>L: JSON {acao: ...}
 
@@ -125,7 +125,9 @@ Ferramentas sao registradas em codigo e chamadas pelo orquestrador via `chamar_f
 
 | Ferramenta | Descricao |
 |------------|-----------|
-| `gerar_imagem` | Gera imagem a partir de prompt (OpenRouter) |
+| `gerar_imagem` | Gera imagem a partir de prompt; suporta `legenda` e `assets: [ids]` para identidade visual |
+| `listar_assets` | Lista assets visuais (header, footer, icon, logo, foto, post) de um cliente |
+| `anexar_asset` | Anexa um asset pre-existente ao resultado final para envio ao usuario |
 
 Novas ferramentas = novo `.cs` implementando `IFerramenta` + registro no `FerramentaRegistry`.
 
@@ -167,8 +169,9 @@ flowchart LR
 ```json
 {
   "Loop": {
-    "MaxTurnos": 8,
+    "MaxTurnos": 24,
     "MaxRefacoesQa": 2,
+    "MaxRetriesGratis": 4,
     "MensagemForaContexto": "...",
     "MensagemFalha": "..."
   },
@@ -297,7 +300,7 @@ sequenceDiagram
     T->>TS: Update (Long Polling)
     TS->>OL: ExecutarAsync(chatId, mensagem)
     
-    loop Max 8 turnos
+    loop Max 24 turnos (retries gratis ate 4)
         OL->>O: Transcript + contexto
         O-->>OL: JSON {acao: ...}
         
