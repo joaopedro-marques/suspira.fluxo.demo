@@ -235,9 +235,11 @@ public class OrquestradorLoopService
                     break;
 
                 case "finalizar":
+                    var ultimoNaoInterno = context.Artefatos.LastOrDefault(a => !IsAgenteInterno(a.Agente));
                     var entregavel = !string.IsNullOrWhiteSpace(decisao.Entregavel)
                         ? decisao.Entregavel
-                        : context.Artefatos.LastOrDefault()?.Entregavel ?? context.UltimoOutputAgente ?? "";
+                        : ultimoNaoInterno?.Entregavel
+                          ?? (ultimoNaoInterno == null ? "" : context.UltimoOutputAgente ?? "");
                     context.Entregavel = entregavel;
 
                     if (!context.QaExecutado)
@@ -355,5 +357,11 @@ public class OrquestradorLoopService
         if (charsDisponiveis <= 0)
             return texto[..maxChars];
         return texto[..charsDisponiveis] + sufixo;
+    }
+
+    private bool IsAgenteInterno(string nomeAgente)
+    {
+        var agente = _agenteLoader.ObterPorNome(nomeAgente);
+        return agente?.Interno ?? false;
     }
 }

@@ -1010,4 +1010,47 @@ public class OrquestradorLoopServiceTests
         briefingDev.Should().NotContain("ENTREGAVEL_REDATOR");
         briefingDev.Should().Contain("NOTA_REDATOR");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_Finalizar_WhenLastArtifactIsPrompt_ShouldNotUsePromptAsEntregavel()
+    {
+        var orquestrador = CriarOrquestrador();
+        var promptAgent = new AgenteDefinicao
+        {
+            Nome = "Prompt para Imagens",
+            ModeloAlvo = "claude",
+            Persona = "persona",
+            Papel = "producao",
+            Interno = true
+        };
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorNome("Prompt para Imagens")).Returns(promptAgent);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao> { promptAgent }.AsReadOnly());
+
+        var promptText = "A professional marketing photograph of a modern workspace";
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                if (etapa == "loop_orquestrador")
+                {
+                    orqCallCount++;
+                    return orqCallCount == 1
+                        ? "{\"acao\": \"chamar_agente\", \"agente\": \"Prompt para Imagens\", \"briefing\": \"gere um prompt\"}"
+                        : "{\"acao\": \"finalizar\"}";
+                }
+                if (etapa == "loop_agente_Prompt para Imagens")
+                    return promptText;
+                return "{\"aprovado\": true}";
+            });
+
+        var result = await _loop.ExecutarAsync(123, "gere uma imagem");
+
+        (result.RespostaFinal != promptText).Should().BeTrue(
+            "o prompt de imagem nao deve ser o entregavel final");
+    }
 }
