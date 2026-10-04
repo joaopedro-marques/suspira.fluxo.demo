@@ -258,10 +258,13 @@ public class OrquestradorLoopService
                         await NotificarProgresso(onProgresso, "🔍 Revisando qualidade...");
                         context.Resultado.EtapasExecutadas.Add("loop_qualidade");
 
+                        var infoDeck = BuildInfoDeck(context);
+
                         var qaResultado = await _gateQualidade.AvaliarAsync(
                             chatId,
                             context.Mensagem,
                             entregavel,
+                            infoDeck,
                             ct);
 
                         context.QaAprovado = qaResultado.Aprovado;
@@ -375,6 +378,30 @@ public class OrquestradorLoopService
     {
         var agente = _agenteLoader.ObterPorNome(nomeAgente);
         return agente?.Interno ?? false;
+    }
+
+    private static string BuildInfoDeck(LoopContext context)
+    {
+        if (context.ImagensDeck.Count == 0 && context.PlanoDeck.Count == 0)
+            return "";
+
+        var linhas = new List<string>();
+        if (context.PlanoDeck.Count > 0)
+        {
+            var papeisGerados = new HashSet<string>(context.ImagensDeck.Select(i => i.Papel));
+            var count = context.PlanoDeck.Count(p => papeisGerados.Contains(p));
+            linhas.Add($"Plano: {count}/{context.PlanoDeck.Count} [{string.Join(", ", context.PlanoDeck)}]");
+        }
+        if (context.ImagensDeck.Count > 0)
+        {
+            var imagensStr = string.Join(", ", context.ImagensDeck.Select(i =>
+            {
+                var legenda = !string.IsNullOrEmpty(i.Legenda) ? $" \"{i.Legenda}\"" : "";
+                return $"[{i.Id}] {i.Papel}{legenda}";
+            }));
+            linhas.Add($"Geradas: {imagensStr}");
+        }
+        return string.Join("\n", linhas);
     }
 
     private static void TentarRetryGratis(LoopContext context)

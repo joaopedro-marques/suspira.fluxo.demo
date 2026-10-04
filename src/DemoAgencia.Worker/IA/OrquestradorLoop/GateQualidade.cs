@@ -19,6 +19,7 @@ public class GateQualidade
         long chatId,
         string briefing,
         string entregavel,
+        string? infoDeck = null,
         CancellationToken ct = default)
     {
         var qualidade = _agentesCatalogo.ObterPorPapel("qualidade");
@@ -26,6 +27,11 @@ public class GateQualidade
             return new ResultadoQa(true, null);
 
         var qaPrompt = $"Briefing original: {briefing}\n\nEntregavel:\n{entregavel}";
+        if (!string.IsNullOrEmpty(infoDeck))
+        {
+            qaPrompt += $"\n\nInventario de imagens:\n{infoDeck}";
+        }
+
         var qaResult = await _servicoChat.ChamarAgenteAsync(
             chatId,
             qualidade.Persona,

@@ -47,6 +47,21 @@ public class TelegramBotGateway : ITelegramGateway
         await _botClient.SendPhoto(chatId: chatId, photo: photo, caption: legendaFormatada, cancellationToken: ct);
     }
 
+    public async Task<Message[]> SendMediaGroupAsync(long chatId, IEnumerable<(Stream Stream, string? Caption)> fotos, CancellationToken ct = default)
+    {
+        var media = new List<IAlbumInputMedia>();
+        foreach (var (stream, caption) in fotos)
+        {
+            var legendaFormatada = caption != null ? TelegramTextFormatter.RemoverFormatacao(caption) : caption;
+            if (legendaFormatada != null && legendaFormatada.Length > 1024)
+            {
+                legendaFormatada = legendaFormatada[..1024];
+            }
+            media.Add(new InputMediaPhoto(new InputFileStream(stream)) { Caption = legendaFormatada });
+        }
+        return await _botClient.SendMediaGroup(chatId: chatId, media: media, cancellationToken: ct);
+    }
+
     public async Task SendDocumentAsync(long chatId, Stream document, string fileName, string? caption, CancellationToken ct = default)
     {
         await _botClient.SendDocument(

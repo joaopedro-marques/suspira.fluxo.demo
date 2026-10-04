@@ -314,10 +314,7 @@ public class TelegramService : BackgroundService
             }
             else
             {
-                foreach (var imagem in resultado.Imagens)
-                {
-                    await EnviarFotoComLegendaAsync(message.Chat.Id, imagem.Bytes, imagem.Legenda, ct);
-                }
+                await EnviarDeckImagensAsync(message.Chat.Id, resultado.Imagens, ct);
 
                 foreach (var asset in resultado.AssetsAnexados)
                 {
@@ -413,10 +410,7 @@ public class TelegramService : BackgroundService
         }
         else
         {
-            foreach (var imagem in resultadoLoop.Imagens)
-            {
-                await EnviarFotoComLegendaAsync(chatId, imagem.Bytes, imagem.Legenda, ct);
-            }
+            await EnviarDeckImagensAsync(chatId, resultadoLoop.Imagens, ct);
 
             foreach (var asset in resultadoLoop.AssetsAnexados)
             {
@@ -601,6 +595,39 @@ public class TelegramService : BackgroundService
         foreach (var parte in overflow)
         {
             await _gateway!.SendMessageAsync(chatId, parte, ct);
+        }
+    }
+
+    private async Task EnviarDeckImagensAsync(long chatId, List<ImagemGerada> imagens, CancellationToken ct)
+    {
+        if (imagens.Count == 0) return;
+
+        if (imagens.Count == 1)
+        {
+            await EnviarFotoComLegendaAsync(chatId, imagens[0].Bytes, imagens[0].Legenda, ct);
+            return;
+        }
+
+        try
+        {
+            var total = imagens.Count;
+            var fotos = imagens.Select((img, i) =>
+            {
+                var slideLabel = $"Slide {i + 1}/{total}";
+                var caption = !string.IsNullOrEmpty(img.Legenda) ? $"{slideLabel} — {img.Legenda}" : slideLabel;
+                var (captionTruncada, _) = TelegramMessageSplitter.DividirLegenda(caption);
+                return (new MemoryStream(img.Bytes) as Stream, captionTruncada);
+            }).ToList();
+
+            await _gateway!.SendMediaGroupAsync(chatId, fotos, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao enviar media group, fallback para envio individual");
+            foreach (var img in imagens)
+            {
+                await EnviarFotoComLegendaAsync(chatId, img.Bytes, img.Legenda, ct);
+            }
         }
     }
 }

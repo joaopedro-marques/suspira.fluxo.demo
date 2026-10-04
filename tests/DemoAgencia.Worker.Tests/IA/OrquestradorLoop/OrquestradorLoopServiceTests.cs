@@ -1145,4 +1145,54 @@ public class OrquestradorLoopServiceTests
             "com MaxRetriesGratis=0, todos retries consomem turno; apos 2 turnos, falha");
         orqCallCount.Should().Be(2, "com MaxTurnos=2, deve haver 2 chamadas (ambas invalidas)");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_FinalizarWithImages_ShouldPassDeckInfoToQa()
+    {
+        var orquestrador = CriarOrquestrador();
+        var qualidade = CriarAgente("Qualidade", "qualidade");
+
+        var ferramentaMock = new Mock<IFerramenta>();
+        ferramentaMock.Setup(x => x.Nome).Returns("gerar_imagem");
+        ferramentaMock.Setup(x => x.Descricao).Returns("Gera imagem");
+        ferramentaMock
+            .Setup(x => x.ExecutarAsync(It.IsAny<LoopContext>(), It.IsAny<System.Text.Json.JsonElement>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LoopContext ctx, System.Text.Json.JsonElement p, CancellationToken ct) =>
+            {
+                ctx.Resultado.Imagens.Add(new ImagemGerada(new byte[] { 1 }, "Capa"));
+                ctx.AdicionarImagemNoDeck(new ItemDeckImagem("img_1", "capa", "Capa", "prompt"));
+                return "Imagem img_1 (capa) gerada";
+            });
+        _ferramentaRegistry.Registrar(ferramentaMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                return etapa switch
+                {
+                    "loop_orquestrador" when ++orqCallCount == 1 => "{\"acao\": \"chamar_ferramenta\", \"ferramenta\": \"gerar_imagem\", \"parametros\": {\"prompt\": \"capa\", \"papel\": \"capa\"}}",
+                    "loop_orquestrador" => "{\"acao\": \"finalizar\", \"entregavel\": \"Deck pronto\"}",
+                    "loop_qualidade" => "{\"aprovado\": true, \"feedback\": \"OK\"}",
+                    _ => ""
+                };
+            });
+
+        await _loop.ExecutarAsync(123, "gere deck");
+
+        var qaCall = _openRouterMock.Invocations
+            .Where(i => i.Arguments[4].ToString() == "loop_qualidade")
+            .First();
+        var qaInput = qaCall.Arguments[3].ToString();
+        qaInput.Should().Contain("Inventario de imagens");
+        qaInput.Should().Contain("img_1");
+        qaInput.Should().Contain("capa");
+    }
 }

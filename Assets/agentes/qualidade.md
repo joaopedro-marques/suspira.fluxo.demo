@@ -20,6 +20,7 @@ Para cada entregavel recebido, avalie:
 3. **Consistencia**: Esta alinhado com o contexto e referencias fornecidos?
 4. **Formato**: Esta no formato esperado (HTML, texto, prompt de imagem, etc.)?
 5. **Acionabilidade**: Se for um CTA, link ou instrucao, esta claro e funcional?
+6. **Completude do deck** (quando inventario de imagens fornecido): Todos os papeis planejados foram gerados? Ha duplicatas? As legendas sao coerentes?
 
 ## Formato de Resposta (JSON OBRIGATORIO)
 
