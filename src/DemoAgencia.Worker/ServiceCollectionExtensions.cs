@@ -64,6 +64,9 @@ public static class ServiceCollectionExtensions
             registry.Registrar(new ListarAssetsFerramenta(
                 sp.GetRequiredService<ILogger<ListarAssetsFerramenta>>(),
                 sp.GetRequiredService<IReferenciasCliente>()));
+            registry.Registrar(new AnexarAssetFerramenta(
+                sp.GetRequiredService<ILogger<AnexarAssetFerramenta>>(),
+                sp.GetRequiredService<IReferenciasCliente>()));
             return registry;
         });
 
