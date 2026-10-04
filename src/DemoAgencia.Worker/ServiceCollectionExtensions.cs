@@ -4,6 +4,7 @@ using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.PreFlight;
 using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
@@ -24,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.Section));
         services.Configure<TelegramOptions>(configuration.GetSection(TelegramOptions.Section));
         services.Configure<SegurancaOptions>(configuration.GetSection(SegurancaOptions.Section));
+        services.Configure<PreFlightOptions>(configuration.GetSection(PreFlightOptions.Section));
 
         services.AddHttpClient("OpenRouter", client =>
         {
@@ -55,6 +57,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAnalisadorImagem>(sp => sp.GetRequiredService<OpenRouterService>());
 
         services.AddSingleton<EnriquecedorContextoCliente>();
+
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ConversaPendenteStore>();
+        services.AddSingleton<PipelinePreFlightService>();
 
         services.AddSingleton<StreamingService>();
         services.AddSingleton<IStreamingService>(sp => sp.GetRequiredService<StreamingService>());
