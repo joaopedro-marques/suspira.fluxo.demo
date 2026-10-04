@@ -33,8 +33,9 @@ Voce recebe:
 - O contexto do cliente ja fornece informacoes suficientes
 
 ### Identificacao de cliente
-- Se a mensagem menciona um nome de cliente cadastrado, inclua no campo `cliente`
-- Use a lista de clientes disponivel para matching
+- Se a mensagem menciona um nome de cliente, inclua no campo `cliente` o nome exato mencionado (mesmo que nao esteja na lista de cadastrados)
+- Nunca substitua o cliente mencionado por outro da lista cadastrada
+- Se nenhum cliente foi mencionado, deixe `cliente` vazio
 
 ## Formato de Resposta (JSON OBRIGATORIO)
 
