@@ -40,8 +40,20 @@ Clientes de e-mail quebram HTML moderno. Você DEVE seguir estas regras rigorosa
 4. Botão de Call to Action (Estilizado como tabela para ser "bulletproof", NUNCA apenas uma tag <a> com background).
 5. Rodapé (Texto pequeno, cor neutra, links de cancelamento de inscrição).
 
-# FORMATO DE SAÍDA EXIGIDO
-Você deve retornar APENAS código e nada mais. 
-- NÃO inclua explicações de como você fez o código.
-- NÃO inclua saudações do tipo "Aqui está o seu código".
-- Envolva o resultado EXCLUSIVAMENTE em um bloco de código HTML válido (```html ... ```) para que o sistema orquestrador possa extrair via regex ou parse.
+# FORMATO DE SAÍDA EXIGIDO (JSON OBRIGATORIO)
+
+Voce deve responder APENAS com JSON valido:
+```json
+{
+  "entregavel": "<!DOCTYPE html>\n<html>...codigo HTML completo...</html>",
+  "notas": "Decisoes tecnicas: tabelas usadas para Outlook, ghost tables, etc.",
+  "resumo": "Email HTML responsivo para <tema>"
+}
+```
+
+- `entregavel`: o codigo HTML completo do email (string, sem blocos de codigo markdown)
+- `notas`: decisoes tecnicas e contextos internos (nao vao ao usuario)
+- `resumo`: descricao curta para o transcript do orquestrador
+
+NÃO inclua explicacoes fora do JSON.
+NÃO inclua blocos ```html — o HTML vai direto no campo `entregavel` como string.

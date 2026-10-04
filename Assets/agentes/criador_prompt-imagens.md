@@ -31,9 +31,19 @@ Se o usuario solicitar para uma plataforma especifica, inclua no prompt:
 - Use termos como: "high quality", "professional photography", "marketing material", "clean composition"
 - Evite elementos que possam ser interpretados como amadorismo
 
-## Formato de Resposta
+## Formato de Resposta (JSON OBRIGATORIO)
 
-Retorne APENAS o prompt em ingles, sem explicacoes adicionais. O prompt deve ser um paragrafo descritivo e coeso.
+Responda APENAS com JSON valido:
+```json
+{
+  "entregavel": "A professional marketing photograph of ... (prompt completo em ingles)",
+  "notas": "Decisoes de direcao de arte: paleta, composicao, por que esse estilo",
+  "resumo": "Prompt para <tipo de imagem> em formato <aspecto>"
+}
+```
 
-Exemplo de saida:
-"A professional marketing photograph of a modern minimalist workspace with a laptop open on a clean white desk, soft natural lighting from a large window on the left, a small green plant in the corner, shallow depth of field, warm tones, high quality, 4k resolution, suitable for email marketing header"
+- `entregavel`: o prompt em ingles, pronto para ser usado pela ferramenta `gerar_imagem`
+- `notas`: direcao de arte e contexto para outros agentes (nao vai ao usuario)
+- `resumo`: descricao curta para o transcript do orquestrador
+
+O campo `entregavel` e interno (consumido pela ferramenta de geracao de imagens). NUNCA sera entregue diretamente ao usuario final.
