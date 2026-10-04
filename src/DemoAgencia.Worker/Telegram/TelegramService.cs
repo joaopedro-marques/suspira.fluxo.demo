@@ -270,6 +270,12 @@ public class TelegramService : BackgroundService
                 return;
             }
 
+            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.Bloqueado)
+            {
+                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultadoPreFlight.MensagemBloqueio ?? "Pedido bloqueado.", ct);
+                return;
+            }
+
             if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.Falha)
             {
                 await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "Nao consegui entender seu pedido. Pode reformular?", ct);
@@ -363,6 +369,12 @@ public class TelegramService : BackgroundService
             var perguntas = string.Join("\n", resultado.Perguntas!.Select((p, i) => $"{i + 1}. {p}"));
             var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
             await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
+            return;
+        }
+
+        if (resultado.Tipo == TipoResultadoPreFlight.Bloqueado)
+        {
+            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultado.MensagemBloqueio ?? "Pedido bloqueado.", ct);
             return;
         }
 
