@@ -21,6 +21,8 @@ public class LoopContext
 
     public int MaxTurnos { get; set; } = 24;
     public int MaxRefacoesQa { get; set; } = 2;
+    public int MaxRetriesGratis { get; set; } = 4;
+    public int RetriesGratis { get; set; }
 
     public List<Artefato> Artefatos { get; } = new();
 

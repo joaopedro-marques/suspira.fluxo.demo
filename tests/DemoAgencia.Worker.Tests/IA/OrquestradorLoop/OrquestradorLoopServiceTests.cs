@@ -1053,4 +1053,83 @@ public class OrquestradorLoopServiceTests
         (result.RespostaFinal != promptText).Should().BeTrue(
             "o prompt de imagem nao deve ser o entregavel final");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_InvalidJsonRetry_ShouldNotConsumeTurn()
+    {
+        var orquestrador = CriarOrquestrador();
+        var options = new LoopOptions
+        {
+            MaxTurnos = 1,
+            MaxRefacoesQa = 2,
+            MaxRetriesGratis = 4,
+            MensagemFalha = "Falha"
+        };
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object, _loggerFactoryMock.Object, TestOptions.Create(options),
+            _openRouterMock.Object, _agenteLoaderMock.Object, _referenciaLoaderMock.Object,
+            _ferramentaRegistry, _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                if (etapa == "loop_orquestrador")
+                {
+                    orqCallCount++;
+                    if (orqCallCount == 1) return "not json";
+                    return "{\"acao\": \"responder_direto\", \"resposta\": \"OK\"}";
+                }
+                return "";
+            });
+
+        var result = await loop.ExecutarAsync(123, "oi");
+
+        result.RespostaFinal.Should().Be("OK",
+            "com MaxRetriesGratis=4, o retry nao consome turno; mesmo com MaxTurnos=1, deve haver retry + sucesso");
+        orqCallCount.Should().Be(2, "deve haver 2 chamadas ao orquestrador: 1 invalida + 1 valida");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_RetryAfterGratisExhausted_ShouldConsumeTurnAndFail()
+    {
+        var orquestrador = CriarOrquestrador();
+        var options = new LoopOptions
+        {
+            MaxTurnos = 2,
+            MaxRefacoesQa = 2,
+            MaxRetriesGratis = 0,
+            MensagemFalha = "Falha"
+        };
+        var loop = new OrquestradorLoopService(
+            _loggerMock.Object, _loggerFactoryMock.Object, TestOptions.Create(options),
+            _openRouterMock.Object, _agenteLoaderMock.Object, _referenciaLoaderMock.Object,
+            _ferramentaRegistry, _analisadorImagemMock.Object);
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(orquestrador);
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var orqCallCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((long chatId, string persona, string modelo, string instrucoes, string etapa, double temp, int tokens, CancellationToken ct) =>
+            {
+                orqCallCount++;
+                return "not json";
+            });
+
+        var result = await loop.ExecutarAsync(123, "oi");
+
+        result.RespostaFinal.Should().Be("Falha",
+            "com MaxRetriesGratis=0, todos retries consomem turno; apos 2 turnos, falha");
+        orqCallCount.Should().Be(2, "com MaxTurnos=2, deve haver 2 chamadas (ambas invalidas)");
+    }
 }

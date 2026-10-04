@@ -99,6 +99,7 @@ public class OrquestradorLoopService
                     jsonRetry = true;
                     transcript.Add(("assistant", respostaOrquestrador));
                     transcript.Add(("user", "Sua resposta nao continha JSON valido. Responda apenas com JSON."));
+                    TentarRetryGratis(context);
                     continue;
                 }
                 _logger.LogWarning("Orquestrador retornou JSON invalido 2x seguidas. Turno {Turno}, resposta {Length} chars. Trecho: {Trecho}",
@@ -114,6 +115,7 @@ public class OrquestradorLoopService
             {
                 transcript.Add(("assistant", respostaOrquestrador));
                 transcript.Add(("user", "Voce ja executou essa mesma acao. Tente uma abordagem diferente."));
+                TentarRetryGratis(context);
                 continue;
             }
             context.UltimaAcaoHash = acaoHash;
@@ -140,6 +142,7 @@ public class OrquestradorLoopService
                     {
                         transcript.Add(("assistant", respostaOrquestrador));
                         transcript.Add(("user", $"Agente '{decisao.Agente}' nao encontrado. Escolha um agente valido."));
+                        TentarRetryGratis(context);
                         continue;
                     }
 
@@ -220,6 +223,7 @@ public class OrquestradorLoopService
                     {
                         transcript.Add(("assistant", respostaOrquestrador));
                         transcript.Add(("user", $"Ferramenta '{decisao.Ferramenta}' nao encontrada."));
+                        TentarRetryGratis(context);
                         continue;
                     }
 
@@ -281,6 +285,7 @@ public class OrquestradorLoopService
                 default:
                     transcript.Add(("assistant", respostaOrquestrador));
                     transcript.Add(("user", "Acao desconhecida. Use: responder_direto, fora_contexto, chamar_agente, chamar_ferramenta, finalizar."));
+                    TentarRetryGratis(context);
                     break;
             }
         }
@@ -363,5 +368,14 @@ public class OrquestradorLoopService
     {
         var agente = _agenteLoader.ObterPorNome(nomeAgente);
         return agente?.Interno ?? false;
+    }
+
+    private static void TentarRetryGratis(LoopContext context)
+    {
+        if (context.RetriesGratis < context.MaxRetriesGratis)
+        {
+            context.Turnos--;
+            context.RetriesGratis++;
+        }
     }
 }
