@@ -27,8 +27,9 @@ public class TelegramServiceTests
     private readonly Mock<RateLimiterService> _rateLimiterMock;
     private readonly Mock<ITelegramGatewayFactory> _gatewayFactoryMock;
     private readonly Mock<RouterService> _routerMock;
-    private readonly Mock<IReferenciasCliente> _referenciasMock;
     private readonly ConversaPendenteStore _pendencias;
+    private readonly Mock<IServiceProvider> _serviceProviderMock;
+    private readonly Mock<IReferenciasCliente> _referenciasMock;
 
     public TelegramServiceTests()
     {
@@ -74,6 +75,8 @@ public class TelegramServiceTests
             TestOptions.Create(new PreFlightOptions()),
             TimeProvider.System,
             Mock.Of<ILogger<ConversaPendenteStore>>());
+
+        _serviceProviderMock = new Mock<IServiceProvider>();
     }
 
     [Fact]
@@ -91,7 +94,8 @@ public class TelegramServiceTests
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
-            _pendencias);
+            _pendencias,
+            _serviceProviderMock.Object);
 
         act.Should().NotThrow();
     }
@@ -113,7 +117,8 @@ public class TelegramServiceTests
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
-            _pendencias);
+            _pendencias,
+            _serviceProviderMock.Object);
 
         act.Should().NotThrow();
     }

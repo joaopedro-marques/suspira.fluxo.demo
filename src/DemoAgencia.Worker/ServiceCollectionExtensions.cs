@@ -4,6 +4,8 @@ using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.Pipelines;
+using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Observabilidade;
@@ -78,6 +80,30 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ConversaPendenteStore>();
         services.AddSingleton<RouterService>();
+        services.AddSingleton<PipelineRunner>();
+
+        var templateEmailPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Assets", "templates", "email.html");
+        if (!File.Exists(templateEmailPath))
+        {
+            templateEmailPath = Path.Combine(AppContext.BaseDirectory, "Assets", "templates", "email.html");
+        }
+        var templateEmail = File.Exists(templateEmailPath) ? File.ReadAllText(templateEmailPath) : "";
+
+        var heroSectionTemplate = """
+        <tr>
+          <td style="padding: 0; text-align: center;">
+            <img src="{{hero_src}}" alt="Hero" style="display: block; max-width: 600px; width: 100%; height: auto; border: 0;" border="0" width="600">
+          </td>
+        </tr>
+        """;
+
+        services.AddSingleton(sp => new PipelineEmail(
+            sp.GetRequiredService<IServicoChat>(),
+            sp.GetRequiredService<IGeradorImagem>(),
+            sp.GetRequiredService<IReferenciasCliente>(),
+            sp.GetRequiredService<IAnalisadorImagem>(),
+            templateEmail,
+            heroSectionTemplate));
 
         services.AddSingleton<StreamingService>();
         services.AddSingleton<IStreamingService>(sp => sp.GetRequiredService<StreamingService>());

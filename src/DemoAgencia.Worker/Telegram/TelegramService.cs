@@ -4,6 +4,8 @@ using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.Pipelines;
+using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
@@ -27,6 +29,7 @@ public class TelegramService : BackgroundService
     private readonly ITelegramGatewayFactory _gatewayFactory;
     private readonly RouterService _router;
     private readonly ConversaPendenteStore _pendencias;
+    private readonly IServiceProvider _serviceProvider;
     private ITelegramGateway? _gateway;
     private readonly Dictionary<long, string> _agentesPorChat = new();
 
@@ -42,7 +45,8 @@ public class TelegramService : BackgroundService
         RateLimiterService rateLimiter,
         ITelegramGatewayFactory gatewayFactory,
         RouterService router,
-        ConversaPendenteStore pendencias)
+        ConversaPendenteStore pendencias,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _options = options.Value;
@@ -56,6 +60,7 @@ public class TelegramService : BackgroundService
         _gatewayFactory = gatewayFactory;
         _router = router;
         _pendencias = pendencias;
+        _serviceProvider = serviceProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -324,60 +329,86 @@ public class TelegramService : BackgroundService
                     return;
                 }
 
-                var briefing = RenderizarBrief(resultado);
                 await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
 
-                var resultadoLoop = await _loop.ExecutarAsync(
-                    chatId,
-                    briefing,
-                    async (progresso) =>
-                    {
-                        try
-                        {
-                            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, progresso, ct);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Erro ao atualizar progresso");
-                        }
-                    },
-                    ct,
-                    pedidoOriginal: mensagemOriginal);
+                ResultadoPipeline resultadoPipeline;
 
-                if (IsEntregavelHtml(resultadoLoop.RespostaFinal))
+                if (resultado.Brief.Canal.Equals("email", StringComparison.OrdinalIgnoreCase))
                 {
-                    await EnviarHtmlZipAsync(chatId, resultadoLoop, ct);
+                    resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
                 }
                 else
                 {
-                    await EnviarDeckImagensAsync(chatId, resultadoLoop.Imagens, ct);
+                    var briefing = RenderizarBrief(resultado);
+                    resultadoPipeline = await _loop.ExecutarAsync(
+                        chatId,
+                        briefing,
+                        async (progresso) =>
+                        {
+                            try
+                            {
+                                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, progresso, ct);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Erro ao atualizar progresso");
+                            }
+                        },
+                        ct,
+                        pedidoOriginal: mensagemOriginal);
+                }
 
-                    foreach (var asset in resultadoLoop.AssetsAnexados)
+                if (IsEntregavelHtml(resultadoPipeline.RespostaFinal))
+                {
+                    await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
+                }
+                else
+                {
+                    await EnviarDeckImagensAsync(chatId, resultadoPipeline.Imagens, ct);
+
+                    foreach (var asset in resultadoPipeline.AssetsAnexados)
                     {
                         await EnviarFotoComLegendaAsync(chatId, asset.Bytes, asset.Legenda, ct);
                     }
 
-                    if (!string.IsNullOrEmpty(resultadoLoop.RespostaFinal))
+                    if (!string.IsNullOrEmpty(resultadoPipeline.RespostaFinal))
                     {
-                        if (resultadoLoop.Imagens.Count == 0 && resultadoLoop.AssetsAnexados.Count == 0)
+                        if (resultadoPipeline.Imagens.Count == 0 && resultadoPipeline.AssetsAnexados.Count == 0)
                         {
                             try
                             {
-                                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultadoLoop.RespostaFinal, ct);
+                                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultadoPipeline.RespostaFinal, ct);
                             }
                             catch
                             {
-                                await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
+                                await EnviarMensagemLongaAsync(chatId, resultadoPipeline.RespostaFinal, ct);
                             }
                         }
                         else
                         {
-                            await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
+                            await EnviarMensagemLongaAsync(chatId, resultadoPipeline.RespostaFinal, ct);
                         }
                     }
                 }
                 return;
         }
+    }
+
+    private async Task<ResultadoPipeline> ExecutarPipelineEmail(long chatId, RouterResultado resultado, string mensagemOriginal, CancellationToken ct)
+    {
+        var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
+        var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
+        var steps = pipeline.CriarSteps();
+
+        var context = new PipelineContext
+        {
+            ChatId = chatId,
+            Brief = resultado.Brief!,
+            MensagemOriginal = mensagemOriginal,
+            Cliente = resultado.Cliente
+        };
+
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, onProgresso: null, ct);
     }
 
     private static string RenderizarBrief(RouterResultado resultado)
