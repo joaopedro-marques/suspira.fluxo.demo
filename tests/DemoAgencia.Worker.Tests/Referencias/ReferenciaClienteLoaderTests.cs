@@ -301,4 +301,186 @@ public class ReferenciaClienteLoaderTests : IDisposable
         loader.ListarImagens("mrv").Should().HaveCount(2);
         loader.ListarAssets("mrv").Should().HaveCount(2);
     }
+
+    [Fact]
+    public async Task ObterEstrategia_WithEstrategiaSubfolder_ShouldReturnTypedData()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var paleta = """
+        {
+          "paleta_de_cores": [
+            {
+              "cor_principal": "Roxo",
+              "etapa": "jornada pos-compra",
+              "descricao": "Transformacao e sonho",
+              "cores_hex_aproximadas": [["#784099"], ["#AB40D9"]]
+            },
+            {
+              "cor_principal": "Rosa",
+              "etapa": "jornada pre-chaves",
+              "descricao": "Acolhimento e cuidado",
+              "cores_hex_aproximadas": [["#F7297D"], ["#FF5AAD"]]
+            }
+          ]
+        }
+        """;
+
+        var temas = """
+        {
+          "titulo": "Mapeamento da Jornada",
+          "fases": [
+            { "nome": "1. Pos-compras", "temas": ["Boas vindas", "Financeiro"] },
+            { "nome": "2. Pre-chaves", "temas": ["Financeiro", "Vistoria"] }
+          ]
+        }
+        """;
+
+        var jornada = """
+        {
+          "Adquirir": {
+            "Jornada-pos-compra": { "1": "Pos Financiamento", "2": "6 meses Pos" }
+          },
+          "Acompanhar": {
+            "Jornada-pre-chaves": { "1": "Vistoria Antecipada", "2": "Entrega das chaves" }
+          }
+        }
+        """;
+
+        var mapa = """
+        {
+          "titulo": "Experiencia e uma Jornada!",
+          "legenda": { "E": "Emocao", "R": "Razao" },
+          "jornada": [
+            { "etapa": "PESQUISA", "fator_decisao": "ER", "sentimentos": ["EMPOLGACAO"] },
+            { "etapa": "POS VENDA", "fator_decisao": "ER", "resultado": ["SATISFACAO", "INSATISFACAO"] }
+          ]
+        }
+        """;
+
+        var satisfacoes = """
+        {
+          "titulo": "Mapeamento",
+          "insatisfacoes": {
+            "categorias": [{ "nome": "Entrega", "itens": ["Demora", "Atraso"] }]
+          },
+          "satisfacoes": {
+            "categorias": [{ "nome": "Atendimento", "itens": ["Geral", "Elogio"] }]
+          }
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paleta);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_temas_jornadas.json"), temas);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_jornada_cliente.json"), jornada);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_mapa_emocional_jornada.json"), mapa);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_satisfacoes_insatisfacoes.json"), satisfacoes);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Cliente.Should().Be("mrv");
+        estrategia.Fases.Should().ContainKey("pos-compra");
+        estrategia.Fases.Should().ContainKey("pre-chaves");
+        estrategia.Fases["pos-compra"].CorPrincipal.Should().Be("Roxo");
+        estrategia.Fases["pos-compra"].Temas.Should().Contain("Boas vindas");
+        estrategia.Fases["pre-chaves"].CorPrincipal.Should().Be("Rosa");
+        estrategia.MapaEmocional.Should().HaveCount(2);
+        estrategia.Satisfacoes.Should().HaveCount(1);
+        estrategia.Insatisfacoes.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_WithNoEstrategia_ShouldReturnNull()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme");
+
+        estrategia.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_WithUnknownClient_ShouldReturnNull()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        var paletaValida = """
+        { "paleta_de_cores": [
+            { "cor_principal": "Roxo", "etapa": "jornada pos-compra", "descricao": "", "cores_hex_aproximadas": [] }
+        ] }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paletaValida);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("unknown");
+
+        estrategia.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListarClientes_WithStrategyOnlyClient_ShouldIncludeClient()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        var paletaValida = """
+        { "paleta_de_cores": [
+            { "cor_principal": "Roxo", "etapa": "jornada pos-compra", "descricao": "", "cores_hex_aproximadas": [] }
+        ] }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paletaValida);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ListarClientes().Should().Contain("mrv");
+    }
+
+    [Fact]
+    public async Task FaseEstrategia_ShouldMergeSubJornadasFromJornadaCliente()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var jornada = """
+        {
+          "Adquirir": {
+            "Jornada-pos-compra": { "1": "Pos Financiamento" }
+          },
+          "Acompanhar": {
+            "Jornada-pos-compra": { "1": "Visita a obra" },
+            "Jornada-pre-chaves": { "1": "Vistoria", "2": "Entrega das chaves" }
+          }
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_jornada_cliente.json"), jornada);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), """
+        { "paleta_de_cores": [
+            { "cor_principal": "Roxo", "etapa": "jornada pos-compra", "descricao": "", "cores_hex_aproximadas": [] },
+            { "cor_principal": "Rosa", "etapa": "jornada pre-chaves", "descricao": "", "cores_hex_aproximadas": [] }
+        ] }
+        """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Fases["pos-compra"].SubJornadas.Should().ContainKey("Jornada-pos-compra");
+        estrategia.Fases["pos-compra"].SubJornadas["Jornada-pos-compra"].Should().Contain("Pos Financiamento");
+        estrategia.Fases["pos-compra"].SubJornadas["Jornada-pos-compra"].Should().Contain("Visita a obra");
+        estrategia.Fases["pre-chaves"].SubJornadas.Should().ContainKey("Jornada-pre-chaves");
+        estrategia.Fases["pre-chaves"].SubJornadas["Jornada-pre-chaves"].Should().HaveCount(2);
+    }
 }
