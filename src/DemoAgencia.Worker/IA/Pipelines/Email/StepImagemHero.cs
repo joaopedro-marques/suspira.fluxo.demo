@@ -41,7 +41,7 @@ public class StepImagemHero : IPipelineStep
             return context;
         }
 
-        var promptBase = await ConstruirPromptBase(heroBrief.Descricao, cliente, ct);
+        var promptBase = await ConstruirPromptBase(heroBrief.Descricao, cliente, context.Estrategia, ct);
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);
 
         var resultado = await _geradorImagem.GerarImagemAsync(context.ChatId, promptFinal, ct);
@@ -58,9 +58,27 @@ public class StepImagemHero : IPipelineStep
         return context;
     }
 
-    private async Task<string> ConstruirPromptBase(string descricao, string? cliente, CancellationToken ct)
+    internal virtual async Task<string> ConstruirPromptBase(string descricao, string? cliente, EstrategiaEmail? estrategia, CancellationToken ct)
     {
         var prompt = descricao;
+
+        if (estrategia?.FaseDados != null)
+        {
+            var fase = estrategia.FaseDados;
+            if (!string.IsNullOrEmpty(fase.CorPrincipal))
+            {
+                prompt += $"\n\nColor palette for this journey phase ({estrategia.Fase}):";
+                prompt += $"\nMain color: {fase.CorPrincipal}";
+                if (!string.IsNullOrEmpty(fase.DescricaoCor))
+                    prompt += $" ({fase.DescricaoCor})";
+                if (fase.CoresHex.Count > 0)
+                {
+                    var hexList = fase.CoresHex.SelectMany(h => h).Where(c => c.StartsWith("#"));
+                    if (hexList.Any())
+                        prompt += $"\nHex codes: {string.Join(", ", hexList)}";
+                }
+            }
+        }
 
         if (string.IsNullOrEmpty(cliente))
             return prompt;
