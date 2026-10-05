@@ -36,6 +36,7 @@ public class PipelineEmail
     {
         var steps = new List<IPipelineStep>
         {
+            new StepEstrategiaEmail(_referencias),
             new StepMarcaEmail(_referencias),
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat),
             new StepImagemHero(_catalogo.Obter("hero"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem),
