@@ -9,7 +9,9 @@ using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using DemoAgencia.Worker.Telegram;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
+using Polly;
 using Serilog;
 
 namespace DemoAgencia.Worker;
@@ -27,11 +29,23 @@ public static class ServiceCollectionExtensions
         services.Configure<SegurancaOptions>(configuration.GetSection(SegurancaOptions.Section));
         services.Configure<PreFlightOptions>(configuration.GetSection(PreFlightOptions.Section));
 
+        var openRouterConfig = configuration.GetSection(OpenRouterOptions.Section).Get<OpenRouterOptions>() ?? new OpenRouterOptions();
+
         services.AddHttpClient("OpenRouter", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(120);
-        }).AddHttpMessageHandler<OpenRouterPrivacyHandler>()
-          .AddHttpMessageHandler<ReasoningDisablingHandler>();
+        })
+        .AddHttpMessageHandler<OpenRouterPrivacyHandler>()
+        .AddHttpMessageHandler<ReasoningDisablingHandler>()
+        .AddResilienceHandler("openrouter-retry", builder =>
+        {
+            builder.AddRetry(new HttpRetryStrategyOptions
+            {
+                MaxRetryAttempts = openRouterConfig.MaxRetriesHttp,
+                Delay = TimeSpan.FromSeconds(openRouterConfig.BackoffBaseSegundos),
+                MaxDelay = TimeSpan.FromSeconds(openRouterConfig.BackoffMaxSegundos),
+            });
+        });
 
         services.AddTransient<OpenRouterPrivacyHandler>();
         services.AddTransient<ReasoningDisablingHandler>();
