@@ -1,3 +1,4 @@
+using System.Net;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
@@ -6,6 +7,7 @@ using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.OrquestradorLoop;
@@ -1240,5 +1242,129 @@ public class OrquestradorLoopServiceTests
         promptCapturado.Should().NotBeNull();
         promptCapturado.Should().NotContain("Pedido original do usuario");
         promptCapturado.Should().Contain("mensagem direta");
+    }
+
+    private OrquestradorLoopService CriarLoop(LoopOptions options)
+    {
+        return new OrquestradorLoopService(
+            _loggerMock.Object,
+            TestOptions.Create(options),
+            _openRouterMock.Object,
+            _agenteLoaderMock.Object,
+            _referenciaLoaderMock.Object,
+            _ferramentaRegistry,
+            _enriquecedor);
+    }
+
+    private static LoopOptions OpcoesComRetry(int maxRetries = 2, int delaySegundos = 0) => new()
+    {
+        MaxTurnos = 8,
+        MaxRefacoesQa = 2,
+        MensagemForaContexto = "Fora do contexto",
+        MensagemFalha = "Falha no loop",
+        MaxRetriesTransientes = maxRetries,
+        DelayTransienteSegundos = delaySegundos
+    };
+
+    [Theory]
+    [InlineData(429)]
+    [InlineData(408)]
+    [InlineData(500)]
+    [InlineData(502)]
+    [InlineData(503)]
+    public void IsFalhaTransiente_ShouldReturnTrue_ForTransientStatusCodes(int statusCode)
+    {
+        var ex = new HttpOperationException("erro") { StatusCode = (HttpStatusCode)statusCode };
+        OrquestradorLoopService.IsFalhaTransiente(ex).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsFalhaTransiente_ShouldReturnTrue_ForHttpRequestException()
+    {
+        OrquestradorLoopService.IsFalhaTransiente(new HttpRequestException("network")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsFalhaTransiente_ShouldReturnFalse_ForNonTransientStatusCode()
+    {
+        var ex = new HttpOperationException("bad request") { StatusCode = HttpStatusCode.BadRequest };
+        OrquestradorLoopService.IsFalhaTransiente(ex).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsFalhaTransiente_ShouldReturnFalse_ForGenericException()
+    {
+        OrquestradorLoopService.IsFalhaTransiente(new InvalidOperationException("nope")).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsFalhaTransiente_ShouldReturnFalse_ForNullStatusCode()
+    {
+        var ex = new HttpOperationException("no status");
+        OrquestradorLoopService.IsFalhaTransiente(ex).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_Transient429OnOrchestrator_ShouldRetryAndSucceed()
+    {
+        var loop = CriarLoop(OpcoesComRetry(maxRetries: 2, delaySegundos: 0));
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(CriarOrquestrador());
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        var callCount = 0;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, _, _, _, _, _) =>
+                {
+                    callCount++;
+                    if (callCount == 1)
+                        throw new HttpOperationException("rate limited") { StatusCode = HttpStatusCode.TooManyRequests };
+                    return Task.FromResult("{\"acao\": \"fora_contexto\"}");
+                });
+
+        var result = await loop.ExecutarAsync(123, "mensagem");
+
+        result.RespostaFinal.Should().Be("Fora do contexto");
+        callCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_Transient429Exhausted_ShouldReturnGracefulFailure()
+    {
+        var loop = CriarLoop(OpcoesComRetry(maxRetries: 2, delaySegundos: 0));
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(CriarOrquestrador());
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpOperationException("rate limited") { StatusCode = HttpStatusCode.TooManyRequests });
+
+        var result = await loop.ExecutarAsync(123, "mensagem");
+
+        result.RespostaFinal.Should().Be("Falha no loop");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_NonTransientException_ShouldPropagate()
+    {
+        var loop = CriarLoop(OpcoesComRetry(maxRetries: 2, delaySegundos: 0));
+
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(CriarOrquestrador());
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpOperationException("bad request") { StatusCode = HttpStatusCode.BadRequest });
+
+        await Assert.ThrowsAsync<HttpOperationException>(() => loop.ExecutarAsync(123, "mensagem"));
     }
 }
