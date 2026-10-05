@@ -1,0 +1,95 @@
+{
+  "titulo": "Mapeamento da Jornada",
+  "insatisfacoes": {
+    "categorias": [
+      {
+        "nome": "Entrega De Chaves",
+        "itens": [
+          "Demora na Entrega",
+          "Atraso | Chaves Não Entregues",
+          "Expectativa de entrega antecipada",
+          "Entrega com atraso"
+        ]
+      },
+      {
+        "nome": "Corretor | Gerente",
+        "itens": [
+          "Irregularidades nas infos do Produto",
+          "Falta esclarecimento - Fluxo de pag.",
+          "Atendimento Ruim - Corretor",
+          "Unidade vendida divergente"
+        ]
+      },
+      {
+        "nome": "Financeiro",
+        "itens": [
+          "Discorda da cobrança - Taxas e Correções",
+          "Vencimentos | Valores",
+          "Problemas de Baixa de parcela",
+          "Discorda Da Cobrança - ITBI e Registro",
+          "Cobrança Indevida"
+        ]
+      },
+      {
+        "nome": "Portal | Site | App",
+        "itens": [
+          "Não Atende | Desatualizado",
+          "Acesso| Erros",
+          "Navegação",
+          "Sistema fora do ar"
+        ]
+      },
+      {
+        "nome": "Canais De Atendimento",
+        "itens": [
+          "Call Center - Dificuldade para ser atendido",
+          "WhatsApp - Não conseguiu ser entendido",
+          "Call Center - Falta de qualidade no atendimento",
+          "Call Center - Problema não resolvido",
+          "WhatsApp - Problema não resolvido",
+          "Call Center - Postura inadequada",
+          "Call Center - Chamada encerrada",
+          "Call Center - Baixa qualidade do áudio"
+        ]
+      }
+    ]
+  },
+  "satisfacoes": {
+    "categorias": [
+      {
+        "nome": "Satisfação - Atendimento",
+        "itens": [
+          "Geral",
+          "Elogio Especifico"
+        ]
+      },
+      {
+        "nome": "Satisfação - Modo de Pagamento",
+        "itens": [
+          "Facilidade na compra",
+          "Facilidade em Renegociar",
+          "Clareza nas informações"
+        ]
+      },
+      {
+        "nome": "Satisfação - Apartamento",
+        "itens": [
+          "Satisfação com Produto",
+          "Qualidade do Acabamento e Obra",
+          "Beleza do produto",
+          "Infraestrutura Apartamento",
+          "Metragem"
+        ]
+      },
+      {
+        "nome": "Satisfação - Empreendimento",
+        "itens": [
+          "Localização",
+          "Infraestrutura Empreendimento",
+          "Segurança",
+          "Organização/Limpeza"
+        ]
+      }
+    ]
+  }
+}

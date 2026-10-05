@@ -1,0 +1,25 @@
+{
+  "Adquirir" : {
+    "Jornada-pos-compra":{
+      "1": "Pós Financiamento",
+      "2": "6 meses Pós Financiamento"
+    }
+  },
+  "Acompanhar" : {
+    "Jornada-pos-compra":{
+      "1": "Visita a obra"
+    },
+    "Jornada-pre-chaves":{
+      "1": "Assembleia de condomínio",
+      "2": "Vistoria Antecipada",
+      "3": "Entrega das chaves"
+    }
+  },
+  "Conviver": {
+    "Jornada-do-produto-morador":{
+      "1": "6 meses Pós chaves",
+      "2": "18 meses Pós chaves",
+      "3": "36 meses Pós chaves"
+    }
+  }
+}

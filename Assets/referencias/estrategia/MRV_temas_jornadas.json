@@ -1,0 +1,44 @@
+{
+  "titulo": "Mapeamento da Jornada (temas)",
+  "fases": [
+    {
+      "nome": "1. Pós-compras",
+      "temas": [
+        "Boas vindas",
+        "Indicação premiada",
+        "Financeiro",
+        "Flex",
+        "Indices e correções",
+        "Contrato aditivo",
+        "Imposto de renda",
+        "CRI",
+        "Juros de Obra"
+      ]
+    },
+    {
+      "nome": "2. Pré-chaves",
+      "temas": [
+        "Financeiro",
+        "Implantação de condomínio",
+        "Agendamento VA Mia",
+        "Agendamento VA Obra",
+        "Flex",
+        "Síndico"
+      ]
+    },
+    {
+      "nome": "3. Pós-chaves",
+      "temas": [
+        "Canais",
+        "Assistência técnica",
+        "Indicação premiada - parabéns pela chave",
+        "Sustentabilidade",
+        "Vida em condomínio",
+        "Régua principal",
+        "Síndico",
+        "Pintura Fachada",
+        "Mundo da casa"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "paleta_de_cores": [
+    {
+      "cor_principal": "Roxo",
+      "etapa": "jornada pós-compra",
+      "descricao": "O roxo está associado à transformação, à concretização de sonhos e à intuição. É o momento de expectativa do cliente, entusiasmo e projeção de futuro. É o estágio simbólico de transição: o sonho começa a se tornar realidade. No território emocional, o roxo transmite confiança, clareza mental e a sensação de conquista.",
+      "cores_hex_aproximadas": [
+        ["gradiente", "linear","diagonal","#006B40","#039E56", "#006B40"],
+        ["gradiente", "linear","diagonal","#F48421","#FFB719"],
+        ["#784099"],
+        ["#AB40D9"],
+        ["#AB40D9"]
+      ]
+    },
+    {
+      "cor_principal": "Rosa",
+      "etapa": "jornada pré-chaves",
+      "descricao": "Emocionalmente, o rosa carrega os significados de acolhimento, cuidado, empatia e proximidade. Durante a fase pré-chaves, o cliente precisa de orientação prática, mas também de segurança emocional para lidar com temas como vistorias, assembleia e entrega. É o momento onde a marca deve se mostrar atenta e presente, mantendo o tom humano e acessível.",
+      "cores_hex_aproximadas": [
+        ["gradiente", "linear","diagonal","#006B40","#039E56", "#006B40"],
+        ["gradiente", "linear","diagonal","#F48421","#FFB719"],
+        ["#F7297D"],
+        ["#FF5AAD"],
+        ["#00D48C"]
+      ]
+    },
+    {
+      "cor_principal": "Amarelo",
+      "etapa": "jornada pós-chaves",
+      "descricao": "O amarelo representa clareza, leveza e otimismo e luz — tudo o que o cliente precisa ao finalmente morar no novo lar. É o momento de entusiasmo do cliente em morar em um novo lar, mas também quando surgem novas dúvidas e desafios práticos na vivência na nova moradia. A comunicação deve continuar transmitindo energia positiva, praticidade e presença da marca, ajudando o cliente a se adaptar com confiança.",
+      "cores_hex_aproximadas": [
+        ["gradiente", "linear","diagonal","#006B40","#039E56", "#006B40"],
+        ["gradiente", "linear","diagonal","#F48421","#FFB719"],
+        ["#FFB719"],
+        ["#FFDD02"],
+        ["#784099"]
+      ]
+    }
+  ]
+}
