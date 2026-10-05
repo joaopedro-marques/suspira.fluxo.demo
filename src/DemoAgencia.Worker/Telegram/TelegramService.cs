@@ -24,7 +24,6 @@ public class TelegramService : BackgroundService
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
     private readonly PipelinePreFlightService _preFlight;
-    private readonly IReferenciasCliente _referencias;
     private readonly ConversaPendenteStore _pendencias;
     private ITelegramGateway? _gateway;
     private readonly Dictionary<long, string> _agentesPorChat = new();
@@ -41,7 +40,6 @@ public class TelegramService : BackgroundService
         RateLimiterService rateLimiter,
         ITelegramGatewayFactory gatewayFactory,
         PipelinePreFlightService preFlight,
-        IReferenciasCliente referencias,
         ConversaPendenteStore pendencias)
     {
         _logger = logger;
@@ -55,7 +53,6 @@ public class TelegramService : BackgroundService
         _rateLimiter = rateLimiter;
         _gatewayFactory = gatewayFactory;
         _preFlight = preFlight;
-        _referencias = referencias;
         _pendencias = pendencias;
     }
 
@@ -283,7 +280,6 @@ public class TelegramService : BackgroundService
             }
 
             var briefing = resultadoPreFlight.Briefing!;
-            var assetsReservados = resultadoPreFlight.AssetsReservados;
 
             await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "🚀 Produzindo...", ct);
 
@@ -305,8 +301,6 @@ public class TelegramService : BackgroundService
                     }
                 },
                 ct);
-
-            AnexarAssetsReservados(assetsReservados, resultadoPreFlight.Cliente, resultado);
 
             if (IsEntregavelHtml(resultado.RespostaFinal))
             {
@@ -382,7 +376,6 @@ public class TelegramService : BackgroundService
         }
 
         var briefing = resultado.Briefing!;
-        var assetsReservados = resultado.AssetsReservados;
 
         await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
 
@@ -401,8 +394,6 @@ public class TelegramService : BackgroundService
                 }
             },
             ct);
-
-        AnexarAssetsReservados(assetsReservados, resultado.Cliente, resultadoLoop);
 
         if (IsEntregavelHtml(resultadoLoop.RespostaFinal))
         {
@@ -434,29 +425,6 @@ public class TelegramService : BackgroundService
                 {
                     await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
                 }
-            }
-        }
-    }
-
-    private void AnexarAssetsReservados(List<string> assetsReservados, string? cliente, ResultadoPipeline resultado)
-    {
-        if (!assetsReservados.Any() || string.IsNullOrEmpty(cliente))
-            return;
-
-        var assets = _referencias.ListarAssets(cliente);
-        foreach (var assetId in assetsReservados)
-        {
-            var asset = assets.FirstOrDefault(a => a.Id == assetId);
-            if (asset == null) continue;
-
-            try
-            {
-                var bytes = File.ReadAllBytes(asset.Caminho);
-                resultado.AssetsAnexados.Add(new ImagemGerada(bytes, $"{asset.Tipo}/{asset.Nome}"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Falha ao ler asset reservado {AssetId}", assetId);
             }
         }
     }

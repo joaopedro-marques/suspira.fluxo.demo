@@ -146,7 +146,7 @@ public class PipelinePreFlightService
         if (refinamento.Simples)
         {
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(estado.MensagemOriginal, new List<string>(), estado.Cliente);
+            return ResultadoPreFlight.Concluido(estado.MensagemOriginal, estado.Cliente);
         }
 
         return await ExecutarMontadorAsync(estado, refinamento.PedidoRefinado ?? estado.MensagemOriginal, ct);
@@ -170,9 +170,8 @@ public class PipelinePreFlightService
         var parse = ParserBriefing.TentarExtrairComDiagnostico(respostaMontador);
         if (parse.Resultado != null)
         {
-            var assetsValidos = ValidarAssets(estado.Cliente, parse.Resultado.AssetsReservados);
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, assetsValidos, estado.Cliente);
+            return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, estado.Cliente);
         }
 
         _logger.LogWarning("ParserBriefing falhou ({Motivo}). Resposta (inicio): {Inicio} | Resposta (fim): {Fim}",
@@ -197,9 +196,8 @@ public class PipelinePreFlightService
         var parseRetry = ParserBriefing.TentarExtrairComDiagnostico(respostaRetry);
         if (parseRetry.Resultado != null)
         {
-            var assetsValidos = ValidarAssets(estado.Cliente, parseRetry.Resultado.AssetsReservados);
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, assetsValidos, estado.Cliente);
+            return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, estado.Cliente);
         }
 
         _logger.LogWarning("Retry do Montador tambem falhou ({Motivo}).", parseRetry.MotivoFalha);
@@ -280,29 +278,10 @@ public class PipelinePreFlightService
             prompt += $"\n\n## Cliente: {estado.Cliente}";
             if (!string.IsNullOrEmpty(estado.ContextoCliente))
                 prompt += $"\n\n## Contexto do cliente\n{estado.ContextoCliente}";
-
-            var assets = _referencias.ListarAssets(estado.Cliente);
-            if (assets.Any())
-            {
-                prompt += "\n\n## Catalogo de assets visuais disponiveis";
-                foreach (var a in assets)
-                    prompt += $"\n- {a.Id}: {a.Tipo}/{a.Nome}";
-            }
         }
 
-        prompt += "\n\n## Instrucao\nMonte um briefing completo e autocontido para os agentes de producao. Inclua contexto do cliente (se houver), descricao das imagens que devem estar no resultado (logos, marcas, letterings, cabecalhos, rodapes) e liste os IDs dos assets que devem ser reservados para anexo pos-criacao.";
+        prompt += "\n\n## Instrucao\nMonte um briefing completo e autocontido para os agentes de producao. Inclua contexto do cliente (se houver) e descricao clara do que deve ser produzido (formato, plataforma, publico-alvo, tom).";
 
         return prompt;
-    }
-
-    private List<string> ValidarAssets(string? cliente, List<string> assetsReservados)
-    {
-        if (string.IsNullOrEmpty(cliente) || !assetsReservados.Any())
-            return new List<string>();
-
-        var assetsDisponiveis = _referencias.ListarAssets(cliente);
-        var idsValidos = new HashSet<string>(assetsDisponiveis.Select(a => a.Id));
-
-        return assetsReservados.Where(id => idsValidos.Contains(id)).ToList();
     }
 }

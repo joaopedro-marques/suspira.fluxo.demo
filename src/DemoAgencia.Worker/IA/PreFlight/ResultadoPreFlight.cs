@@ -14,11 +14,10 @@ public class ResultadoPreFlight
     public string? Briefing { get; init; }
     public List<string>? Perguntas { get; init; }
     public string? MensagemBloqueio { get; init; }
-    public List<string> AssetsReservados { get; init; } = new();
     public string? Cliente { get; init; }
 
-    public static ResultadoPreFlight Concluido(string briefing, List<string> assetsReservados, string? cliente)
-        => new() { Tipo = TipoResultadoPreFlight.Concluido, Briefing = briefing, AssetsReservados = assetsReservados, Cliente = cliente };
+    public static ResultadoPreFlight Concluido(string briefing, string? cliente)
+        => new() { Tipo = TipoResultadoPreFlight.Concluido, Briefing = briefing, Cliente = cliente };
 
     public static ResultadoPreFlight PrecisaEsclarecimento(List<string> perguntas)
         => new() { Tipo = TipoResultadoPreFlight.PrecisaEsclarecimento, Perguntas = perguntas };

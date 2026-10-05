@@ -8,18 +8,17 @@ public class ParserBriefingTests
     [Fact]
     public void TentarExtrair_WithAllFields_ShouldParseAll()
     {
-        var texto = """{"briefing": "Criar post Instagram para Acme", "assets_reservados": ["asset_1", "asset_3"], "imagens_necessarias": ["logo principal"]}""";
+        var texto = """{"briefing": "Criar post Instagram para Acme", "imagens_necessarias": ["logo principal"]}""";
 
         var resultado = ParserBriefing.TentarExtrair(texto);
 
         resultado.Should().NotBeNull();
         resultado!.Briefing.Should().Be("Criar post Instagram para Acme");
-        resultado.AssetsReservados.Should().BeEquivalentTo("asset_1", "asset_3");
         resultado.ImagensNecessarias.Should().BeEquivalentTo("logo principal");
     }
 
     [Fact]
-    public void TentarExtrair_WithoutAssetsReservados_ShouldReturnEmptyList()
+    public void TentarExtrair_WithoutOptionalFields_ShouldReturnEmptyLists()
     {
         var texto = """{"briefing": "Post simples"}""";
 
@@ -27,7 +26,6 @@ public class ParserBriefingTests
 
         resultado.Should().NotBeNull();
         resultado!.Briefing.Should().Be("Post simples");
-        resultado.AssetsReservados.Should().BeEmpty();
         resultado.ImagensNecessarias.Should().BeEmpty();
     }
 

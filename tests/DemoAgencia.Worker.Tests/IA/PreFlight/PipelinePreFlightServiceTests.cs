@@ -117,7 +117,6 @@ public class PipelinePreFlightServiceTests
 
         resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
         resultado.Briefing.Should().Be("Criar post para Acme no Instagram");
-        resultado.AssetsReservados.Should().Contain("asset_1");
         resultado.Cliente.Should().Be("acme");
     }
 
@@ -166,7 +165,6 @@ public class PipelinePreFlightServiceTests
 
         resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
         resultado.Briefing.Should().Be("Briefing via retry");
-        resultado.AssetsReservados.Should().Contain("asset_1");
     }
 
     [Fact]
@@ -222,22 +220,7 @@ public class PipelinePreFlightServiceTests
     }
 
     [Fact]
-    public async Task IniciarAsync_WithInvalidAssetIds_ShouldFilterToValidOnly()
-    {
-        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post", "cliente": "acme", "simples": false}""")
-            .ReturnsAsync("""{"briefing": "Briefing", "assets_reservados": ["asset_1", "asset_999"]}""");
-
-        var resultado = await _service.IniciarAsync(123, "msg");
-
-        resultado.AssetsReservados.Should().Contain("asset_1");
-        resultado.AssetsReservados.Should().NotContain("asset_999");
-    }
-
-    [Fact]
-    public async Task IniciarAsync_WithNoClientAndSimpleRequest_ShouldReturnBriefingWithoutAssets()
+    public async Task IniciarAsync_WithNoClientAndSimpleRequest_ShouldReturnBriefing()
     {
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -248,7 +231,6 @@ public class PipelinePreFlightServiceTests
 
         resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
         resultado.Cliente.Should().BeNull();
-        resultado.AssetsReservados.Should().BeEmpty();
     }
 
     [Fact]
@@ -322,6 +304,43 @@ public class PipelinePreFlightServiceTests
         _chatMock.Verify(c => c.ChamarAgenteAsync(
             It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
             "preflight_montador_retry", It.IsAny<double>(), 4000, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IniciarAsync_Pipeline_NaoDeveReservarAssets_MesmoQuandoMontadorInclui()
+    {
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post Instagram Acme", "cliente": "acme", "simples": false}""")
+            .ReturnsAsync("""{"briefing": "Post de Instagram para Acme com identidade visual da marca", "assets_reservados": ["asset_1", "asset_2"], "imagens_necessarias": ["imagem principal do post"]}""");
+
+        var resultado = await _service.IniciarAsync(123, "crie um post de Instagram para a Acme");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado.Briefing.Should().Contain("Instagram");
+        resultado.Briefing.Should().Contain("Acme");
+    }
+
+    [Fact]
+    public async Task IniciarAsync_PromptDoMontador_NaoDeveListarCatalogoDeAssets()
+    {
+        string promptCapturado = "";
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "preflight_montador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => promptCapturado = instrucoes)
+            .ReturnsAsync("""{"briefing": "Post de Instagram para Acme"}""");
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "preflight_refinador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post Instagram Acme", "cliente": "acme", "simples": false}""");
+
+        await _service.IniciarAsync(123, "crie um post de Instagram para a Acme");
+
+        promptCapturado.Should().NotContain("Catalogo de assets visuais disponiveis");
+        promptCapturado.Should().NotContain("Catalogo de assets");
     }
 
     private class FakeTimeProvider : TimeProvider

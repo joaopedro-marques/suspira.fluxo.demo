@@ -7,7 +7,6 @@ namespace DemoAgencia.Worker.IA.PreFlight;
 public class ResultadoBriefing
 {
     public string Briefing { get; init; } = string.Empty;
-    public List<string> AssetsReservados { get; init; } = new();
     public List<string> ImagensNecessarias { get; init; } = new();
 }
 
@@ -70,13 +69,11 @@ public static class ParserBriefing
         if (string.IsNullOrWhiteSpace(briefing))
             return null;
 
-        var assetsReservados = ExtrairListaStrings(root, "assets_reservados");
         var imagensNecessarias = ExtrairListaStrings(root, "imagens_necessarias");
 
         return new ResultadoBriefing
         {
             Briefing = briefing!,
-            AssetsReservados = assetsReservados,
             ImagensNecessarias = imagensNecessarias
         };
     }
@@ -150,7 +147,6 @@ public static class ParserBriefing
         return new ResultadoBriefing
         {
             Briefing = valor,
-            AssetsReservados = ExtrairArrayHeuristico(texto, "assets_reservados"),
             ImagensNecessarias = ExtrairArrayHeuristico(texto, "imagens_necessarias")
         };
     }

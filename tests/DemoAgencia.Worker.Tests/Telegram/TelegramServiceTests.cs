@@ -92,7 +92,6 @@ public class TelegramServiceTests
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _preFlightMock.Object,
-            _referenciasMock.Object,
             _pendencias);
 
         act.Should().NotThrow();
@@ -115,7 +114,6 @@ public class TelegramServiceTests
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _preFlightMock.Object,
-            _referenciasMock.Object,
             _pendencias);
 
         act.Should().NotThrow();
