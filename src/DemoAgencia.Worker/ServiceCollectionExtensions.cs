@@ -5,6 +5,7 @@ using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.IA.PreFlight;
+using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
@@ -76,7 +77,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ConversaPendenteStore>();
-        services.AddSingleton<PipelinePreFlightService>();
+        services.AddSingleton<RouterService>();
 
         services.AddSingleton<StreamingService>();
         services.AddSingleton<IStreamingService>(sp => sp.GetRequiredService<StreamingService>());

@@ -4,6 +4,7 @@ using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.IA.PreFlight;
+using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using DemoAgencia.Worker.Seguranca;
 using DemoAgencia.Worker.Telegram;
@@ -25,7 +26,7 @@ public class TelegramServiceTests
     private readonly Mock<IStreamingService> _streamingMock;
     private readonly Mock<RateLimiterService> _rateLimiterMock;
     private readonly Mock<ITelegramGatewayFactory> _gatewayFactoryMock;
-    private readonly Mock<PipelinePreFlightService> _preFlightMock;
+    private readonly Mock<RouterService> _routerMock;
     private readonly Mock<IReferenciasCliente> _referenciasMock;
     private readonly ConversaPendenteStore _pendencias;
 
@@ -59,17 +60,15 @@ public class TelegramServiceTests
         _rateLimiterMock = new Mock<RateLimiterService>(TestOptions.Create(new SegurancaOptions()));
         _gatewayFactoryMock = new Mock<ITelegramGatewayFactory>();
 
-        _preFlightMock = new Mock<PipelinePreFlightService>(
+        _routerMock = new Mock<RouterService>(
             _referenciasMock.Object,
-            _agenteLoaderMock.Object,
             Mock.Of<IServicoChat>(),
-            enriquecedor,
             new ConversaPendenteStore(
                 TestOptions.Create(new PreFlightOptions()),
                 TimeProvider.System,
                 Mock.Of<ILogger<ConversaPendenteStore>>()),
             TestOptions.Create(new PreFlightOptions()),
-            Mock.Of<ILogger<PipelinePreFlightService>>());
+            Mock.Of<ILogger<RouterService>>());
 
         _pendencias = new ConversaPendenteStore(
             TestOptions.Create(new PreFlightOptions()),
@@ -91,7 +90,7 @@ public class TelegramServiceTests
             _streamingMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
-            _preFlightMock.Object,
+            _routerMock.Object,
             _pendencias);
 
         act.Should().NotThrow();
@@ -113,7 +112,7 @@ public class TelegramServiceTests
             _streamingMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
-            _preFlightMock.Object,
+            _routerMock.Object,
             _pendencias);
 
         act.Should().NotThrow();

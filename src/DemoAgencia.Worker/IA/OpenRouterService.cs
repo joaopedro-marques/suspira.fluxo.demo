@@ -238,7 +238,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         try
         {
-            var desativarRaciocinio = etapaNome.StartsWith("preflight_", StringComparison.OrdinalIgnoreCase);
+            var desativarRaciocinio = etapaNome.StartsWith("preflight_", StringComparison.OrdinalIgnoreCase)
+                || etapaNome.StartsWith("router", StringComparison.OrdinalIgnoreCase);
             ReasoningDisablingHandler.IsActive = desativarRaciocinio;
             var kernel = CriarKernel(modelo);
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
