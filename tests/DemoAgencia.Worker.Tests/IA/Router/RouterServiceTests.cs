@@ -184,6 +184,58 @@ public class RouterServiceTests
         _store.Obter(123).Should().BeNull();
     }
 
+    [Fact]
+    public async Task IniciarAsync_WithEstrategiaCliente_ShouldInjectFasesNoPrompt()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv" });
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-compra"] = new FaseEstrategia
+        {
+            Fase = "pos-compra",
+            Temas = new List<string> { "Boas vindas", "Financeiro" },
+            SubJornadas = new Dictionary<string, List<string>>
+            {
+                ["Jornada-pos-compra"] = new List<string> { "Pos Financiamento" }
+            }
+        };
+        estrategia.Fases["pre-chaves"] = new FaseEstrategia { Fase = "pre-chaves" };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+
+        string? promptCapturado = null;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) => promptCapturado = prompt)
+            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual etapa da jornada?"]}""");
+
+        await _service.IniciarAsync(123, "criar email para MRV");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().Contain("pos-compra");
+        promptCapturado.Should().Contain("pre-chaves");
+    }
+
+    [Fact]
+    public async Task IniciarAsync_WithoutEstrategia_ShouldNotInjectEstrategiaNoPrompt()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "acme" });
+        _refsMock.Setup(r => r.ObterEstrategia("acme")).Returns((EstrategiaCliente?)null);
+
+        string? promptCapturado = null;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) => promptCapturado = prompt)
+            .ReturnsAsync("""{"tipo": "producao", "brief": {"canal": "email"}}""");
+
+        await _service.IniciarAsync(123, "criar email para acme");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().NotContain("Estrategia");
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;

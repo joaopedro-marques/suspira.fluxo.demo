@@ -161,6 +161,13 @@ public class RouterService
         if (!string.IsNullOrEmpty(estado.Cliente))
             prompt += $"\n\n## Cliente detectado: {estado.Cliente}";
 
+        if (!string.IsNullOrEmpty(estado.Cliente))
+        {
+            var estrategia = _referencias.ObterEstrategia(estado.Cliente);
+            if (estrategia != null)
+                prompt += $"\n\n{MontarEstrategiaPrompt(estrategia)}";
+        }
+
         if (estado.RespostasAcumuladas.Count > 0)
         {
             prompt += "\n\n## Esclarecimentos do usuario";
@@ -171,5 +178,31 @@ public class RouterService
         }
 
         return prompt;
+    }
+
+    private static string MontarEstrategiaPrompt(EstrategiaCliente estrategia)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## Estrategia do cliente");
+        sb.AppendLine();
+        sb.AppendLine("Etapas de jornada disponiveis:");
+
+        foreach (var (fase, dados) in estrategia.Fases)
+        {
+            sb.Append($"- {fase}");
+            if (dados.Temas.Count > 0)
+                sb.Append($" (temas: {string.Join(", ", dados.Temas)})");
+            if (dados.SubJornadas.Count > 0)
+            {
+                var subJornadas = dados.SubJornadas.Values.SelectMany(v => v);
+                sb.Append($" (sub-jornadas: {string.Join(", ", subJornadas)})");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("Etapa da jornada e campo critico. So preencha se o usuario declarou explicitamente a etapa; caso contrario, pergunte via esclarecimento.");
+
+        return sb.ToString();
     }
 }
