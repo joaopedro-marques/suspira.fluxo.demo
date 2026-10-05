@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Router;
 
@@ -77,6 +78,10 @@ public static class RouterParser
         var tom = el.TryGetProperty("tom", out var tomEl) ? tomEl.GetString() : null;
         var link = el.TryGetProperty("link", out var linkEl) ? linkEl.GetString() : null;
 
+        var etapaJornadaRaw = el.TryGetProperty("etapa_jornada", out var etEl) ? etEl.GetString() : null;
+        var etapaJornada = FaseJornada.Normalizar(etapaJornadaRaw);
+        var subJornada = el.TryGetProperty("sub_jornada", out var sjEl) ? sjEl.GetString() : null;
+
         var restricoes = new List<string>();
         if (el.TryGetProperty("restricoes", out var restEl) && restEl.ValueKind == JsonValueKind.Array)
         {
@@ -101,6 +106,6 @@ public static class RouterParser
             }
         }
 
-        return new Brief(canal, objetivo, publico, oferta, tom, link, restricoes, imagens);
+        return new Brief(canal, objetivo, publico, oferta, tom, link, restricoes, imagens, etapaJornada, subJornada);
     }
 }

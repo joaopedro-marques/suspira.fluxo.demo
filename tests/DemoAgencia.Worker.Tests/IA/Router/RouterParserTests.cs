@@ -166,5 +166,68 @@ public class RouterParserTests
         resultado.Brief.Tom.Should().BeNull();
         resultado.Brief.Restricoes.Should().BeEmpty();
         resultado.Brief.Imagens.Should().BeEmpty();
+        resultado.Brief.EtapaJornada.Should().BeNull();
+        resultado.Brief.SubJornada.Should().BeNull();
+    }
+
+    [Fact]
+    public void TentarExtrair_WithEtapaJornada_ShouldExtract()
+    {
+        var texto = """
+        {
+            "tipo": "producao",
+            "cliente": "MRV",
+            "brief": {
+                "canal": "email",
+                "etapa_jornada": "pos-compra",
+                "sub_jornada": "Pos Financiamento"
+            }
+        }
+        """;
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Brief.Should().NotBeNull();
+        resultado.Brief!.EtapaJornada.Should().Be("pos-compra");
+        resultado.Brief.SubJornada.Should().Be("Pos Financiamento");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithEtapaJornadaComAcento_ShouldNormalize()
+    {
+        var texto = """
+        {
+            "tipo": "producao",
+            "brief": {
+                "canal": "email",
+                "etapa_jornada": "pós-compra"
+            }
+        }
+        """;
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Brief!.EtapaJornada.Should().Be("pos-compra");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithEtapaJornadaInvalida_ShouldReturnNull()
+    {
+        var texto = """
+        {
+            "tipo": "producao",
+            "brief": {
+                "canal": "email",
+                "etapa_jornada": "fase-inexistente"
+            }
+        }
+        """;
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Brief!.EtapaJornada.Should().BeNull();
     }
 }

@@ -10,4 +10,6 @@ public record Brief(
     string? Tom,
     string? Link,
     List<string> Restricoes,
-    List<ImagemBrief> Imagens);
+    List<ImagemBrief> Imagens,
+    string? EtapaJornada = null,
+    string? SubJornada = null);
