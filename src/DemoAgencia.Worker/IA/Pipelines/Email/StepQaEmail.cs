@@ -40,11 +40,12 @@ public class StepQaEmail : IPipelineStep
         return context;
     }
 
-    private static string MontarPromptQa(PipelineContext context)
+    internal static string MontarPromptQa(PipelineContext context)
     {
         var brief = context.Brief;
         var copy = context.Copy;
         var html = context.Html;
+        var estrategia = context.Estrategia;
 
         var prompt = $"## Briefing original\n";
         prompt += $"Mensagem do usuario: {context.MensagemOriginal}\n\n";
@@ -81,6 +82,23 @@ public class StepQaEmail : IPipelineStep
             prompt += $"Presente: {context.HeroSrc}\n";
         else
             prompt += $"Ausente (sem brief de imagem hero)\n";
+
+        if (estrategia?.FaseDados != null)
+        {
+            prompt += $"\n## Estrategia de jornada\n";
+            prompt += $"Fase: {estrategia.Fase}\n";
+            if (!string.IsNullOrEmpty(estrategia.SubJornada))
+                prompt += $"Sub-jornada: {estrategia.SubJornada}\n";
+            if (estrategia.FaseDados.Temas.Count > 0)
+                prompt += $"Temas esperados: {string.Join(", ", estrategia.FaseDados.Temas)}\n";
+            if (estrategia.MapaEmocional.Count > 0)
+            {
+                var sentimentos = estrategia.MapaEmocional.SelectMany(e => e.Sentimentos).Distinct();
+                if (sentimentos.Any())
+                    prompt += $"Sentimentos esperados: {string.Join(", ", sentimentos)}\n";
+            }
+            prompt += "Avalie se a copy e a imagem estao alinhadas com a fase, temas e sentimentos da jornada.\n";
+        }
 
         return prompt;
     }
