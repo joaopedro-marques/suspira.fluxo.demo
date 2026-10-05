@@ -7,6 +7,7 @@ public class PipelineContext
     public string MensagemOriginal { get; init; } = string.Empty;
     public string? Cliente { get; init; }
 
+    public EstrategiaEmail? Estrategia { get; set; }
     public MarcaEmail? Marca { get; set; }
     public string? LogoSrc { get; set; }
     public CopyEmailSlots? Copy { get; set; }
