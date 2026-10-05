@@ -4,6 +4,7 @@ using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA.Ferramentas;
 using DemoAgencia.Worker.Referencias;
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
 
 namespace DemoAgencia.Worker.IA.OrquestradorLoop;
 
@@ -54,7 +55,8 @@ public class OrquestradorLoopService
             OnProgresso = onProgresso,
             CancellationToken = ct,
             MaxTurnos = _options.MaxTurnos,
-            MaxRefacoesQa = _options.MaxRefacoesQa
+            MaxRefacoesQa = _options.MaxRefacoesQa,
+            MaxRetriesTransientes = _options.MaxRetriesTransientes
         };
 
         var orquestrador = _agenteLoader.ObterPorPapel("orquestrador");
@@ -75,8 +77,10 @@ public class OrquestradorLoopService
 
         var jsonRetry = false;
 
-        while (context.Turnos < context.MaxTurnos)
+        try
         {
+            while (context.Turnos < context.MaxTurnos)
+            {
             context.Turnos++;
 
             await NotificarProgresso(onProgresso, $"🧠 Turno {context.Turnos}...");
@@ -85,15 +89,19 @@ public class OrquestradorLoopService
             var estadoTrabalho = EstadoTrabalhoBuilder.Build(context);
             transcriptText += "\n\n" + estadoTrabalho;
 
-            var respostaOrquestrador = await _openRouter.ChamarAgenteAsync(
-                chatId,
-                orquestrador.Persona,
-                orquestrador.ModeloAlvo,
-                transcriptText,
+            var respostaOrquestrador = await ChamarComRetryTransienteAsync(
+                () => _openRouter.ChamarAgenteAsync(
+                    chatId,
+                    orquestrador.Persona,
+                    orquestrador.ModeloAlvo,
+                    transcriptText,
+                    "loop_orquestrador",
+                    temperature: orquestrador.Temperatura,
+                    maxTokens: _options.MaxTokensOrquestrador,
+                    ct: ct),
                 "loop_orquestrador",
-                temperature: orquestrador.Temperatura,
-                maxTokens: _options.MaxTokensOrquestrador,
-                ct: ct);
+                context,
+                ct);
 
             var decisao = ParserDecisao.TentarExtrair(respostaOrquestrador);
             if (decisao == null)
@@ -193,15 +201,19 @@ public class OrquestradorLoopService
                         }
                     }
 
-                    var output = await _openRouter.ChamarAgenteAsync(
-                        chatId,
-                        agente.Persona,
-                        agente.ModeloAlvo,
-                        briefing,
+                    var output = await ChamarComRetryTransienteAsync(
+                        () => _openRouter.ChamarAgenteAsync(
+                            chatId,
+                            agente.Persona,
+                            agente.ModeloAlvo,
+                            briefing,
+                            $"loop_agente_{agente.Nome}",
+                            temperature: agente.Temperatura,
+                            maxTokens: agente.MaxTokens > 0 ? agente.MaxTokens : 2000,
+                            ct: ct),
                         $"loop_agente_{agente.Nome}",
-                        temperature: agente.Temperatura,
-                        maxTokens: agente.MaxTokens > 0 ? agente.MaxTokens : 2000,
-                        ct: ct);
+                        context,
+                        ct);
 
                     context.UltimoAgente = agente.Nome;
                     context.UltimoOutputAgente = output;
@@ -266,12 +278,16 @@ public class OrquestradorLoopService
 
                         var infoDeck = BuildInfoDeck(context);
 
-                        var qaResultado = await _gateQualidade.AvaliarAsync(
-                            chatId,
-                            context.Mensagem,
-                            entregavel,
-                            infoDeck,
-                            context.MensagemOriginal,
+                        var qaResultado = await ChamarComRetryTransienteAsync(
+                            () => _gateQualidade.AvaliarAsync(
+                                chatId,
+                                context.Mensagem,
+                                entregavel,
+                                infoDeck,
+                                context.MensagemOriginal,
+                                ct),
+                            "loop_qualidade",
+                            context,
                             ct);
 
                         context.QaAprovado = qaResultado.Aprovado;
@@ -305,6 +321,13 @@ public class OrquestradorLoopService
                     TentarRetryGratis(context);
                     break;
             }
+        }
+        }
+        catch (Exception ex) when (IsFalhaTransiente(ex))
+        {
+            _logger.LogError(ex, "Falha transiente sustentada apos retries, encerrando graciosamente");
+            context.Resultado.RespostaFinal = _options.MensagemFalha;
+            return context.Resultado;
         }
 
         _logger.LogWarning("MaxTurnos esgotado. Turnos: {Turnos}/{Max}, ultima acao: {Acao}",
@@ -409,6 +432,46 @@ public class OrquestradorLoopService
             linhas.Add($"Geradas: {imagensStr}");
         }
         return string.Join("\n", linhas);
+    }
+
+    private async Task<T> ChamarComRetryTransienteAsync<T>(
+        Func<Task<T>> operacao,
+        string etapa,
+        LoopContext context,
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            try
+            {
+                return await operacao();
+            }
+            catch (Exception ex) when (IsFalhaTransiente(ex))
+            {
+                if (context.RetriesTransientes < context.MaxRetriesTransientes)
+                {
+                    context.RetriesTransientes++;
+                    await NotificarProgresso(context.OnProgresso, $"\u23f3 Provedor ocupado, aguardando... ({context.RetriesTransientes}/{context.MaxRetriesTransientes})");
+                    _logger.LogWarning(ex, "Falha transiente em {Etapa}. Retry {Retry}/{Max}", etapa, context.RetriesTransientes, context.MaxRetriesTransientes);
+                    await Task.Delay(TimeSpan.FromSeconds(_options.DelayTransienteSegundos), ct);
+                    continue;
+                }
+                _logger.LogError(ex, "Falha transiente em {Etapa} esgotou retries ({Max})", etapa, context.MaxRetriesTransientes);
+                throw;
+            }
+        }
+    }
+
+    internal static bool IsFalhaTransiente(Exception ex)
+    {
+        if (ex is HttpOperationException httpOp)
+        {
+            var code = (int?)httpOp.StatusCode;
+            return code is 429 or 408 || code >= 500;
+        }
+        if (ex is HttpRequestException)
+            return true;
+        return false;
     }
 
     private static void TentarRetryGratis(LoopContext context)

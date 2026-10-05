@@ -27,6 +27,8 @@ public class LoopContext
     public int MaxRefacoesQa { get; set; } = 2;
     public int MaxRetriesGratis { get; set; } = 4;
     public int RetriesGratis { get; set; }
+    public int MaxRetriesTransientes { get; set; } = 2;
+    public int RetriesTransientes { get; set; }
 
     public List<Artefato> Artefatos { get; } = new();
     public List<ItemDeckImagem> ImagensDeck { get; } = new();
