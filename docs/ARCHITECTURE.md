@@ -20,12 +20,13 @@ graph TB
         TS[TelegramService]
         RS[RouterService]
         PS[ConversaPendenteStore]
-        PR[PipelineRunner]
-        PE[PipelineEmail]
-        OR[OpenRouterService]
-        LI[LangfuseInterceptor]
-        RC[ReferenciaClienteLoader]
-    end
+    PR[PipelineRunner]
+    PE[PipelineEmail]
+    SE[StepEstrategiaEmail]
+    OR[OpenRouterService]
+    LI[LangfuseInterceptor]
+    RC[ReferenciaClienteLoader]
+}
     
     subgraph "Servicos Externos"
         OR_API[OpenRouter API]
@@ -36,6 +37,7 @@ graph TB
     subgraph "Armazenamento"
         TPL[Templates/*.html]
         REF[Referencias {cliente}_*]
+        EST[Referencias/estrategia/*.json]
         LOG[Logs]
     end
     
@@ -45,12 +47,15 @@ graph TB
     RS -->|Pendencias| PS
     RS -->|Dispatch email| PR
     PR -->|Executa steps| PE
+    PE -->|Estrategia| SE
     PE -->|Marca| RC
     PE -->|LLM| OR
     OR -->|API| OR_API
     OR -->|Traces| LI
     LI -->|Envia| LF
+    SE -->|Le| RC
     RC -->|Le| REF
+    RC -->|Le| EST
     TS -->|Logs| LOG
     LOG --> GL
 ```
@@ -102,6 +107,8 @@ sequenceDiagram
     "oferta": "Black Friday 50% off",
     "tom": "urgente",
     "link": "https://acme.com/promo",
+    "etapa_jornada": "pos-compra | pre-chaves | pos-chaves",
+    "sub_jornada": "Pos Financiamento",
     "restricoes": ["sem emojis", "max 200 palavras"],
     "imagens": [{"papel": "hero", "descricao": "Banner com produto"}]
   }
@@ -125,6 +132,7 @@ A PipelineEmail é uma lista ordenada de steps executados deterministicamente pe
 ```mermaid
 sequenceDiagram
     participant PR as PipelineRunner
+    participant SE as StepEstrategiaEmail
     participant SM as StepMarcaEmail
     participant SC as StepCopyEmail
     participant SH as StepImagemHero
@@ -133,6 +141,11 @@ sequenceDiagram
     participant OR as OpenRouterService
     participant GI as GeradorImagem
     participant RC as ReferenciasCliente
+    
+    PR->>SE: ExecutarAsync(context)
+    SE->>RC: ObterEstrategia(cliente)
+    RC-->>SE: Fase, paleta, temas, mapa, satisfacoes
+    SE-->>PR: context.Estrategia
     
     PR->>SM: ExecutarAsync(context)
     SM->>RC: ListarAssets(cliente)
@@ -174,6 +187,7 @@ sequenceDiagram
 
 | Step | Tipo | Modelo | Descrição |
 |------|------|--------|-----------|
+| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
 | `StepImagemHero` | LLM + API | `qwen/qwen3.7-plus` | Gera prompt otimizado + chama API de imagem |
@@ -186,11 +200,12 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 
 | Step | Recebe | Não recebe |
 |------|--------|------------|
-| `StepMarcaEmail` | Cliente, banco de referências | Brief, outros steps |
-| `StepCopyEmail` | Brief fields + Marca | Outros steps, histórico |
-| `StepImagemHero` | Brief.imagens + Marca | Copy, outros steps |
+| `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias | Brief restante, outros steps |
+| `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
+| `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
+| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) | Copy, outros steps |
 | `StepTemplateEmail` | Copy slots + Hero src + Marca | Brief, outros steps |
-| `StepQaEmail` | Brief original + HTML final | Few-shots, outros steps |
+| `StepQaEmail` | Brief original + HTML final + Estrategia | Few-shots, outros steps |
 
 ## Template HTML
 
@@ -309,7 +324,7 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
 
-Steps determinísticos (marca, template) não geram traces LLM, apenas logs Serilog.
+Steps determinísticos (estrategia, marca, template) não geram traces LLM, apenas logs Serilog.
 
 ### Grafana Loki
 
@@ -346,24 +361,26 @@ src/DemoAgencia.Worker/
 │   └── TelegramTextFormatter.cs        # Formatação de texto
 │
 ├── IA/
-│   ├── Router/
-│   │   ├── RouterService.cs            # Intake + classificação
-│   │   ├── RouterParser.cs             # Parse JSON do router
-│   │   └── Brief.cs                    # Modelo do brief estruturado
-│   │
-│   ├── Pipelines/
-│   │   ├── IPipelineStep.cs            # Interface de step
-│   │   ├── PipelineContext.cs          # Contexto compartilhado
-│   │   ├── PipelineRunner.cs           # Executor de pipeline
-│   │   ├── StepRecords.cs              # Records (MarcaEmail, CopyEmailSlots)
-│   │   │
-│   │   └── Email/
-│   │       ├── PipelineEmail.cs        # Composição da pipeline email
-│   │       ├── StepMarcaEmail.cs       # Retrieval de marca
-│   │       ├── StepCopyEmail.cs        # LLM copy
-│   │       ├── StepImagemHero.cs       # LLM prompt + API imagem
-│   │       ├── StepTemplateEmail.cs    # Template HTML slots
-│   │       └── StepQaEmail.cs          # QA com branch explícito
+    │   ├── Router/
+    │   │   ├── RouterService.cs            # Intake + classificação
+    │   │   ├── RouterParser.cs             # Parse JSON do router
+    │   │   └── Brief.cs                    # Modelo do brief estruturado
+    │   │
+    │   ├── Pipelines/
+    │   │   ├── IPipelineStep.cs            # Interface de step
+    │   │   ├── PipelineContext.cs          # Contexto compartilhado
+    │   │   ├── PipelineRunner.cs           # Executor de pipeline
+    │   │   ├── StepRecords.cs              # Records (MarcaEmail, CopyEmailSlots)
+    │   │   ├── EstrategiaEmail.cs          # Contexto de estratégia por fase
+    │   │   │
+    │   │   └── Email/
+    │   │       ├── PipelineEmail.cs        # Composição da pipeline email
+    │   │       ├── StepEstrategiaEmail.cs  # Retrieval de estratégia
+    │   │       ├── StepMarcaEmail.cs       # Retrieval de marca
+    │   │       ├── StepCopyEmail.cs        # LLM copy
+    │   │       ├── StepImagemHero.cs       # LLM prompt + API imagem
+    │   │       ├── StepTemplateEmail.cs    # Template HTML slots
+    │   │       └── StepQaEmail.cs          # QA com branch explícito
 │   │
 │   ├── OpenRouterService.cs            # LLM + API imagem via OpenRouter
 │   ├── IServicoChat.cs                 # Interface para LLM
@@ -374,8 +391,10 @@ src/DemoAgencia.Worker/
 │
 ├── Referencias/
 │   ├── IReferenciasCliente.cs          # Interface para referências
-│   ├── ReferenciaClienteLoader.cs      # Loader de referências
-│   └── AssetVisual.cs                  # Modelo de asset visual
+│   ├── ReferenciaClienteLoader.cs      # Loader de referências + estratégia
+│   ├── AssetVisual.cs                  # Modelo de asset visual
+│   ├── EstrategiaCliente.cs            # Modelos de estratégia de jornada
+│   └── FaseJornada.cs                  # Chaves canônicas de fase + normalizador
 │
 ├── Configuracoes/
 │   ├── OpenRouterOptions.cs            # Config OpenRouter
@@ -409,7 +428,9 @@ public record Brief(
     string? Tom,            // Tom de voz desejado
     string? Link,           // URL do CTA
     List<string> Restricoes,// Restrições adicionais
-    List<ImagemBrief> Imagens // Imagens a gerar (papel + descrição)
+    List<ImagemBrief> Imagens, // Imagens a gerar (papel + descrição)
+    string? EtapaJornada,   // pos-compra | pre-chaves | pos-chaves (quando cliente tem estratégia)
+    string? SubJornada      // Sub-jornada específica (quando aplicável)
 );
 
 public record ImagemBrief(string Papel, string Descricao);
@@ -437,6 +458,7 @@ public class PipelineContext
     public string MensagemOriginal { get; init; } = string.Empty;
     public string? Cliente { get; init; }
     
+    public EstrategiaEmail? Estrategia { get; set; }
     public MarcaEmail? Marca { get; set; }
     public string? LogoSrc { get; set; }
     public CopyEmailSlots? Copy { get; set; }
