@@ -43,12 +43,14 @@ public class OrquestradorLoopService
         long chatId,
         string mensagem,
         Func<string, Task>? onProgresso = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? pedidoOriginal = null)
     {
         var context = new LoopContext
         {
             ChatId = chatId,
             Mensagem = mensagem,
+            MensagemOriginal = pedidoOriginal,
             OnProgresso = onProgresso,
             CancellationToken = ct,
             MaxTurnos = _options.MaxTurnos,
@@ -65,7 +67,11 @@ public class OrquestradorLoopService
 
         var transcript = new List<(string role, string content)>();
         transcript.Add(("system", _promptBuilder.Build(orquestrador)));
-        transcript.Add(("user", mensagem));
+
+        var userMessage = !string.IsNullOrEmpty(pedidoOriginal)
+            ? $"## Pedido original do usuario\n{pedidoOriginal}\n\n## Briefing de producao\n{mensagem}"
+            : mensagem;
+        transcript.Add(("user", userMessage));
 
         var jsonRetry = false;
 
@@ -265,6 +271,7 @@ public class OrquestradorLoopService
                             context.Mensagem,
                             entregavel,
                             infoDeck,
+                            context.MensagemOriginal,
                             ct);
 
                         context.QaAprovado = qaResultado.Aprovado;

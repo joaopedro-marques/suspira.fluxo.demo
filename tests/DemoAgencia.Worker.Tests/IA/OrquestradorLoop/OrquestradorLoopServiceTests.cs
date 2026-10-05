@@ -1195,4 +1195,50 @@ public class OrquestradorLoopServiceTests
         qaInput.Should().Contain("img_1");
         qaInput.Should().Contain("capa");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithPedidoOriginal_ShouldIncludeInInitialTranscript()
+    {
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(CriarOrquestrador());
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        string? promptCapturado = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => promptCapturado = instrucoes)
+            .ReturnsAsync("{\"acao\": \"responder_direto\", \"resposta\": \"ok\"}");
+
+        await _loop.ExecutarAsync(123, "briefing do montador", pedidoOriginal: "post de Instagram para Acme");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().Contain("Pedido original do usuario");
+        promptCapturado.Should().Contain("post de Instagram para Acme");
+        promptCapturado.Should().Contain("Briefing de producao");
+        promptCapturado.Should().Contain("briefing do montador");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutPedidoOriginal_ShouldNotIncludeOriginalSection()
+    {
+        _agenteLoaderMock.Setup(x => x.ObterPorPapel("orquestrador")).Returns(CriarOrquestrador());
+        _agenteLoaderMock.Setup(x => x.ListarAgentesProducao()).Returns(new List<AgenteDefinicao>().AsReadOnly());
+
+        string? promptCapturado = null;
+        _openRouterMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "loop_orquestrador", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, instrucoes, _, _, _, _) => promptCapturado = instrucoes)
+            .ReturnsAsync("{\"acao\": \"responder_direto\", \"resposta\": \"ok\"}");
+
+        await _loop.ExecutarAsync(123, "mensagem direta");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().NotContain("Pedido original do usuario");
+        promptCapturado.Should().Contain("mensagem direta");
+    }
 }

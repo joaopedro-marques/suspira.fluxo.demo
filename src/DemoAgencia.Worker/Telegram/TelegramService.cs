@@ -280,6 +280,7 @@ public class TelegramService : BackgroundService
             }
 
             var briefing = resultadoPreFlight.Briefing!;
+            var mensagemOriginal = resultadoPreFlight.MensagemOriginal ?? text;
 
             await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "🚀 Produzindo...", ct);
 
@@ -300,7 +301,8 @@ public class TelegramService : BackgroundService
                         }
                     }
                 },
-                ct);
+                ct,
+                pedidoOriginal: mensagemOriginal);
 
             if (IsEntregavelHtml(resultado.RespostaFinal))
             {
@@ -393,7 +395,8 @@ public class TelegramService : BackgroundService
                     _logger.LogWarning(ex, "Erro ao atualizar progresso");
                 }
             },
-            ct);
+            ct,
+            pedidoOriginal: resultado.MensagemOriginal);
 
         if (IsEntregavelHtml(resultadoLoop.RespostaFinal))
         {

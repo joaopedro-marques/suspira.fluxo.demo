@@ -146,7 +146,7 @@ public class PipelinePreFlightService
         if (refinamento.Simples)
         {
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(estado.MensagemOriginal, estado.Cliente);
+            return ResultadoPreFlight.Concluido(estado.MensagemOriginal, estado.MensagemOriginal, estado.Cliente);
         }
 
         return await ExecutarMontadorAsync(estado, refinamento.PedidoRefinado ?? estado.MensagemOriginal, ct);
@@ -171,7 +171,7 @@ public class PipelinePreFlightService
         if (parse.Resultado != null)
         {
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, estado.Cliente);
+            return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, estado.MensagemOriginal, estado.Cliente);
         }
 
         _logger.LogWarning("ParserBriefing falhou ({Motivo}). Resposta (inicio): {Inicio} | Resposta (fim): {Fim}",
@@ -197,7 +197,7 @@ public class PipelinePreFlightService
         if (parseRetry.Resultado != null)
         {
             _store.Remover(estado.ChatId);
-            return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, estado.Cliente);
+            return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, estado.MensagemOriginal, estado.Cliente);
         }
 
         _logger.LogWarning("Retry do Montador tambem falhou ({Motivo}).", parseRetry.MotivoFalha);

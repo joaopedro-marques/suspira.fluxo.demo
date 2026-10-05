@@ -20,23 +20,33 @@ public class GateQualidade
         string briefing,
         string entregavel,
         string? infoDeck = null,
+        string? pedidoOriginal = null,
         CancellationToken ct = default)
     {
         var qualidade = _agentesCatalogo.ObterPorPapel("qualidade");
         if (qualidade == null)
             return new ResultadoQa(true, null);
 
-        var qaPrompt = $"Briefing original: {briefing}\n\nEntregavel:\n{entregavel}";
+        var qaPrompt = new System.Text.StringBuilder();
+        if (!string.IsNullOrEmpty(pedidoOriginal))
+        {
+            qaPrompt.AppendLine($"Pedido original do usuario: {pedidoOriginal}");
+            qaPrompt.AppendLine();
+        }
+        qaPrompt.AppendLine($"Briefing: {briefing}");
+        qaPrompt.AppendLine();
+        qaPrompt.AppendLine($"Entregavel:\n{entregavel}");
         if (!string.IsNullOrEmpty(infoDeck))
         {
-            qaPrompt += $"\n\nInventario de imagens:\n{infoDeck}";
+            qaPrompt.AppendLine();
+            qaPrompt.AppendLine($"Inventario de imagens:\n{infoDeck}");
         }
 
         var qaResult = await _servicoChat.ChamarAgenteAsync(
             chatId,
             qualidade.Persona,
             qualidade.ModeloAlvo,
-            qaPrompt,
+            qaPrompt.ToString(),
             "loop_qualidade",
             temperature: qualidade.Temperatura,
             ct: ct);

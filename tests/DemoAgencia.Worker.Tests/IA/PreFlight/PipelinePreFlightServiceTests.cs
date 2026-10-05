@@ -343,6 +343,21 @@ public class PipelinePreFlightServiceTests
         promptCapturado.Should().NotContain("Catalogo de assets");
     }
 
+    [Fact]
+    public async Task IniciarAsync_DeveRetornarMensagemOriginalDoUsuario()
+    {
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post Instagram Acme", "cliente": "acme", "simples": false}""")
+            .ReturnsAsync("""{"briefing": "Briefing final"}""");
+
+        var resultado = await _service.IniciarAsync(123, "crie um post de Instagram para a Acme");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado.MensagemOriginal.Should().Be("crie um post de Instagram para a Acme");
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private DateTimeOffset _now = DateTimeOffset.UtcNow;

@@ -7,6 +7,7 @@ public class LoopContext
 {
     public long ChatId { get; init; }
     public string Mensagem { get; init; } = string.Empty;
+    public string? MensagemOriginal { get; set; }
     public ResultadoPipeline Resultado { get; } = new();
     public Func<string, Task>? OnProgresso { get; init; }
     public CancellationToken CancellationToken { get; init; }
