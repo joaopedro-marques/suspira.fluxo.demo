@@ -123,7 +123,7 @@ public class StepQaEmail : IPipelineStep
 
     private static (bool aprovado, string? feedback, string? stepAlvo) ParseQaResult(string resposta)
     {
-        var json = OrquestradorLoop.ParserDecisao.ExtrairJson(resposta);
+        var json = JsonHelper.ExtrairJson(resposta);
         if (string.IsNullOrEmpty(json))
             return (false, "QA: resposta invalida do LLM", "copy");
 

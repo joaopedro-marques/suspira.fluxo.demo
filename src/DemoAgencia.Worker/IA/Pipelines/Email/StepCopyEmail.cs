@@ -105,7 +105,7 @@ public class StepCopyEmail : IPipelineStep
 
     private static CopyEmailSlots? ParseCopySlots(string resposta)
     {
-        var json = OrquestradorLoop.ParserDecisao.ExtrairJson(resposta);
+        var json = JsonHelper.ExtrairJson(resposta);
         if (string.IsNullOrEmpty(json))
             return null;
 

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DemoAgencia.Worker.IA.OrquestradorLoop;
 
 namespace DemoAgencia.Worker.IA.Router;
 
@@ -20,7 +19,7 @@ public static class RouterParser
         if (string.IsNullOrWhiteSpace(texto))
             return null;
 
-        var json = ParserDecisao.ExtrairJson(texto);
+        var json = JsonHelper.ExtrairJson(texto);
         if (string.IsNullOrEmpty(json))
             return null;
 
