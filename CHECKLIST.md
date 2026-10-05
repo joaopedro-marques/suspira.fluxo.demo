@@ -21,75 +21,97 @@
 
 ### Comandos Básicos
 - [ ] `/start` - Bot responde com mensagem de boas-vindas
-- [ ] `/help` - Lista todos os comandos disponíveis
-- [ ] `/agentes` - Lista os agentes públicos (Redator, Dev, Estrategista, Prompt para Imagens)
-- [ ] `/limpar` - Limpa histórico do chat
-- [ ] `/reset` - Deseleciona agente e limpa histórico
+- [ ] `/help` - Lista comandos disponíveis (/start, /help)
+- [ ] `/comando_inexistente` - Bot responde com erro amigável
 
-### Interação Direta com Agentes (Bypass)
-- [ ] `/redator` - Seleciona agente redator
-- [ ] `/redator Escreva um slogan para uma cafeteria` - Responde com copy criativa (streaming)
-- [ ] `/dev` - Seleciona agente dev
-- [ ] `/dev Crie uma função em Python que soma dois números` - Responde com código (streaming)
-- [ ] `/estrategista` - Seleciona agente estrategista
-- [ ] `/estrategista Como aumentar vendas de um e-commerce?` - Responde com estratégia (streaming)
-- [ ] `/prompt-imagem` - Seleciona agente Prompt para Imagens
-- [ ] `/prompt-imagem um gato azul em estilo cyberpunk` - Gera prompt otimizado em inglês
+### Router - Classificação de Mensagens
 
-### Loop de Orquestração (Mensagens Livres)
-- [ ] Mensagem "Crie um post para Instagram" - Loop completo com progresso visível
-- [ ] Mensagem "O que é marketing de conteúdo?" - Ação `responder_direto` (resposta simples)
-- [ ] Mensagem "Qual a capital do Brasil?" - Ação `fora_contexto` (mensagem fixa)
-- [ ] Loop mostra progresso: 🧠 Turno N / ✍️ Agente trabalhando / 🔧 Ferramenta / 🔍 Qualidade
-- [ ] Qualidade reprova e loop refaz (máx 2 refações)
-- [ ] Loop excede refações ou turnos - Mensagem de falha retornada
+#### Conversa (resposta direta)
+- [ ] Mensagem "O que é marketing de conteúdo?" - Router classifica como `conversa`, responde diretamente
+- [ ] Mensagem "Qual a capital do Brasil?" - Router classifica como `fora_contexto`, recusa
 
-### Geração de Imagens (via Loop)
-- [ ] Mensagem "Crie uma imagem de um gato azul" - Loop chama agente Prompt para Imagens
-- [ ] Agente gera prompt otimizado em inglês
-- [ ] Loop chama ferramenta `gerar_imagem` com o prompt
-- [ ] Imagem gerada via `qwen/qwen-image-3-pro` e enviada com legenda
-- [ ] QA revisa o entregável antes da entrega final
+#### Esclarecimento (perguntas)
+- [ ] Mensagem "Quero criar um email" (sem detalhes) - Router pede esclarecimentos (máx 2 rodadas)
+- [ ] Responder às perguntas - Pipeline continua com informações fornecidas
+- [ ] Não responder - Timeout após 5 minutos (configurável)
 
-### Streaming (Comandos Diretos)
-- [ ] Mensagens via comando aparecem progressivamente (edição da mensagem)
-- [ ] Respostas longas são atualizadas em tempo real
-- [ ] Não há erros de rate limit do Telegram
+#### Fora de Contexto
+- [ ] Mensagem "Qual a previsão do tempo?" - Router classifica como `fora_contexto`, mensagem fixa
+
+#### Produção (pipeline)
+- [ ] Mensagem "Crie um email marketing para a Acme sobre Black Friday" - Pipeline email executada
+- [ ] Pipeline mostra progresso: 🧠 Router → 🏷️ Marca → ✍️ Copy → 🖼️ Hero → 🧩 Template → 🔍 QA
+- [ ] Mensagem "Crie um post para Instagram" - Router classifica canal=instagram, retorna "canal não suportado"
+
+### Pipeline de Email
+
+#### Estruturação do Brief
+- [ ] Mensagem "Email para Acme sobre Black Friday com 50% off" - Router extrai: cliente=Acme, canal=email, objetivo=vender, oferta=Black Friday
+- [ ] Mensagem "Email urgente sobre lançamento" - Router extrai: tom=urgente, objetivo=informar
+- [ ] Mensagem "Email para jovens sobre app" - Router extrai: público=jovens
+
+#### Steps da Pipeline
+- [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
+- [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
+- [ ] StepImagemHero - Gera prompt + imagem hero (se brief.imagens tem hero)
+- [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px
+- [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 2 refações)
+
+#### QA com Retry
+- [ ] QA aprova na primeira tentativa - Pipeline completa normalmente
+- [ ] QA reprova com feedback "copy muito longa" - Volta ao StepCopyEmail, refaz com feedback
+- [ ] QA reprova 2x - Retorna mensagem de falha com feedback do QA
+
+#### Entrega
+- [ ] Pipeline completa - Zip enviado com HTML + imagens + assets
+- [ ] Zip contém `entregavel.html` com template table-based
+- [ ] Zip contém `imagens/gerada_1.png` (se hero gerado)
+- [ ] Zip contém `assets/logo.png` (se cliente tem logo)
 
 ### Multimodal (Análise de Fotos)
 - [ ] Enviar foto sem legenda - Bot descreve a imagem
 - [ ] Enviar foto com legenda "O que tem nesta imagem?" - Bot analisa com contexto
 
-### Histórico
-- [ ] Enviar múltiplas mensagens - Bot mantém contexto da conversa
-- [ ] `/limpar` seguido de nova mensagem - Histórico resetado
-- [ ] `/reset` - Agente deselecionado e histórico limpo
+### Rate Limiting
+- [ ] Enviar muitas mensagens rápido - Bot responde "Você está enviando mensagens muito rápido"
+- [ ] Aguardar - Bot volta a responder normalmente
 
 ## Observabilidade
 
 ### Langfuse
 - [ ] Acessar dashboard Langfuse
-- [ ] Verificar traces das interações
-- [ ] Verificar métricas: tokens, latência, modelo usado
-- [ ] Verificar traces do pipeline (orquestrador, estrategista, produção, qualidade, formatador)
-- [ ] Verificar traces de análise de imagem
-- [ ] Verificar traces de geração de imagem
+- [ ] Verificar trace `router` (etapaNome="router")
+- [ ] Verificar trace `email_copy` (etapaNome="email_copy")
+- [ ] Verificar trace `email_hero_prompt` (etapaNome="email_hero_prompt")
+- [ ] Verificar trace `email_hero_imagem` (etapaNome="email_hero_imagem")
+- [ ] Verificar trace `email_qa` (etapaNome="email_qa")
+- [ ] Verificar métricas: tokens, latência, modelo usado por step
+- [ ] Verificar traces de análise de imagem (etapaNome="image-analysis")
 
 ### Logs Locais
 - [ ] `docker-compose logs -f` mostra logs em tempo real
-- [ ] Logs contêm informações de roteamento
-- [ ] Logs contêm informações de streaming
+- [ ] Logs contêm informações de cada step (StepMarcaEmail, StepCopyEmail, etc.)
 - [ ] Arquivo `logs/demo-log-YYYY-MM-DD.txt` é criado
 - [ ] Logs são rotacionados diariamente
 
+### Grafana Loki
+- [ ] Acessar Grafana
+- [ ] Verificar logs estruturados
+- [ ] Filtrar por step (e.g., `step="StepTemplateEmail"`)
+- [ ] Verificar métricas de duração por step
+
 ## Tratamento de Erros
 
-### Proteções do Loop
-- [ ] JSON inválido do orquestrador - Sistema faz 1 retry automático
-- [ ] Ação repetida pelo orquestrador - Sistema avisa e pede abordagem diferente
-- [ ] Loop excede máx 8 turnos - Mensagem de falha retornada
-- [ ] QA reprova máx 2 vezes - Mensagem de falha retornada
-- [ ] Verificar se try-catch captura erros e retorna mensagem amigável
+### Router
+- [ ] JSON inválido do router - Sistema faz 1 retry automático
+- [ ] JSON inválido após retry - Retorna "Não consegui entender seu pedido"
+- [ ] Cliente não encontrado - Pipeline continua sem marca (usa defaults)
+
+### Pipeline
+- [ ] StepCopyEmail falha - Pipeline aborta, mensagem de erro retornada
+- [ ] StepImagemHero falha - Pipeline continua sem imagem hero (opcional)
+- [ ] StepTemplateEmail falha - Pipeline aborta, mensagem de erro retornada
+- [ ] StepQaEmail falha - Pipeline retorna HTML sem QA (degradado)
 
 ### Reconexão Telegram
 - [ ] Simular perda de conexão (parar/rede)
@@ -99,29 +121,33 @@
 ### Mensagens Inválidas
 - [ ] Enviar comando inexistente - Bot responde com erro amigável
 - [ ] Enviar foto muito grande - Bot trata erro graciosamente
-- [ ] Loop com JSON inválido do orquestrador - Retry automático, depois mensagem de falha
 
 ## Performance
 
-- [ ] Respostas de texto (comando direto): < 10 segundos (depende do modelo)
-- [ ] Pipeline completo: < 60 segundos (múltiplas chamadas LLM)
-- [ ] Streaming: primeira edição em < 2 segundos
+- [ ] Router (classificação): < 5 segundos
+- [ ] StepCopyEmail (LLM): < 15 segundos
+- [ ] StepImagemHero (LLM + API): < 30 segundos
+- [ ] StepTemplateEmail (determinístico): < 1 segundo
+- [ ] StepQaEmail (LLM): < 10 segundos
+- [ ] Pipeline completa (sem hero): < 45 segundos
+- [ ] Pipeline completa (com hero): < 90 segundos
 - [ ] Análise de imagem: < 15 segundos
-- [ ] Geração de imagem: < 30 segundos
 - [ ] Uso de memória: < 512 MB
 
 ## Segurança
 
 - [ ] Arquivo `.env` não está no repositório
-- [ ] Credenciais não aparecem nos logs
+- [ ] Credenciais não aparecem nos logs (AnonimizadorService)
 - [ ] VM com firewall configurado (apenas SSH liberado)
 - [ ] Docker rodando como usuário não-root
+- [ ] Rate limiting funcionando (max mensagens por minuto)
 
 ## Documentação
 
-- [ ] README.md atualizado
+- [ ] README.md atualizado (arquitetura router + pipelines)
+- [ ] ARCHITECTURE.md atualizado (fluxo da pipeline email)
+- [ ] CHECKLIST.md atualizado (testes funcionais)
 - [ ] RUNBOOK.md completo
-- [ ] Checklist de aceite preenchido
 - [ ] Script `deploy.sh` funcional
 - [ ] Script `validate.sh` funcional
 
