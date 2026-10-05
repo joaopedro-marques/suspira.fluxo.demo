@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.PreFlight;
@@ -37,6 +38,7 @@ public class TelegramServiceTests
         _routerMock = new Mock<RouterService>(
             _referenciasMock.Object,
             Mock.Of<IServicoChat>(),
+            Mock.Of<IAgentesCatalogo>(),
             new ConversaPendenteStore(
                 TestOptions.Create(new PreFlightOptions()),
                 TimeProvider.System,

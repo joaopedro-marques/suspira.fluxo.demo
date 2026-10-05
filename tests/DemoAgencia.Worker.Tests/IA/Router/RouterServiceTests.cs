@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.PreFlight;
@@ -14,6 +15,7 @@ public class RouterServiceTests
 {
     private readonly Mock<IReferenciasCliente> _refsMock;
     private readonly Mock<IServicoChat> _chatMock;
+    private readonly IAgentesCatalogo _catalogo;
     private readonly ConversaPendenteStore _store;
     private readonly RouterService _service;
 
@@ -28,9 +30,12 @@ public class RouterServiceTests
         var storeLogger = new Mock<ILogger<ConversaPendenteStore>>();
         _store = new ConversaPendenteStore(Options.Create(new PreFlightOptions()), timeProvider, storeLogger.Object);
 
+        _catalogo = new StubCatalogo(new AgenteDefinicao(
+            "router", "deepseek/deepseek-v3.2", 0.2, 2000, "Persona do router"));
+
         var options = Options.Create(new PreFlightOptions { MaxRodadasPerguntas = 2 });
         var logger = new Mock<ILogger<RouterService>>();
-        _service = new RouterService(_refsMock.Object, _chatMock.Object, _store, options, logger.Object);
+        _service = new RouterService(_refsMock.Object, _chatMock.Object, _catalogo, _store, options, logger.Object);
     }
 
     [Fact]
@@ -183,5 +188,17 @@ public class RouterServiceTests
     {
         private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;
         public override DateTimeOffset GetUtcNow() => _now;
+    }
+
+    private class StubCatalogo : IAgentesCatalogo
+    {
+        private readonly Dictionary<string, AgenteDefinicao> _agentes;
+
+        public StubCatalogo(params AgenteDefinicao[] agentes)
+        {
+            _agentes = agentes.ToDictionary(a => a.Nome, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public AgenteDefinicao Obter(string nome) => _agentes[nome];
     }
 }
