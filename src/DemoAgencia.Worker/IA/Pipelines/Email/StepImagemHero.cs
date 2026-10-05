@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Referencias;
 
@@ -7,38 +8,20 @@ public class StepImagemHero : IPipelineStep
 {
     public string Nome => "hero";
 
-    private const string ModeloPrompt = "qwen/qwen3.7-plus";
-    private const double TemperaturaPrompt = 0.7;
-    private const int MaxTokensPrompt = 1000;
-
-    private const string PersonaPrompt = """
-        Voce e um especialista em direcao de arte para marketing. Sua funcao e criar prompts detalhados em ingles para geracao de imagens.
-
-        ## Diretrizes
-        - Escreva o prompt SEMPRE em ingles
-        - Seja ultra-descritivo: cores, texturas, composicao, perspectiva
-        - Priorize imagens limpas, profissionais, com foco no produto/sujeito
-        - Use termos como: "high quality", "professional photography", "marketing material", "clean composition"
-        - Para email marketing: composicao horizontal larga (landscape)
-
-        ## Formato de Resposta
-        Responda APENAS com o prompt em ingles, sem explicacoes adicionais, sem aspas, sem markdown.
-
-        Exemplo de resposta:
-        A professional marketing photograph of a modern workspace with a laptop and coffee cup on a wooden desk, soft natural lighting from the left, shallow depth of field, clean composition, high quality, corporate style
-        """;
-
+    private readonly AgenteDefinicao _agentePrompt;
     private readonly IServicoChat _servicoChat;
     private readonly IGeradorImagem _geradorImagem;
     private readonly IReferenciasCliente _referencias;
     private readonly IAnalisadorImagem _analisadorImagem;
 
     public StepImagemHero(
+        AgenteDefinicao agentePrompt,
         IServicoChat servicoChat,
         IGeradorImagem geradorImagem,
         IReferenciasCliente referencias,
         IAnalisadorImagem analisadorImagem)
     {
+        _agentePrompt = agentePrompt;
         _servicoChat = servicoChat;
         _geradorImagem = geradorImagem;
         _referencias = referencias;
@@ -118,12 +101,12 @@ public class StepImagemHero : IPipelineStep
     {
         var resposta = await _servicoChat.ChamarAgenteAsync(
             chatId,
-            PersonaPrompt,
-            ModeloPrompt,
+            _agentePrompt.Persona,
+            _agentePrompt.Modelo,
             promptBase,
             "email_hero_prompt",
-            temperature: TemperaturaPrompt,
-            maxTokens: MaxTokensPrompt,
+            temperature: _agentePrompt.Temperatura,
+            maxTokens: _agentePrompt.MaxTokens,
             ct: ct);
 
         return resposta?.Trim() ?? promptBase;

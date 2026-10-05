@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
@@ -65,6 +66,11 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ConversaPendenteStore>();
+
+        services.AddSingleton<AgentesLoader>();
+        services.AddSingleton<IAgentesCatalogo>(sp => sp.GetRequiredService<AgentesLoader>());
+        services.AddHostedService(sp => sp.GetRequiredService<AgentesLoader>());
+
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
 
@@ -88,6 +94,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IGeradorImagem>(),
             sp.GetRequiredService<IReferenciasCliente>(),
             sp.GetRequiredService<IAnalisadorImagem>(),
+            sp.GetRequiredService<IAgentesCatalogo>(),
             templateEmail,
             heroSectionTemplate));
 

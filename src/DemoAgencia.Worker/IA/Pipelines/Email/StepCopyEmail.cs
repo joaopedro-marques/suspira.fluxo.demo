@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
@@ -7,49 +8,12 @@ public class StepCopyEmail : IPipelineStep
 {
     public string Nome => "copy";
 
-    private const string ModeloAlvo = "qwen/qwen3.7-plus";
-    private const double Temperatura = 0.8;
-    private const int MaxTokens = 2000;
-
-    private const string Persona = """
-        Voce e um redator especialista em email marketing. Sua funcao e criar copy persuasiva para emails.
-
-        ## Diretrizes
-        - Use tecnicas de copywriting (AIDA, PAS)
-        - Considere o publico-alvo
-        - Priorize clareza e impacto
-        - Inclua CTAs claros
-        - Mantenha o tom consistente com a marca
-
-        ## Formato de Resposta (JSON OBRIGATORIO)
-        Responda APENAS com JSON valido:
-        {
-            "assunto": "Linha de assunto do email (max 60 chars)",
-            "preheader": "Texto de preheader (max 100 chars, complementa o assunto)",
-            "titulo": "Titulo principal do email (H1)",
-            "saudacao": "Saudacao inicial (ex: Ola, [Nome]!)",
-            "corpo": "Corpo do email em HTML (use <p>, <strong>, <em>, listas <ul>/<li>)",
-            "cta_texto": "Texto do botao de call-to-action",
-            "cta_link": "URL do link do CTA",
-            "rodape": "Texto do rodape (informacoes legais, unsubscribe)"
-        }
-
-        - assunto: curto, direto, que desperte curiosidade ou urgencia
-        - preheader: complementa o assunto, aparece na preview do email
-        - titulo: destaque principal do email
-        - saudacao: abertura pessoal
-        - corpo: HTML com paragrafos, formatacao, listas quando apropriado
-        - cta_texto: acao clara (ex: "Compre agora", "Saiba mais", "Baixe o ebook")
-        - cta_link: URL completa (https://...)
-        - rodape: informacoes legais, como cancelar inscricao
-
-        Responda APENAS com JSON valido, sem explicacoes adicionais.
-        """;
-
+    private readonly AgenteDefinicao _agente;
     private readonly IServicoChat _servicoChat;
 
-    public StepCopyEmail(IServicoChat servicoChat)
+    public StepCopyEmail(AgenteDefinicao agente, IServicoChat servicoChat)
     {
+        _agente = agente;
         _servicoChat = servicoChat;
     }
 
@@ -59,12 +23,12 @@ public class StepCopyEmail : IPipelineStep
 
         var resposta = await _servicoChat.ChamarAgenteAsync(
             context.ChatId,
-            Persona,
-            ModeloAlvo,
+            _agente.Persona,
+            _agente.Modelo,
             prompt,
             "email_copy",
-            temperature: Temperatura,
-            maxTokens: MaxTokens,
+            temperature: _agente.Temperatura,
+            maxTokens: _agente.MaxTokens,
             ct: ct);
 
         var slots = ParseCopySlots(resposta);
