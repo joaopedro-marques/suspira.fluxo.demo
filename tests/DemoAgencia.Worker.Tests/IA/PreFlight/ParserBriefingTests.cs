@@ -123,7 +123,7 @@ public class ParserBriefingTests
     }
 
     [Fact]
-    public void TentarExtrairComDiagnostico_WithValidJson_ShouldReturnNullMotivo()
+    public void TentarExtrairComDiagnostico_WithValidJson_ShouldReturnJsonPuroPath()
     {
         var texto = """{"briefing": "Briefing valido"}""";
 
@@ -131,6 +131,18 @@ public class ParserBriefingTests
 
         parse.Resultado.Should().NotBeNull();
         parse.MotivoFalha.Should().BeNull();
+        parse.CaminhoParse.Should().Be("json_puro");
+    }
+
+    [Fact]
+    public void TentarExtrairComDiagnostico_WithTruncatedJson_ShouldReturnReparadoPath()
+    {
+        var texto = "{\"briefing\": \"Post para Instagram\"";
+
+        var parse = ParserBriefing.TentarExtrairComDiagnostico(texto);
+
+        parse.Resultado.Should().NotBeNull();
+        parse.CaminhoParse.Should().Be("reparado");
     }
 
     [Fact]

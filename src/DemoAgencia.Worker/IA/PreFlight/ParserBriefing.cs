@@ -10,7 +10,7 @@ public class ResultadoBriefing
     public List<string> ImagensNecessarias { get; init; } = new();
 }
 
-public record ResultadoBriefingParse(ResultadoBriefing? Resultado, string? MotivoFalha);
+public record ResultadoBriefingParse(ResultadoBriefing? Resultado, string? MotivoFalha, string? CaminhoParse = null);
 
 public static class ParserBriefing
 {
@@ -29,7 +29,7 @@ public static class ParserBriefing
             {
                 var r = Parsear(json);
                 if (r != null)
-                    return new ResultadoBriefingParse(r, null);
+                    return new ResultadoBriefingParse(r, null, "json_puro");
             }
             catch (JsonException)
             {
@@ -44,7 +44,7 @@ public static class ParserBriefing
             {
                 var r = Parsear(candidato);
                 if (r != null)
-                    return new ResultadoBriefingParse(r, null);
+                    return new ResultadoBriefingParse(r, null, "reparado");
             }
             catch (JsonException)
             {
@@ -53,12 +53,12 @@ public static class ParserBriefing
 
         var heuristico = ExtrairHeuristico(texto);
         if (heuristico != null)
-            return new ResultadoBriefingParse(heuristico, null);
+            return new ResultadoBriefingParse(heuristico, null, "heuristico");
 
         return Falha("nenhum parser funcionou");
     }
 
-    private static ResultadoBriefingParse Falha(string motivo) => new(null, motivo);
+    private static ResultadoBriefingParse Falha(string motivo) => new(null, motivo, null);
 
     private static ResultadoBriefing? Parsear(string json)
     {

@@ -358,6 +358,26 @@ public class PipelinePreFlightServiceTests
         resultado.MensagemOriginal.Should().Be("crie um post de Instagram para a Acme");
     }
 
+    [Fact]
+    public async Task IniciarAsync_WhenMontadorResponseIsTruncated_ShouldRetryBeforeAccepting()
+    {
+        var truncatedJson = "{\"briefing\": \"Post para Instagram para Acme\"";
+        _chatMock.SetupSequence(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"precisa_esclarecimento": false, "pedido_refinado": "Post", "simples": false}""")
+            .ReturnsAsync(truncatedJson)
+            .ReturnsAsync("""{"briefing": "Briefing completo apos retry"}""");
+
+        var resultado = await _service.IniciarAsync(123, "msg");
+
+        resultado.Tipo.Should().Be(TipoResultadoPreFlight.Concluido);
+        resultado.Briefing.Should().Be("Briefing completo apos retry");
+        _chatMock.Verify(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            "preflight_montador_retry", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private DateTimeOffset _now = DateTimeOffset.UtcNow;

@@ -168,23 +168,24 @@ public class PipelinePreFlightService
         var respostaMontador = await ChamarMontadorAsync(estado, montador, promptMontador, ct, "preflight_montador");
 
         var parse = ParserBriefing.TentarExtrairComDiagnostico(respostaMontador);
-        if (parse.Resultado != null)
+        if (parse.Resultado != null && parse.CaminhoParse == "json_puro")
         {
             _store.Remover(estado.ChatId);
             return ResultadoPreFlight.Concluido(parse.Resultado.Briefing, estado.MensagemOriginal, estado.Cliente);
         }
 
-        _logger.LogWarning("ParserBriefing falhou ({Motivo}). Resposta (inicio): {Inicio} | Resposta (fim): {Fim}",
+        _logger.LogWarning("ParserBriefing falhou ou parse suspeito ({Motivo}, caminho={Caminho}). Resposta (inicio): {Inicio} | Resposta (fim): {Fim}",
             parse.MotivoFalha,
+            parse.CaminhoParse,
             respostaMontador[..Math.Min(200, respostaMontador.Length)],
             respostaMontador[^Math.Min(200, respostaMontador.Length)..]);
 
         string respostaRetry;
-        if (string.IsNullOrWhiteSpace(respostaMontador))
+        if (string.IsNullOrWhiteSpace(respostaMontador) || parse.CaminhoParse == "reparado" || parse.CaminhoParse == "heuristico")
         {
             var tokensOriginais = montador.MaxTokens > 0 ? montador.MaxTokens : 2000;
             var tokensDobrados = Math.Min(tokensOriginais * 2, 8000);
-            _logger.LogWarning("Retry do Montador com tokens dobrados ({Tokens}) por resposta vazia", tokensDobrados);
+            _logger.LogWarning("Retry do Montador com tokens dobrados ({Tokens}) por resposta vazia ou parse suspeito", tokensDobrados);
             respostaRetry = await ChamarMontadorAsync(estado, montador, promptMontador, ct, "preflight_montador_retry", tokensDobrados);
         }
         else
@@ -196,6 +197,10 @@ public class PipelinePreFlightService
         var parseRetry = ParserBriefing.TentarExtrairComDiagnostico(respostaRetry);
         if (parseRetry.Resultado != null)
         {
+            if (parseRetry.CaminhoParse == "reparado" || parseRetry.CaminhoParse == "heuristico")
+            {
+                _logger.LogWarning("Retry do Montador tambem produziu parse suspeito ({Caminho}). Aceitando mesmo assim.", parseRetry.CaminhoParse);
+            }
             _store.Remover(estado.ChatId);
             return ResultadoPreFlight.Concluido(parseRetry.Resultado.Briefing, estado.MensagemOriginal, estado.Cliente);
         }

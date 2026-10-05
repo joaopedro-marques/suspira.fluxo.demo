@@ -35,14 +35,17 @@ public class PlanejarDeckFerramenta : IFerramenta
             return Task.FromResult("Falha: 'papeis' deve conter pelo menos um papel.");
         }
 
+        if (context.ImagensDeck.Count > 0)
+        {
+            var ids = string.Join(", ", context.ImagensDeck.Select(i => i.Id));
+            return Task.FromResult($"Falha: deck ja possui {context.ImagensDeck.Count} imagem(ns) [{ids}]. Use substituir: '<id>' com gerar_imagem para refazer uma imagem especifica. Planejar deck novo so e permitido antes de gerar qualquer imagem.");
+        }
+
         _logger.LogInformation("Planejando deck com {Count} papeis: {Papeis}", papeis.Count, string.Join(", ", papeis));
 
         context.PlanoDeck.Clear();
         foreach (var papel in papeis)
             context.PlanoDeck.Add(papel);
-
-        context.ImagensDeck.Clear();
-        context.Resultado.Imagens.Clear();
 
         return Task.FromResult($"Plano de deck definido: {papeis.Count} imagens [{string.Join(", ", papeis)}]. Gere cada imagem com o papel correspondente usando gerar_imagem.");
     }

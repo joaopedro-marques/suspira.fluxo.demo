@@ -39,7 +39,7 @@ public class PlanejarDeckFerramentaTests
     }
 
     [Fact]
-    public async Task ExecutarAsync_SecondCall_ShouldReplacePlanAndClearDeck()
+    public async Task ExecutarAsync_WhenDeckHasImages_ShouldRefuseToClear()
     {
         var ferramenta = new PlanejarDeckFerramenta(Mock.Of<ILogger<PlanejarDeckFerramenta>>());
         var context = new LoopContext();
@@ -47,11 +47,28 @@ public class PlanejarDeckFerramentaTests
         context.Resultado.Imagens.Add(new ImagemGerada(new byte[] { 1 }, "legenda"));
 
         var parametros = JsonSerializer.Deserialize<JsonElement>("{\"papeis\": [\"nova_capa\", \"slide_1\"]}");
-        await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+        var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
 
-        context.PlanoDeck.Should().ContainInOrder("nova_capa", "slide_1");
+        resultado.Should().Contain("Falha");
+        resultado.Should().Contain("img_1");
+        resultado.Should().Contain("substituir");
+        context.PlanoDeck.Should().BeEmpty();
+        context.ImagensDeck.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithEmptyDeck_ShouldSetPlanAndClearNothing()
+    {
+        var ferramenta = new PlanejarDeckFerramenta(Mock.Of<ILogger<PlanejarDeckFerramenta>>());
+        var context = new LoopContext();
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"papeis\": [\"capa\", \"slide_1\"]}");
+
+        var resultado = await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        resultado.Should().Contain("Plano");
+        resultado.Should().Contain("2");
+        context.PlanoDeck.Should().ContainInOrder("capa", "slide_1");
         context.ImagensDeck.Should().BeEmpty();
-        context.Resultado.Imagens.Should().BeEmpty();
     }
 
     [Fact]
