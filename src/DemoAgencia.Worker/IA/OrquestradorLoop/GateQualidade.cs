@@ -53,7 +53,7 @@ public class GateQualidade
 
         var qaJson = ParserDecisao.ExtrairJson(qaResult);
         if (string.IsNullOrEmpty(qaJson))
-            return new ResultadoQa(true, null);
+            return new ResultadoQa(false, "QA nao respondeu em JSON valido. Reprovado por falta de avaliacao estruturada.");
 
         try
         {
@@ -64,7 +64,7 @@ public class GateQualidade
         }
         catch
         {
-            return new ResultadoQa(true, null);
+            return new ResultadoQa(false, "QA retornou JSON invalido. Reprovado por falta de avaliacao estruturada.");
         }
     }
 }

@@ -86,4 +86,60 @@ public class GateQualidadeTests
 
         result.Aprovado.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task AvaliarAsync_WithPedidoOriginal_ShouldIncludeInQaPrompt()
+    {
+        var chatMock = new Mock<IServicoChat>();
+        var agentesMock = new Mock<IAgentesCatalogo>();
+        var qualidade = new AgenteDefinicao
+        {
+            Nome = "Qualidade", ModeloAlvo = "claude", Persona = "persona", Papel = "qualidade", Temperatura = 0.3
+        };
+        agentesMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+
+        chatMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"aprovado\": true, \"feedback\": \"OK\"}");
+
+        var gate = new GateQualidade(chatMock.Object, agentesMock.Object);
+
+        await gate.AvaliarAsync(123, "briefing", "entregavel", pedidoOriginal: "post de Instagram para Acme");
+
+        chatMock.Verify(x => x.ChamarAgenteAsync(
+            It.IsAny<long>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.Is<string>(p => p.Contains("Pedido original do usuario") && p.Contains("post de Instagram para Acme")),
+            It.IsAny<string>(),
+            It.IsAny<double>(),
+            It.IsAny<int>(),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task AvaliarAsync_WhenQaResponseInvalidJson_ShouldReprove()
+    {
+        var chatMock = new Mock<IServicoChat>();
+        var agentesMock = new Mock<IAgentesCatalogo>();
+        var qualidade = new AgenteDefinicao
+        {
+            Nome = "Qualidade", ModeloAlvo = "claude", Persona = "persona", Papel = "qualidade", Temperatura = 0.3
+        };
+        agentesMock.Setup(x => x.ObterPorPapel("qualidade")).Returns(qualidade);
+
+        chatMock
+            .Setup(x => x.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Resposta do QA sem JSON valido");
+
+        var gate = new GateQualidade(chatMock.Object, agentesMock.Object);
+
+        var result = await gate.AvaliarAsync(123, "briefing", "entregavel");
+
+        result.Aprovado.Should().BeFalse();
+    }
 }
