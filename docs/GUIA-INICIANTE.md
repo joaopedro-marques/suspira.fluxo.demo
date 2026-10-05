@@ -204,52 +204,33 @@ Define **quem sao os agentes**, suas personalidades e especialidades.
 |---------|-----------------|
 | `AgenteDefinicao.cs` | Modelo de dados de um agente |
 | `IAgentesCatalogo.cs` | Interface do catalogo de agentes |
-| `AgenteLoader.cs` | Carrega agentes dos arquivos .md no startup |
+| `AgentesLoader.cs` | Carrega agentes dos arquivos .md no startup |
 
 ### Como Funciona?
 
-Cada agente e definido em um arquivo **Markdown** (`.md`) dentro de `Assets/agentes/`:
+Cada agente e definido em um arquivo **Markdown** (`.md`) dentro de `Assets/agentes/`. O nome do arquivo (sem extensao) e a chave do agente no catalogo:
 
 ```markdown
 ---
-nome: Redator
-descricao: Especialista em copywriting
-modelo_alvo: qwen/qwen3.7-plus
-papel: producao
-temperatura: 0.7
+modelo: qwen/qwen3.7-plus
+temperatura: 0.8
+max_tokens: 2000
 ---
-
-# Redator
 
 Voce e um redator especialista em copywriting...
 [aqui vai a personalidade completa do agente]
 ```
 
-O `AgenteLoader` le esses arquivos no startup e cria um catalogo em memoria.
-
-### Papeis dos Agentes
-
-| Papel | O Que Significa | Exemplos |
-|-------|----------------|----------|
-| `orquestrador` | Decide o fluxo de trabalho | Orquestrador |
-| `producao` | Executa tarefas | Redator, Dev, Estrategista, Prompt para Imagens |
-| `qualidade` | Revisa entregaveis | Qualidade |
+O `AgentesLoader` le esses arquivos no startup e cria um catalogo em memoria.
 
 ### Agentes Disponiveis
 
-| Agente | Especialidade | Modelo de IA |
-|--------|--------------|--------------|
-| **Orquestrador** | Loop supervisor, decide acoes | deepseek/deepseek-v3.2 |
-| **Redator** | Copywriting e conteudo | qwen/qwen3.7-plus |
-| **Dev** | Paginas HTML para e-mail marketing | qwen/qwen-2.5-coder-32b-instruct |
-| **Estrategista** | Estrategia de negocios | deepseek/deepseek-r1-0528 |
-| **Prompt para Imagens** | Direcao de arte | qwen/qwen3.7-plus |
-| **Qualidade** | Revisor critico | deepseek/deepseek-r1-0528 |
-
-### Conceito Importante: Agentes Internos vs Externos
-
-- **Internos** (`interno: true`): Orquestrador e Qualidade. Nao aparecem no `/agentes`.
-- **Externos**: Redator, Dev, Estrategista, Prompt para Imagens. Aparecem no `/agentes` e podem ser chamados diretamente.
+| Arquivo | Agente | Especialidade | Modelo de IA |
+|---------|--------|--------------|--------------|
+| `router.md` | Router | Intake, decide tipo de acao e monta brief | deepseek/deepseek-v3.2 |
+| `redator.md` | Redator | Copy de email marketing | qwen/qwen3.7-plus |
+| `hero.md` | Hero | Direcao de arte para imagens | qwen/qwen3.7-plus |
+| `qa.md` | QA | Revisor critico independente | deepseek/deepseek-r1-0528 |
 
 ---
 
