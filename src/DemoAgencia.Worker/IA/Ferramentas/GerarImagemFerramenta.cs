@@ -75,7 +75,7 @@ public class GerarImagemFerramenta : IFerramenta
             }
         }
 
-        var promptEnriquecido = await EnriquecerComAssetsAsync(prompt, parametros, context, ct);
+        var promptEnriquecido = await EnriquecerComIdentidadeVisualAsync(prompt, parametros, context, ct);
 
         _logger.LogInformation("Gerando imagem com prompt: {Prompt}", promptEnriquecido);
 
@@ -111,11 +111,51 @@ public class GerarImagemFerramenta : IFerramenta
         return $"Falha ao gerar imagem: {resultado.Erro}";
     }
 
-    private async Task<string> EnriquecerComAssetsAsync(string prompt, JsonElement parametros, LoopContext context, CancellationToken ct)
+    private static readonly HashSet<TipoAsset> TiposDeMarca = new() { TipoAsset.Logo, TipoAsset.Icon };
+
+    private async Task<string> EnriquecerComIdentidadeVisualAsync(string prompt, JsonElement parametros, LoopContext context, CancellationToken ct)
     {
-        if (!parametros.TryGetProperty("assets", out var assetsEl) || assetsEl.ValueKind != JsonValueKind.Array)
+        if (parametros.TryGetProperty("assets", out var assetsEl))
+        {
+            if (assetsEl.ValueKind != JsonValueKind.Array)
+                return prompt;
+            return await EnriquecerComAssetsExplicitosAsync(prompt, assetsEl, context, ct);
+        }
+
+        var cliente = context.Cliente;
+        if (string.IsNullOrEmpty(cliente))
             return prompt;
 
+        var assetsDoCliente = _referencias.ListarAssets(cliente);
+        var marcas = assetsDoCliente.Where(a => TiposDeMarca.Contains(a.Tipo)).ToList();
+        if (marcas.Count == 0)
+            return prompt;
+
+        var descricoes = new List<string>();
+        foreach (var asset in marcas)
+        {
+            try
+            {
+                var bytes = await File.ReadAllBytesAsync(asset.Caminho, ct);
+                var descricao = await _analisadorImagem.DescreverImagemAsync(bytes, null, ct);
+                if (!string.IsNullOrEmpty(descricao))
+                    descricoes.Add($"{asset.Tipo}/{asset.Nome}: {descricao}");
+            }
+            catch
+            {
+                if (!string.IsNullOrEmpty(asset.Descricao))
+                    descricoes.Add($"{asset.Tipo}/{asset.Nome}: {asset.Descricao}");
+            }
+        }
+
+        if (descricoes.Count == 0)
+            return prompt;
+
+        return prompt + "\n\nVisual identity references:\n" + string.Join("\n", descricoes);
+    }
+
+    private async Task<string> EnriquecerComAssetsExplicitosAsync(string prompt, JsonElement assetsEl, LoopContext context, CancellationToken ct)
+    {
         var cliente = context.Cliente;
         if (string.IsNullOrEmpty(cliente))
             return prompt;

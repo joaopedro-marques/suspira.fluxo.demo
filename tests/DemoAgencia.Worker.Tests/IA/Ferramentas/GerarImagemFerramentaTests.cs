@@ -407,4 +407,64 @@ public class GerarImagemFerramentaTests : IDisposable
         resultado.Should().Contain("substituida");
         context.ImagensDeck.Should().HaveCount(2);
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutAssetsParam_ShouldAutoInjectBrandAssets()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        var logoPath = Path.Combine(_tempDir, "logo.png");
+        var iconPath = Path.Combine(_tempDir, "icon.png");
+        await File.WriteAllBytesAsync(logoPath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+        await File.WriteAllBytesAsync(iconPath, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        _referenciasMock.Setup(x => x.ListarAssets("acme")).Returns(new List<AssetVisual>
+        {
+            new() { Id = "logo", Cliente = "acme", Tipo = TipoAsset.Logo, Nome = "principal", Caminho = logoPath },
+            new() { Id = "icon", Cliente = "acme", Tipo = TipoAsset.Icon, Nome = "marca", Caminho = iconPath },
+            new() { Id = "header", Cliente = "acme", Tipo = TipoAsset.Header, Nome = "email", Caminho = logoPath }
+        }.AsReadOnly());
+
+        _analisadorMock.Setup(x => x.DescreverImagemAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Logo vermelha circular");
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123, Cliente = "acme" };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"post para instagram\"}");
+
+        await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        openRouterMock.Verify(x => x.GerarImagemAsync(
+            It.IsAny<long>(),
+            It.Is<string>(p => p.Contains("Visual identity references") && p.Contains("Logo") && p.Contains("Icon") && !p.Contains("Header")),
+            It.IsAny<CancellationToken>()));
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithAssetsParam_ShouldNotAutoInjectBrand()
+    {
+        var openRouterMock = new Mock<IGeradorImagem>();
+        openRouterMock
+            .Setup(x => x.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 1 }, null));
+
+        _referenciasMock.Setup(x => x.ListarAssets("acme")).Returns(new List<AssetVisual>
+        {
+            new() { Id = "logo", Cliente = "acme", Tipo = TipoAsset.Logo, Nome = "principal", Descricao = "Logo" }
+        }.AsReadOnly());
+
+        var ferramenta = CriarFerramenta(openRouterMock);
+        var context = new LoopContext { ChatId = 123, Cliente = "acme" };
+        var parametros = JsonSerializer.Deserialize<JsonElement>("{\"prompt\": \"post\", \"assets\": []}");
+
+        await ferramenta.ExecutarAsync(context, parametros, CancellationToken.None);
+
+        openRouterMock.Verify(x => x.GerarImagemAsync(
+            It.IsAny<long>(),
+            It.Is<string>(p => !p.Contains("Visual identity references")),
+            It.IsAny<CancellationToken>()));
+    }
 }
