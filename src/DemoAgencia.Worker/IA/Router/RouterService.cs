@@ -131,7 +131,7 @@ public class RouterService
                 _logger.LogWarning("MaxRodadasPerguntas ({Max}) excedido para chat {ChatId}",
                     _options.MaxRodadasPerguntas, estado.ChatId);
                 _store.Remover(estado.ChatId);
-                return null;
+                return new RouterResultado("limite_perguntas", null, new(), null, null);
             }
 
             estado.Rodadas.Add(new RodadaEsclarecimento { Perguntas = resultado.Perguntas.ToList() });

@@ -246,6 +246,11 @@ public class TelegramService : BackgroundService
                 await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
                 return;
 
+            case "limite_perguntas":
+                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId,
+                    "Nao consegui reunir todos os detalhes mesmo com as perguntas. Vamos recomecar: reenvie o pedido completo com cliente, objetivo, publico, oferta e canal em uma unica mensagem.", ct);
+                return;
+
             case "producao":
                 if (resultado.Brief == null)
                 {

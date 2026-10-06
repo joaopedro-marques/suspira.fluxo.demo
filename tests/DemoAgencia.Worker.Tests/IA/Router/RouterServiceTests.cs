@@ -168,7 +168,7 @@ public class RouterServiceTests
     }
 
     [Fact]
-    public async Task ResumirAsync_WhenMaxRoundsExceeded_ShouldClearAndReturnNull()
+    public async Task ResumirAsync_WhenMaxRoundsExceeded_ShouldClearAndReturnLimitePerguntas()
     {
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -185,7 +185,8 @@ public class RouterServiceTests
 
         var resultado = await _service.ResumirAsync(123, "r2");
 
-        resultado.Should().BeNull();
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("limite_perguntas");
         _store.Obter(123).Should().BeNull();
     }
 
