@@ -33,7 +33,12 @@ public class RouterServiceTests
         _catalogo = new StubCatalogo(new AgenteDefinicao(
             "router", "deepseek/deepseek-v3.2", 0.2, 2000, "Persona do router"));
 
-        var options = Options.Create(new PreFlightOptions { MaxRodadasPerguntas = 2 });
+        var options = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "acme", "beta" },
+            CanaisPermitidos = new List<string> { "email", "instagram", "landing" }
+        });
         var logger = new Mock<ILogger<RouterService>>();
         _service = new RouterService(_refsMock.Object, _chatMock.Object, _catalogo, _store, options, logger.Object);
     }
@@ -91,7 +96,7 @@ public class RouterServiceTests
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "producao", "brief": {"canal": "email"}}""");
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""");
 
         var resultado = await _service.IniciarAsync(123, "criar email");
 
@@ -153,7 +158,7 @@ public class RouterServiceTests
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "producao", "brief": {"canal": "instagram"}}""");
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "beta", "brief": {"canal": "instagram"}}""");
 
         var resultado = await _service.ResumirAsync(123, "jovens");
 
@@ -201,6 +206,16 @@ public class RouterServiceTests
         estrategia.Fases["pre-chaves"] = new FaseEstrategia { Fase = "pre-chaves" };
         _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
 
+        var mrvOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var mrvService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, mrvOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
         string? promptCapturado = null;
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
@@ -209,7 +224,7 @@ public class RouterServiceTests
                 (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) => promptCapturado = prompt)
             .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual etapa da jornada?"]}""");
 
-        await _service.IniciarAsync(123, "criar email para MRV");
+        await mrvService.IniciarAsync(123, "criar email para MRV");
 
         promptCapturado.Should().NotBeNull();
         promptCapturado.Should().Contain("pos-compra");
@@ -234,6 +249,172 @@ public class RouterServiceTests
 
         promptCapturado.Should().NotBeNull();
         promptCapturado.Should().NotContain("Estrategia");
+    }
+
+    [Fact]
+    public async Task Guarda_WhenProducaoClienteNaoPermitido_ShouldCoerceToForaContexto()
+    {
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar email para acme");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("fora_contexto");
+        resultado.Motivo.Should().Be(RouterResultado.Motivos.ClienteNaoPermitido);
+        resultado.Brief.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Guarda_WhenProducaoCanalNaoPermitido_ShouldCoerceToForaContexto()
+    {
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "acme" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "instagram"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar post para acme");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("fora_contexto");
+        resultado.Motivo.Should().Be(RouterResultado.Motivos.CanalNaoPermitido);
+    }
+
+    [Fact]
+    public async Task Guarda_WhenProducaoSemCliente_ShouldCoerceToForaContexto()
+    {
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "brief": {"canal": "email"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar email de boas-vindas");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("fora_contexto");
+        resultado.Motivo.Should().Be(RouterResultado.Motivos.ClienteNaoPermitido);
+    }
+
+    [Fact]
+    public async Task Guarda_WhenProducaoPermitido_ShouldPassThrough()
+    {
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "mrv", "brief": {"canal": "email", "objetivo": "vender"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar email para MRV");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("producao");
+        resultado.Cliente.Should().Be("mrv");
+        resultado.Motivo.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task MontaPrompt_ShouldInjectOnlyPermittedClientsAndChannels()
+    {
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv", "acme" });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        string? promptCapturado = null;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) => promptCapturado = prompt)
+            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual o publico?"]}""");
+
+        await restrictedService.IniciarAsync(123, "criar email para mrv");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().Contain("Clientes atendidos");
+        promptCapturado.Should().Contain("mrv");
+        promptCapturado.Should().NotContain("acme");
+        promptCapturado.Should().Contain("Canais atendidos");
+        promptCapturado.Should().Contain("email");
+    }
+
+    [Fact]
+    public async Task MontaPrompt_ShouldNotInjectEstrategiaForNonPermittedClient()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv", "acme" });
+        var estrategiaAcme = new EstrategiaCliente { Cliente = "acme" };
+        estrategiaAcme.Fases["pos-compra"] = new FaseEstrategia { Fase = "pos-compra" };
+        _refsMock.Setup(r => r.ObterEstrategia("acme")).Returns(estrategiaAcme);
+
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        string? promptCapturado = null;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) => promptCapturado = prompt)
+            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual o cliente?"]}""");
+
+        await restrictedService.IniciarAsync(123, "criar email para acme");
+
+        promptCapturado.Should().NotBeNull();
+        promptCapturado.Should().NotContain("Estrategia do cliente");
     }
 
     private class FakeTimeProvider : TimeProvider

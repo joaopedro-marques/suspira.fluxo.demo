@@ -230,4 +230,27 @@ public class RouterParserTests
         resultado.Should().NotBeNull();
         resultado!.Brief!.EtapaJornada.Should().BeNull();
     }
+
+    [Fact]
+    public void TentarExtrair_WithMotivo_ShouldExtract()
+    {
+        var texto = """{"tipo": "fora_contexto", "motivo": "cliente_nao_permitido"}""";
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("fora_contexto");
+        resultado.Motivo.Should().Be("cliente_nao_permitido");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithoutMotivo_ShouldBeNull()
+    {
+        var texto = """{"tipo": "fora_contexto"}""";
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Motivo.Should().BeNull();
+    }
 }
