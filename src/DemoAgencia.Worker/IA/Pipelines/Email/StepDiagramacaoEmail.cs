@@ -115,6 +115,13 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         prompt += $"\n## Instrucao\n";
         prompt += $"Crie secoes HTML diagramadas para o corpo do email. Use os padroes visuais do seu catalogo. Responda APENAS com o HTML das secoes, sem markdown.\n";
 
+        if (context.Refacoes > 0 && !string.IsNullOrEmpty(context.QaFeedback))
+        {
+            prompt += $"\n## REVISAO NECESSARIA (refacao {context.Refacoes})\n";
+            prompt += $"O QA reprovou a versao anterior. Corrija os seguintes problemas:\n";
+            prompt += $"{context.QaFeedback}\n";
+        }
+
         return prompt;
     }
 

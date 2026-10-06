@@ -201,4 +201,28 @@ public class StepDiagramacaoEmailTests
         prompt.Should().Contain("moradia");
         prompt.Should().NotContain("Referencie como assets/{nome}");
     }
+
+    [Fact]
+    public async Task MontarPrompt_WithQaFeedback_ShouldIncludeRevisionSection()
+    {
+        var context = CriarContexto();
+        context.Refacoes = 1;
+        context.QaFeedback = "Corrigir duplicacao de saudacao";
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("REVISAO NECESSARIA");
+        prompt.Should().Contain("refacao 1");
+        prompt.Should().Contain("Corrigir duplicacao de saudacao");
+    }
+
+    [Fact]
+    public async Task MontarPrompt_WithoutQaFeedback_ShouldNotIncludeRevisionSection()
+    {
+        var context = CriarContexto();
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().NotContain("REVISAO NECESSARIA");
+    }
 }
