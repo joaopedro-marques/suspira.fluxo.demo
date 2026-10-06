@@ -24,8 +24,7 @@ Responda APENAS com JSON valido:
     "saudacao": "Saudacao inicial (ex: Ola, [Nome]!)",
     "corpo": "Corpo do email em HTML (use <p>, <strong>, <em>, listas <ul>/<li>)",
     "cta_texto": "Texto do botao de call-to-action",
-    "cta_link": "URL do link do CTA",
-    "rodape": "Texto do rodape (informacoes legais, unsubscribe)"
+    "cta_link": "Url do link de cta",
 }
 
 - assunto: curto, direto, que desperte curiosidade ou urgencia
@@ -33,8 +32,7 @@ Responda APENAS com JSON valido:
 - titulo: destaque principal do email
 - saudacao: abertura pessoal
 - corpo: HTML com paragrafos, formatacao, listas quando apropriado
-- cta_texto: acao clara (ex: "Compre agora", "Saiba mais", "Baixe o ebook")
-- cta_link: URL completa (https://...)
-- rodape: informacoes legais, como cancelar inscricao
+- cta_texto: acao clara (ex: "Compre agora", "Saiba mais", "Baixe o ebook"), caso exista e seja enviado pelo usuário
+- cta_link: URL completa (https://...), caso exista e seja enviado pelo usuário
 
 Responda APENAS com JSON valido, sem explicacoes adicionais.
