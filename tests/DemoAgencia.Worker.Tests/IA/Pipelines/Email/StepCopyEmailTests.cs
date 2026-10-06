@@ -135,6 +135,35 @@ public class StepCopyEmailTests
     }
 
     [Fact]
+    public void MontarPrompt_WithQaFeedbackAndPreviousCopy_ShouldPreserveRodape()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), null, null),
+            Refacoes = 1,
+            QaFeedback = "Hero image nao tem relacao com o conteudo.",
+            Copy = new CopyEmailSlots(
+                "Assunto anterior",
+                "Preheader anterior",
+                "Titulo anterior",
+                "Saudacao anterior",
+                "<p>Corpo anterior</p>",
+                "CTA anterior",
+                "https://link.com",
+                "Rodape anterior - informacoes legais")
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Copy anterior");
+        prompt.Should().Contain("Assunto anterior");
+        prompt.Should().Contain("Mantenha o mesmo rodape");
+    }
+
+    [Fact]
     public void MontarPrompt_WithoutQaFeedback_ShouldNotIncludeRevisionSection()
     {
         var contexto = new PipelineContext

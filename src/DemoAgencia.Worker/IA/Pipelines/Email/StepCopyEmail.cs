@@ -108,6 +108,15 @@ public class StepCopyEmail : IPipelineStep
             prompt += $"\n## ⚠️ REVISAO NECESSARIA (refacao {context.Refacoes})\n";
             prompt += $"O QA reprovou a versao anterior. Corrija os seguintes problemas:\n";
             prompt += $"{context.QaFeedback}\n";
+
+            if (context.Copy != null)
+            {
+                prompt += $"\n## Copy anterior (para referencia)\n";
+                prompt += $"Assunto: {context.Copy.Assunto}\n";
+                prompt += $"Titulo: {context.Copy.Titulo}\n";
+                prompt += $"CTA: {context.Copy.CtaTexto}\n";
+                prompt += $"\nIMPORTANTE: Mantenha o mesmo rodape, a menos que o feedback acima solicite alteracao no rodape.\n";
+            }
         }
 
         return prompt;
