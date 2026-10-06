@@ -201,7 +201,7 @@ sequenceDiagram
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
 | `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido |
-| `StepImagemHero` | Retrieval + LLM + API | `qwen/qwen3.7-plus` | Seleciona banner de referência por afinidade com a etapa (skips IA); sem banner afim, analisa banners com visão (BannerDescricaoCache) e gera prompt otimizado + chama API de imagem |
+| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona top-3 banners por afinidade; descreve cada um com visão (BannerDescricaoCache) e valida compatibilidade temática via agente curador (fail-open); primeiro compatível é anexado; nenhum compatível → gera hero via IA (prompt do brief ou default); em refação QA → pula seleção e regenera direto |
 | `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
 | `StepAssetsEmail` | Retrieval determinístico | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
@@ -407,6 +407,7 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | `email_copy` | Geração de copy (assunto, corpo, CTA) | `qwen/qwen3.7-plus` |
 | `email_diagramacao` | Geração de seções HTML diagramadas para o corpo | `qwen/qwen3.7-plus` |
 | `email_hero_prompt` | Geração de prompt para imagem hero | `qwen/qwen3.7-plus` |
+| `email_banner_check` | Validação de compatibilidade temática banner×email | `deepseek/deepseek-v3.2` |
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
 | `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
