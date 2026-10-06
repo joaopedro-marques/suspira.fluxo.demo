@@ -83,6 +83,12 @@ public class StepQaEmail : IPipelineStep
         else
             prompt += $"Ausente (sem brief de imagem hero)\n";
 
+        prompt += $"\n## Banner de referencia\n";
+        if (!string.IsNullOrEmpty(context.BannerSrc))
+            prompt += $"Presente: {context.BannerSrc}\n";
+        else
+            prompt += $"Ausente (nenhum banner afim a etapa)\n";
+
         if (estrategia?.FaseDados != null)
         {
             prompt += $"\n## Estrategia de jornada\n";
