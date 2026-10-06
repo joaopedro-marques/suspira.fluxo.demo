@@ -267,7 +267,10 @@ public class StepImagemHero : IPipelineStep
                         descricoes.Add($"Logo: {descricaoAsset}");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao descrever logo {Asset}", asset.Nome);
+            }
         }
 
         foreach (var asset in icons)
@@ -281,7 +284,10 @@ public class StepImagemHero : IPipelineStep
                         descricoes.Add($"Icon ({asset.Nome}): {descricaoIcon.ToPromptSection()}");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao obter descricao do icone {Asset}", asset.Nome);
+            }
         }
 
         foreach (var banner in banners)
@@ -295,7 +301,10 @@ public class StepImagemHero : IPipelineStep
                         descricoes.Add($"Banner ({banner.Nome}): {descricaoBanner.ToPromptSection()}");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao obter descricao do banner {Asset}", banner.Nome);
+            }
         }
 
         if (descricoes.Count > 0)
