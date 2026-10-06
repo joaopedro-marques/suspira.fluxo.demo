@@ -15,6 +15,7 @@ public class StepImagemHero : IPipelineStep
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly ITemplateCatalogo _templateCatalogo;
     private readonly IBannerDescricaoCache _bannerCache;
+    private readonly IIconDescricaoCache _iconCache;
 
     public StepImagemHero(
         AgenteDefinicao agentePrompt,
@@ -23,7 +24,8 @@ public class StepImagemHero : IPipelineStep
         IReferenciasCliente referencias,
         IAnalisadorImagem analisadorImagem,
         ITemplateCatalogo templateCatalogo,
-        IBannerDescricaoCache bannerCache)
+        IBannerDescricaoCache bannerCache,
+        IIconDescricaoCache iconCache)
     {
         _agentePrompt = agentePrompt;
         _servicoChat = servicoChat;
@@ -32,30 +34,37 @@ public class StepImagemHero : IPipelineStep
         _analisadorImagem = analisadorImagem;
         _templateCatalogo = templateCatalogo;
         _bannerCache = bannerCache;
+        _iconCache = iconCache;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
-        var cliente = context.Cliente;
-        var fase = context.Estrategia?.Fase;
-        var subJornada = context.Estrategia?.SubJornada ?? context.Brief.SubJornada;
+        var isHeroRefacao = context.Refacoes > 0 &&
+            context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true;
 
-        var templateSubJornadas = !string.IsNullOrEmpty(context.TemplateId)
-            ? _templateCatalogo.ObterSubJornadas(context.TemplateId)
-            : null;
-
-        var banner = _referencias.SelecionarBanner(
-            cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal);
-
-        if (banner != null && File.Exists(banner.Caminho))
+        if (!isHeroRefacao)
         {
-            var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
-            var legenda = $"{banner.Nome}{Path.GetExtension(banner.Caminho)}";
-            context.BannerSrc = $"assets/{legenda}";
-            if (!context.Resultado.AssetsAnexados.Any(a => a.Legenda == legenda))
-                context.Resultado.AssetsAnexados.Add(new ImagemGerada(bytes, legenda));
-            context.HeroSrc = null;
-            return context;
+            var cliente = context.Cliente;
+            var fase = context.Estrategia?.Fase;
+            var subJornada = context.Estrategia?.SubJornada ?? context.Brief.SubJornada;
+
+            var templateSubJornadas = !string.IsNullOrEmpty(context.TemplateId)
+                ? _templateCatalogo.ObterSubJornadas(context.TemplateId)
+                : null;
+
+            var banner = _referencias.SelecionarBanner(
+                cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal);
+
+            if (banner != null && File.Exists(banner.Caminho))
+            {
+                var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
+                var legenda = $"{banner.Nome}{Path.GetExtension(banner.Caminho)}";
+                context.BannerSrc = $"assets/{legenda}";
+                if (!context.Resultado.AssetsAnexados.Any(a => a.Legenda == legenda))
+                    context.Resultado.AssetsAnexados.Add(new ImagemGerada(bytes, legenda));
+                context.HeroSrc = null;
+                return context;
+            }
         }
 
         var heroBrief = context.Brief.Imagens.FirstOrDefault(i =>
@@ -65,31 +74,33 @@ public class StepImagemHero : IPipelineStep
         if (heroBrief == null)
         {
             context.HeroSrc = null;
+            context.BannerSrc = null;
             return context;
         }
 
-        var promptBase = await ConstruirPromptBase(heroBrief.Descricao, cliente, context.Estrategia, ct);
-        
-        if (context.Refacoes > 0 && !string.IsNullOrEmpty(context.QaFeedback) && 
-            context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true)
+        var promptBase = await ConstruirPromptBase(heroBrief.Descricao, context.Cliente, context.Estrategia, ct);
+
+        if (isHeroRefacao && !string.IsNullOrEmpty(context.QaFeedback))
         {
             promptBase += $"\n\n⚠️ REVISION REQUIRED (retry {context.Refacoes})\n";
             promptBase += $"QA rejected the previous version. Fix the following issues:\n";
             promptBase += $"{context.QaFeedback}\n";
         }
-        
+
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);
 
         var resultado = await _geradorImagem.GerarImagemAsync(context.ChatId, promptFinal, ct);
         if (!resultado.Sucesso || resultado.Bytes == null)
         {
             context.HeroSrc = null;
+            context.BannerSrc = null;
             return context;
         }
 
         var indice = context.Resultado.Imagens.Count + 1;
         context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes, $"Hero image {indice}"));
         context.HeroSrc = $"imagens/gerada_{indice}.png";
+        context.BannerSrc = null;
 
         return context;
     }
@@ -120,11 +131,12 @@ public class StepImagemHero : IPipelineStep
             return prompt;
 
         var assets = _referencias.ListarAssets(cliente);
-        var marcas = assets.Where(a => a.Tipo == TipoAsset.Logo || a.Tipo == TipoAsset.Icon).ToList();
+        var logos = assets.Where(a => a.Tipo == TipoAsset.Logo).ToList();
+        var icons = assets.Where(a => a.Tipo == TipoAsset.Icon).ToList();
         var banners = assets.Where(a => a.Tipo == TipoAsset.Banner).ToList();
 
         var descricoes = new List<string>();
-        foreach (var asset in marcas)
+        foreach (var asset in logos)
         {
             try
             {
@@ -133,7 +145,21 @@ public class StepImagemHero : IPipelineStep
                     var bytes = await File.ReadAllBytesAsync(asset.Caminho, ct);
                     var descricaoAsset = await _analisadorImagem.DescreverImagemAsync(bytes, null, ct);
                     if (!string.IsNullOrEmpty(descricaoAsset))
-                        descricoes.Add($"{asset.Tipo}: {descricaoAsset}");
+                        descricoes.Add($"Logo: {descricaoAsset}");
+                }
+            }
+            catch { }
+        }
+
+        foreach (var asset in icons)
+        {
+            try
+            {
+                if (File.Exists(asset.Caminho))
+                {
+                    var descricaoIcon = await _iconCache.ObterDescricaoAsync(asset, ct);
+                    if (!string.IsNullOrEmpty(descricaoIcon.DescricaoGeral))
+                        descricoes.Add($"Icon ({asset.Nome}): {descricaoIcon.ToPromptSection()}");
                 }
             }
             catch { }
