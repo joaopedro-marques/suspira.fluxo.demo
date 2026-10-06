@@ -5,7 +5,6 @@ using Telegram.Bot.Types.Enums;
 
 namespace DemoAgencia.Worker.Telegram;
 
-[ExcludeFromCodeCoverage]
 public class TelegramBotGateway : ITelegramGateway
 {
     private readonly TelegramBotClient _botClient;
@@ -41,7 +40,7 @@ public class TelegramBotGateway : ITelegramGateway
     {
         await _botClient.SendDocument(
             chatId: chatId,
-            document: document,
+            document: new InputFileStream(document, fileName),
             caption: caption,
             thumbnail: null,
             disableContentTypeDetection: true,

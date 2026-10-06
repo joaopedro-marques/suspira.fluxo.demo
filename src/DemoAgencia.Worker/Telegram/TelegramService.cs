@@ -352,7 +352,8 @@ public class TelegramService : BackgroundService
                 var ext = DetectarExtensaoImagem(asset.Bytes);
                 var nomeSeguro = (asset.Legenda ?? $"asset_{assetIndex}")
                     .Replace("/", "_").Replace("\\", "_").Replace(" ", "_");
-                var assetEntry = archive.CreateEntry($"assets/{nomeSeguro}{ext}");
+                var nomeSemExt = Path.GetFileNameWithoutExtension(nomeSeguro);
+                var assetEntry = archive.CreateEntry($"assets/{nomeSemExt}{ext}");
                 using var entryStream = assetEntry.Open();
                 await entryStream.WriteAsync(asset.Bytes, ct);
             }
