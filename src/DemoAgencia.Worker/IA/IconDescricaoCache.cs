@@ -11,6 +11,7 @@ public interface IIconDescricaoCache
 public class IconDescricaoCache : IIconDescricaoCache
 {
     private readonly IAnalisadorImagem _analisador;
+    private readonly ILogger<IconDescricaoCache> _logger;
 
     private static readonly JsonSerializerOptions SnakeOptions = new()
     {
@@ -24,9 +25,10 @@ public class IconDescricaoCache : IIconDescricaoCache
         PropertyNameCaseInsensitive = true
     };
 
-    public IconDescricaoCache(IAnalisadorImagem analisador)
+    public IconDescricaoCache(IAnalisadorImagem analisador, ILogger<IconDescricaoCache> logger)
     {
         _analisador = analisador;
+        _logger = logger;
     }
 
     public async Task<IconDescricao> ObterDescricaoAsync(AssetVisual icon, CancellationToken ct = default)
@@ -42,8 +44,9 @@ public class IconDescricaoCache : IIconDescricaoCache
                 if (cached != null)
                     return cached;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Falha ao ler cache de descricao do icone {Path}. Regenerando.", sidecarPath);
             }
         }
 
@@ -55,8 +58,9 @@ public class IconDescricaoCache : IIconDescricaoCache
             var json = JsonSerializer.Serialize(descricao, SnakeOptions);
             await File.WriteAllTextAsync(sidecarPath, json, ct);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Falha ao gravar cache de descricao do icone {Path}", sidecarPath);
         }
 
         return descricao;

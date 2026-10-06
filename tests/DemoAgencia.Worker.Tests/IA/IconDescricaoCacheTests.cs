@@ -2,6 +2,7 @@ using System.Text.Json;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA;
@@ -28,7 +29,7 @@ public class IconDescricaoCacheTests
         var cached = new IconDescricao("Icone de casa", new List<string> { "moradia", "imovel" }, "Flat line");
         await File.WriteAllTextAsync(sidecarPath, JsonSerializer.Serialize(cached, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }));
 
-        var cache = new IconDescricaoCache(_analisadorMock.Object);
+        var cache = new IconDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<IconDescricaoCache>>());
         var icon = new AssetVisual { Caminho = iconPath };
 
         var result = await cache.ObterDescricaoAsync(icon, CancellationToken.None);
@@ -48,7 +49,7 @@ public class IconDescricaoCacheTests
         _analisadorMock.Setup(a => a.DescreverIconeAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var cache = new IconDescricaoCache(_analisadorMock.Object);
+        var cache = new IconDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<IconDescricaoCache>>());
         var icon = new AssetVisual { Caminho = iconPath };
 
         var result = await cache.ObterDescricaoAsync(icon, CancellationToken.None);
@@ -74,7 +75,7 @@ public class IconDescricaoCacheTests
         _analisadorMock.Setup(a => a.DescreverIconeAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var cache = new IconDescricaoCache(_analisadorMock.Object);
+        var cache = new IconDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<IconDescricaoCache>>());
         var icon = new AssetVisual { Caminho = iconPath };
 
         var result = await cache.ObterDescricaoAsync(icon, CancellationToken.None);

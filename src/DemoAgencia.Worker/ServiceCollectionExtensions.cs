@@ -63,8 +63,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IServicoChat>(sp => sp.GetRequiredService<OpenRouterService>());
         services.AddSingleton<IGeradorImagem>(sp => sp.GetRequiredService<OpenRouterService>());
         services.AddSingleton<IAnalisadorImagem>(sp => sp.GetRequiredService<OpenRouterService>());
-        services.AddSingleton<IBannerDescricaoCache>(sp => new BannerDescricaoCache(sp.GetRequiredService<IAnalisadorImagem>()));
-        services.AddSingleton<IIconDescricaoCache>(sp => new IconDescricaoCache(sp.GetRequiredService<IAnalisadorImagem>()));
+        services.AddSingleton<IBannerDescricaoCache>(sp => new BannerDescricaoCache(sp.GetRequiredService<IAnalisadorImagem>(), sp.GetRequiredService<ILogger<BannerDescricaoCache>>()));
+        services.AddSingleton<IIconDescricaoCache>(sp => new IconDescricaoCache(sp.GetRequiredService<IAnalisadorImagem>(), sp.GetRequiredService<ILogger<IconDescricaoCache>>()));
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ConversaPendenteStore>();

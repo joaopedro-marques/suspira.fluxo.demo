@@ -2,6 +2,7 @@ using System.Text.Json;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA;
@@ -28,7 +29,7 @@ public class BannerDescricaoCacheTests
         var cached = new BannerDescricao("Cached desc", "Central", new List<string> { "#006b40" }, "Flat", "Acolhedor", "");
         await File.WriteAllTextAsync(sidecarPath, JsonSerializer.Serialize(cached, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }));
 
-        var cache = new BannerDescricaoCache(_analisadorMock.Object);
+        var cache = new BannerDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<BannerDescricaoCache>>());
         var banner = new AssetVisual { Caminho = bannerPath };
 
         var result = await cache.ObterDescricaoAsync(banner, CancellationToken.None);
@@ -48,7 +49,7 @@ public class BannerDescricaoCacheTests
         _analisadorMock.Setup(a => a.DescreverBannerAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var cache = new BannerDescricaoCache(_analisadorMock.Object);
+        var cache = new BannerDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<BannerDescricaoCache>>());
         var banner = new AssetVisual { Caminho = bannerPath };
 
         var result = await cache.ObterDescricaoAsync(banner, CancellationToken.None);
@@ -74,7 +75,7 @@ public class BannerDescricaoCacheTests
         _analisadorMock.Setup(a => a.DescreverBannerAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var cache = new BannerDescricaoCache(_analisadorMock.Object);
+        var cache = new BannerDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<BannerDescricaoCache>>());
         var banner = new AssetVisual { Caminho = bannerPath };
 
         var result = await cache.ObterDescricaoAsync(banner, CancellationToken.None);

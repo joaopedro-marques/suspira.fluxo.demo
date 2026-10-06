@@ -11,6 +11,7 @@ public interface IBannerDescricaoCache
 public class BannerDescricaoCache : IBannerDescricaoCache
 {
     private readonly IAnalisadorImagem _analisador;
+    private readonly ILogger<BannerDescricaoCache> _logger;
 
     private static readonly JsonSerializerOptions SnakeOptions = new()
     {
@@ -24,9 +25,10 @@ public class BannerDescricaoCache : IBannerDescricaoCache
         PropertyNameCaseInsensitive = true
     };
 
-    public BannerDescricaoCache(IAnalisadorImagem analisador)
+    public BannerDescricaoCache(IAnalisadorImagem analisador, ILogger<BannerDescricaoCache> logger)
     {
         _analisador = analisador;
+        _logger = logger;
     }
 
     public async Task<BannerDescricao> ObterDescricaoAsync(AssetVisual banner, CancellationToken ct = default)
@@ -42,8 +44,9 @@ public class BannerDescricaoCache : IBannerDescricaoCache
                 if (cached != null)
                     return cached;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Falha ao ler cache de descricao do banner {Path}. Regenerando.", sidecarPath);
             }
         }
 
@@ -55,8 +58,9 @@ public class BannerDescricaoCache : IBannerDescricaoCache
             var json = JsonSerializer.Serialize(descricao, SnakeOptions);
             await File.WriteAllTextAsync(sidecarPath, json, ct);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Falha ao gravar cache de descricao do banner {Path}", sidecarPath);
         }
 
         return descricao;
