@@ -102,6 +102,17 @@ public partial class StepQaEmail : IPipelineStep
             }
         }
 
+        var briefTokens = ExtrairPlaceholders(brief.Link ?? string.Empty)
+            .Concat(ExtrairPlaceholders(context.MensagemOriginal ?? string.Empty))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (briefTokens.Count > 0)
+        {
+            prompt += $"\n## Placeholders do briefing (CANONICOS)\n";
+            prompt += $"O briefing especifica os seguintes tokens: {string.Join(", ", briefTokens.Select(t => $"%%{t}%%"))}\n";
+            prompt += $"Estes tokens devem aparecer no HTML EXATAMENTE com o mesmo nome. Divergencia de nome (ex: %%CONFIRM_LINK%% no lugar de %%LINKASSEMBLEIA%%) e defeito critico.\n";
+        }
+
         if (estrategia?.FaseDados != null)
         {
             prompt += $"\n## Estrategia de jornada\n";

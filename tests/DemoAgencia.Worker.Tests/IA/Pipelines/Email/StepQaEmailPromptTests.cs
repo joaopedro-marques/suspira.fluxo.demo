@@ -198,4 +198,43 @@ public class StepQaEmailPromptTests
 
         placeholders.Should().BeEmpty();
     }
+
+    [Fact]
+    public void MontarPromptQa_WithBriefLink_ShouldIncludeCanonicalTokens()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "confirmar presenca na assembleia",
+            Brief = new Brief("email", null, null, null, null, "%%LINKASSEMBLEIA%%", new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "Confirmar", "%%CONFIRM_LINK%%", "rodape"),
+            Html = "<a href=\"%%CONFIRM_LINK%%\">CTA</a>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().Contain("Placeholders do briefing");
+        prompt.Should().Contain("%%LINKASSEMBLEIA%%");
+        prompt.Should().Contain("EXATAMENTE com o mesmo nome");
+        prompt.Should().Contain("defeito critico");
+    }
+
+    [Fact]
+    public void MontarPromptQa_WithoutBriefTokens_ShouldNotIncludeCanonicalSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email pos-compra",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "https://link.com", "rodape"),
+            Html = "<p>Sem tokens no briefing</p>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().NotContain("Placeholders do briefing");
+    }
 }
