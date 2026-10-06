@@ -13,6 +13,7 @@ public class PipelineEmail
     private readonly IAgentesCatalogo _catalogo;
     private readonly ITemplateCatalogo _templateCatalogo;
     private readonly string _heroSectionTemplate;
+    private readonly string _bannerSectionTemplate;
 
     public PipelineEmail(
         IServicoChat servicoChat,
@@ -21,7 +22,8 @@ public class PipelineEmail
         IAnalisadorImagem analisadorImagem,
         IAgentesCatalogo catalogo,
         ITemplateCatalogo templateCatalogo,
-        string heroSectionTemplate)
+        string heroSectionTemplate,
+        string bannerSectionTemplate)
     {
         _servicoChat = servicoChat;
         _geradorImagem = geradorImagem;
@@ -30,6 +32,7 @@ public class PipelineEmail
         _catalogo = catalogo;
         _templateCatalogo = templateCatalogo;
         _heroSectionTemplate = heroSectionTemplate;
+        _bannerSectionTemplate = bannerSectionTemplate;
     }
 
     public IReadOnlyList<IPipelineStep> CriarSteps()
@@ -40,7 +43,7 @@ public class PipelineEmail
             new StepMarcaEmail(_referencias),
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat),
             new StepImagemHero(_catalogo.Obter("hero"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem, _templateCatalogo),
-            new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate),
+            new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate, _bannerSectionTemplate),
             new StepQaEmail(_catalogo.Obter("qa"), _servicoChat)
         };
 

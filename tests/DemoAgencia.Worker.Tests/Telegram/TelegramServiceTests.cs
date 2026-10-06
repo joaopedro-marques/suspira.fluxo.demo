@@ -212,6 +212,7 @@ public class TelegramServiceTests
             Mock.Of<IAnalisadorImagem>(),
             Mock.Of<IAgentesCatalogo>(),
             Mock.Of<ITemplateCatalogo>(),
+            "<tr></tr>",
             "<tr></tr>");
 
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);

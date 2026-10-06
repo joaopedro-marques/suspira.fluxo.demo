@@ -10,11 +10,13 @@ public class StepTemplateEmail : IPipelineStep
 
     private readonly ITemplateCatalogo _catalogo;
     private readonly string _heroSectionTemplate;
+    private readonly string _bannerSectionTemplate;
 
-    public StepTemplateEmail(ITemplateCatalogo catalogo, string heroSectionTemplate)
+    public StepTemplateEmail(ITemplateCatalogo catalogo, string heroSectionTemplate, string bannerSectionTemplate)
     {
         _catalogo = catalogo;
         _heroSectionTemplate = heroSectionTemplate;
+        _bannerSectionTemplate = bannerSectionTemplate;
     }
 
     public virtual Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -48,6 +50,16 @@ public class StepTemplateEmail : IPipelineStep
         else
         {
             html = html.Replace("{{hero_section}}", "");
+        }
+
+        if (!string.IsNullOrEmpty(context.BannerSrc))
+        {
+            var bannerHtml = _bannerSectionTemplate.Replace("{{banner_src}}", HtmlEncode(context.BannerSrc));
+            html = html.Replace("{{banner_section}}", bannerHtml);
+        }
+        else
+        {
+            html = html.Replace("{{banner_section}}", "");
         }
 
         context.Html = html;

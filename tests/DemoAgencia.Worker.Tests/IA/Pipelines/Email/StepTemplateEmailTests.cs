@@ -46,10 +46,11 @@ public class StepTemplateEmailTests
         </td>
         </tr>
         <tr>
-        <td style="padding: 0 30px 10px 30px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">
-        {{corpo}}
+        <td style="background-color: #ffffff; padding: 30px 20px 10px 20px; text-align: center;">
+        <img src="{{logo_src}}" alt="Logo" border="0" style="display: block; max-width: 200px; height: auto; width: 200px;">
         </td>
         </tr>
+        {{banner_section}}
         {{hero_section}}
         <tr>
         <td align="center" style="padding: 20px 30px 30px 30px;">
@@ -86,10 +87,19 @@ public class StepTemplateEmailTests
         </tr>
         """;
 
+    private const string BannerTr = """
+        <tr>
+        <td align="center" style="padding: 0;">
+        <img src="{{banner_src}}" alt="Banner" border="0" style="display: block; max-width: 100%; height: auto; width: 100%;">
+        </td>
+        </tr>
+        """;
+
     private static PipelineContext CriarContexto(
         CopyEmailSlots? copy = null,
         string? logoSrc = null,
-        string? heroSrc = null)
+        string? heroSrc = null,
+        string? bannerSrc = null)
     {
         copy ??= new CopyEmailSlots(
             "Assunto teste",
@@ -108,7 +118,8 @@ public class StepTemplateEmailTests
             MensagemOriginal = "msg",
             Copy = copy,
             LogoSrc = logoSrc,
-            HeroSrc = heroSrc
+            HeroSrc = heroSrc,
+            BannerSrc = bannerSrc
         };
     }
 
@@ -120,7 +131,8 @@ public class StepTemplateEmailTests
         catalogo.Setup(c => c.Default).Returns(template);
         return new StepTemplateEmail(
             catalogo.Object,
-            HeroTr);
+            HeroTr,
+            BannerTr);
     }
 
     [Fact]
@@ -143,6 +155,8 @@ public class StepTemplateEmailTests
         ctx.Html.Should().NotContain("{{logo_src}}");
         ctx.Html.Should().NotContain("{{hero_section}}");
         ctx.Html.Should().NotContain("{{hero_src}}");
+        ctx.Html.Should().NotContain("{{banner_section}}");
+        ctx.Html.Should().NotContain("{{banner_src}}");
         ctx.Resultado.RespostaFinal.Should().Be(ctx.Html);
     }
 
@@ -243,6 +257,43 @@ public class StepTemplateEmailTests
 
         ctx.Html.Should().Contain("alt=\"Hero\"");
         ctx.Html.Should().Contain("src=\"imagens/gerada_1.png\"");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithBanner_BannerSectionPresent()
+    {
+        var step = CriarStep();
+        var ctx = CriarContexto(logoSrc: "assets/logo.png");
+        ctx.BannerSrc = "assets/agendar_vistoria.png";
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("alt=\"Banner\"");
+        ctx.Html.Should().Contain("src=\"assets/agendar_vistoria.png\"");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutBanner_BannerSectionEmpty()
+    {
+        var step = CriarStep();
+        var ctx = CriarContexto(logoSrc: "assets/logo.png");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().NotContain("alt=\"Banner\"");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithBannerAndHero_BothPresent()
+    {
+        var step = CriarStep();
+        var ctx = CriarContexto(logoSrc: "assets/logo.png", heroSrc: "imagens/gerada_1.png");
+        ctx.BannerSrc = "assets/agendar_vistoria.png";
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("alt=\"Banner\"");
+        ctx.Html.Should().Contain("alt=\"Hero\"");
     }
 
     [Fact]

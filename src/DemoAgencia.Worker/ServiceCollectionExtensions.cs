@@ -86,6 +86,14 @@ public static class ServiceCollectionExtensions
         </tr>
         """;
 
+        var bannerSectionTemplate = """
+        <tr>
+          <td style="padding: 0; text-align: center;">
+            <img src="{{banner_src}}" alt="Banner" style="display: block; max-width: 600px; width: 100%; height: auto; border: 0;" border="0" width="600">
+          </td>
+        </tr>
+        """;
+
         services.AddSingleton(sp => new PipelineEmail(
             sp.GetRequiredService<IServicoChat>(),
             sp.GetRequiredService<IGeradorImagem>(),
@@ -93,7 +101,8 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IAnalisadorImagem>(),
             sp.GetRequiredService<IAgentesCatalogo>(),
             sp.GetRequiredService<ITemplateCatalogo>(),
-            heroSectionTemplate));
+            heroSectionTemplate,
+            bannerSectionTemplate));
 
         services.AddSingleton<ITelegramGatewayFactory, TelegramGatewayFactory>();
         services.AddHostedService<TelegramService>();
