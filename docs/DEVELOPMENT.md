@@ -38,15 +38,17 @@ dotnet run --project src/DemoAgencia.Worker
 
 ```
 Telegram/           → Comunicação com Telegram Bot API (ITelegramGateway)
-Agentes/            → IAgentesCatalogo + loader de agentes .md (públicos/internos)
-IA/                 → OpenRouterService, StreamingService, HistoricoChat
-IA/OrquestradorLoop/ → OrquestradorLoopService, ParserDecisao, GateQualidade, EnriquecedorContextoCliente
-IA/Ferramentas/     → FerramentaRegistry + ferramentas (gerar_imagem)
-Referencias/        → IReferenciasCliente (texto + imagens por cliente)
+Agentes/            → IAgentesCatalogo + loader de agentes .md (router, redator, hero, qa)
+IA/Router/          → RouterService, RouterParser, Brief
+IA/PreFlight/       → ConversaPendenteStore, EstadoPreFlight
+IA/Pipelines/       → PipelineRunner, IPipelineStep, PipelineContext, StepRecords
+IA/Pipelines/Email/ → PipelineEmail + Steps (Estrategia, Marca, Copy, Hero, Template, QA)
+IA/                 → OpenRouterService, OpenRouterPrivacyHandler, interfaces
+Referencias/        → IReferenciasCliente (texto + imagens + estratégia por cliente)
 Seguranca/          → AnonimizadorService, RateLimiterService
 Observabilidade/    → LangfuseClient, LangfuseInterceptor
 Contracts/          → LangfuseTrace, LangfuseTraceContext
-Configuracoes/      → Options pattern (LoopOptions, OpenRouterOptions, etc.)
+Configuracoes/      → Options pattern (PreFlightOptions, OpenRouterOptions, etc.)
 ```
 
 ## Testes
@@ -59,10 +61,10 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 
 # Filtrar por classe
-dotnet test --filter "AgenteLoaderTests"
+dotnet test --filter "AgentesLoaderTests"
 
 # Filtrar por nome
-dotnet test --filter "FullyQualifiedName~HistoricoChat"
+dotnet test --filter "FullyQualifiedName~RouterParser"
 ```
 
 ### Adicionando Testes
@@ -94,21 +96,6 @@ public class MeuServiceTests
 }
 ```
 
-## Comandos do Bot
-
-| Comando | Descrição |
-|---------|-----------|
-| `/start` | Mensagem de boas-vindas |
-| `/help` | Lista de comandos |
-| `/agentes` | Lista agentes disponíveis |
-| `/redator` | Seleciona agente redator |
-| `/dev` | Seleciona agente desenvolvedor |
-| `/estrategista` | Seleciona agente estrategista |
-| `/prompt-imagem <prompt>` | Seleciona agente Prompt para Imagens |
-| Mensagem livre com intenção de imagem | Loop chama ferramenta `gerar_imagem` |
-| `/limpar` | Limpa histórico do chat |
-| `/reset` | Deseleciona agente e limpa histórico |
-
 ## Variáveis de Ambiente
 
 | Variável | Descrição | Obrigatória |
@@ -132,7 +119,7 @@ public class MeuServiceTests
 dotnet run --project src/DemoAgencia.Worker
 
 # Ver logs do arquivo
-cat src/DemoAgencia.Worker/logs/demo-log-*.txt
+cat logs/demo-log-*.txt
 
 # Debug com VS Code
 # Adicione launch.json com "console": "integratedTerminal"

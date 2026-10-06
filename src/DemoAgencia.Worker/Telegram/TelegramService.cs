@@ -1,10 +1,11 @@
 using System.IO.Compression;
-using DemoAgencia.Worker.Agentes;
+using System.Text;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
-using DemoAgencia.Worker.IA.OrquestradorLoop;
+using DemoAgencia.Worker.IA.Pipelines;
+using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
-using DemoAgencia.Worker.Referencias;
+using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Seguranca;
 using Microsoft.Extensions.Options;
 using Telegram.Bot.Types;
@@ -15,45 +16,32 @@ public class TelegramService : BackgroundService
 {
     private readonly ILogger<TelegramService> _logger;
     private readonly TelegramOptions _options;
-    private readonly IAgentesCatalogo _agenteLoader;
-    private readonly IStreamingChat _openRouter;
     private readonly IAnalisadorImagem _analisadorImagem;
-    private readonly OrquestradorLoopService _loop;
-    private readonly IHistoricoChat _historico;
-    private readonly IStreamingService _streaming;
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
-    private readonly PipelinePreFlightService _preFlight;
+    private readonly RouterService _router;
     private readonly ConversaPendenteStore _pendencias;
+    private readonly IServiceProvider _serviceProvider;
     private ITelegramGateway? _gateway;
-    private readonly Dictionary<long, string> _agentesPorChat = new();
 
     public TelegramService(
         ILogger<TelegramService> logger,
         IOptions<TelegramOptions> options,
-        IAgentesCatalogo agenteLoader,
-        IStreamingChat openRouter,
         IAnalisadorImagem analisadorImagem,
-        OrquestradorLoopService loop,
-        IHistoricoChat historico,
-        IStreamingService streaming,
         RateLimiterService rateLimiter,
         ITelegramGatewayFactory gatewayFactory,
-        PipelinePreFlightService preFlight,
-        ConversaPendenteStore pendencias)
+        RouterService router,
+        ConversaPendenteStore pendencias,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _options = options.Value;
-        _agenteLoader = agenteLoader;
-        _openRouter = openRouter;
         _analisadorImagem = analisadorImagem;
-        _loop = loop;
-        _historico = historico;
-        _streaming = streaming;
         _rateLimiter = rateLimiter;
         _gatewayFactory = gatewayFactory;
-        _preFlight = preFlight;
+        _router = router;
         _pendencias = pendencias;
+        _serviceProvider = serviceProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -144,11 +132,8 @@ public class TelegramService : BackgroundService
 
     private async Task HandleCommand(Message message, CancellationToken ct)
     {
-        _pendencias.Remover(message.Chat.Id);
-
         var parts = message.Text!.Split(' ', 2);
         var command = parts[0].ToLowerInvariant();
-        var args = parts.Length > 1 ? parts[1] : string.Empty;
 
         if (command == "/start")
         {
@@ -158,95 +143,32 @@ public class TelegramService : BackgroundService
 
         if (command == "/help")
         {
-            var agentes = _agenteLoader.ListarAgentes();
-            var comandosAgentes = string.Join("\n", agentes.SelectMany(a => a.Comandos.Select(c => $"{c} - {a.Nome}: {a.Descricao}")));
-            await _gateway!.SendMessageAsync(message.Chat.Id, $"Comandos:\n/start - Inicia o bot\n/help - Mostra esta ajuda\n/agentes - Lista agentes disponiveis\n/limpar - Limpa historico do chat\n/reset - Deseleciona agente e limpa historico\n\nMensagens livres sao processadas pelo orquestrador multi-agente.\n\nAgentes (atalhos diretos):\n{comandosAgentes}", ct);
+            var help = """
+                Comandos:
+                /start - Inicia o bot
+                /help - Mostra esta ajuda
+
+                Envie uma mensagem livre para criar um email marketing para o cliente MRV.
+                Exemplo: "Crie um email para a MRV sobre pos-compra"
+                """;
+            await _gateway!.SendMessageAsync(message.Chat.Id, help, ct);
             return;
         }
 
-        if (command == "/agentes")
-        {
-            await _gateway!.SendMessageAsync(message.Chat.Id, await GetAgentsList(), ct);
-            return;
-        }
-
-        if (command == "/limpar")
-        {
-            _historico.LimparHistorico(message.Chat.Id);
-            _pendencias.Remover(message.Chat.Id);
-            await _gateway!.SendMessageAsync(message.Chat.Id, "Historico limpo.", ct);
-            return;
-        }
-
-        if (command == "/reset")
-        {
-            _agentesPorChat.Remove(message.Chat.Id);
-            _historico.LimparHistorico(message.Chat.Id);
-            _pendencias.Remover(message.Chat.Id);
-            await _gateway!.SendMessageAsync(message.Chat.Id, "Agente deselecionado e historico limpo.", ct);
-            return;
-        }
-
-        var agente = _agenteLoader.ObterPorComando(command);
-        if (agente != null)
-        {
-            if (string.IsNullOrEmpty(args))
-            {
-                _agentesPorChat[message.Chat.Id] = command;
-                await _gateway!.SendMessageAsync(message.Chat.Id, $"Agente {agente.Nome} selecionado. Envie sua mensagem para interagir diretamente.", ct);
-            }
-            else
-            {
-                await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
-                
-                await EnviarComStreaming(message.Chat.Id, async () =>
-                {
-                    return _openRouter.CompletarStreamingAsync(
-                        message.Chat.Id,
-                        args,
-                        agente.Persona,
-                        agente.ModeloAlvo,
-                        _historico,
-                        ct);
-                }, ct);
-            }
-            return;
-        }
-
+        _pendencias.Remover(message.Chat.Id);
         await _gateway!.SendMessageAsync(message.Chat.Id, "Comando nao reconhecido. Use /help para ver os comandos disponiveis.", ct);
     }
 
     private async Task HandleTextMessage(Message message, string text, CancellationToken ct)
     {
-        if (_agentesPorChat.TryGetValue(message.Chat.Id, out var cmd))
-        {
-            var agente = _agenteLoader.ObterPorComando(cmd);
-            if (agente != null)
-            {
-                await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
-                
-                await EnviarComStreaming(message.Chat.Id, async () =>
-                {
-                    return _openRouter.CompletarStreamingAsync(
-                        message.Chat.Id,
-                        text,
-                        agente.Persona,
-                        agente.ModeloAlvo,
-                        _historico,
-                        ct);
-                }, ct);
-                return;
-            }
-        }
-
         var pendente = _pendencias.Obter(message.Chat.Id);
-        ResultadoPreFlight resultadoPreFlight;
+        RouterResultado? resultadoRouter;
 
         if (pendente != null)
         {
             var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Retomando com suas respostas...", ct);
-            resultadoPreFlight = await _preFlight.ResumirAsync(message.Chat.Id, text, ct);
-            await ProcessarResultadoPreFlight(message.Chat.Id, resultadoPreFlight, msg.MessageId, ct);
+            resultadoRouter = await _router.ResumirAsync(message.Chat.Id, text, ct);
+            await ProcessarResultadoRouter(message.Chat.Id, resultadoRouter, msg.MessageId, text, ct);
             return;
         }
 
@@ -257,85 +179,8 @@ public class TelegramService : BackgroundService
             var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
             mensagemProgressoId = msg.MessageId;
 
-            resultadoPreFlight = await _preFlight.IniciarAsync(message.Chat.Id, text, ct);
-
-            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.PrecisaEsclarecimento)
-            {
-                var perguntas = string.Join("\n", resultadoPreFlight.Perguntas!.Select((p, i) => $"{i + 1}. {p}"));
-                var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
-                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, textoPerguntas, ct);
-                return;
-            }
-
-            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.Bloqueado)
-            {
-                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultadoPreFlight.MensagemBloqueio ?? "Pedido bloqueado.", ct);
-                return;
-            }
-
-            if (resultadoPreFlight.Tipo == TipoResultadoPreFlight.Falha)
-            {
-                await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "Nao consegui entender seu pedido. Pode reformular?", ct);
-                return;
-            }
-
-            var briefing = resultadoPreFlight.Briefing!;
-            var mensagemOriginal = resultadoPreFlight.MensagemOriginal ?? text;
-
-            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "🚀 Produzindo...", ct);
-
-            var resultado = await _loop.ExecutarAsync(
-                message.Chat.Id,
-                briefing,
-                async (progresso) =>
-                {
-                    if (mensagemProgressoId != null)
-                    {
-                        try
-                        {
-                            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, progresso, ct);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Erro ao atualizar progresso");
-                        }
-                    }
-                },
-                ct,
-                pedidoOriginal: mensagemOriginal);
-
-            if (IsEntregavelHtml(resultado.RespostaFinal))
-            {
-                await EnviarHtmlZipAsync(message.Chat.Id, resultado, ct);
-            }
-            else
-            {
-                await EnviarDeckImagensAsync(message.Chat.Id, resultado.Imagens, ct);
-
-                foreach (var asset in resultado.AssetsAnexados)
-                {
-                    await EnviarFotoComLegendaAsync(message.Chat.Id, asset.Bytes, asset.Legenda, ct);
-                }
-
-                if (!string.IsNullOrEmpty(resultado.RespostaFinal))
-                {
-                    if (resultado.Imagens.Count == 0 && resultado.AssetsAnexados.Count == 0)
-                    {
-                        try
-                        {
-                            await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, resultado.RespostaFinal, ct);
-                        }
-                        catch
-                        {
-                            await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
-                        }
-                    }
-                    else
-                    {
-                        await EnviarMensagemLongaAsync(message.Chat.Id, resultado.RespostaFinal, ct);
-                    }
-                }
-            }
+            resultadoRouter = await _router.IniciarAsync(message.Chat.Id, text, ct);
+            await ProcessarResultadoRouter(message.Chat.Id, resultadoRouter, mensagemProgressoId.Value, text, ct);
         }
         catch (Exception ex)
         {
@@ -355,87 +200,122 @@ public class TelegramService : BackgroundService
         }
     }
 
-    private async Task ProcessarResultadoPreFlight(long chatId, ResultadoPreFlight resultado, int mensagemProgressoId, CancellationToken ct)
+    private async Task ProcessarResultadoRouter(long chatId, RouterResultado? resultado, int mensagemProgressoId, string mensagemOriginal, CancellationToken ct)
     {
-        if (resultado.Tipo == TipoResultadoPreFlight.PrecisaEsclarecimento)
-        {
-            var perguntas = string.Join("\n", resultado.Perguntas!.Select((p, i) => $"{i + 1}. {p}"));
-            var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
-            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
-            return;
-        }
-
-        if (resultado.Tipo == TipoResultadoPreFlight.Bloqueado)
-        {
-            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultado.MensagemBloqueio ?? "Pedido bloqueado.", ct);
-            return;
-        }
-
-        if (resultado.Tipo == TipoResultadoPreFlight.Falha)
+        if (resultado == null)
         {
             await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui entender seu pedido. Pode reformular?", ct);
             return;
         }
 
-        var briefing = resultado.Briefing!;
+        switch (resultado.Tipo)
+        {
+            case "fora_contexto":
+                var msgFora = resultado.Motivo switch
+                {
+                    RouterResultado.Motivos.ClienteNaoPermitido =>
+                        "Atendo apenas pedidos de email marketing para o cliente MRV. Esse cliente esta fora do meu escopo.",
+                    RouterResultado.Motivos.CanalNaoPermitido =>
+                        "Atendo apenas email marketing. Esse canal ainda nao e suportado.",
+                    _ =>
+                        "Esse assunto esta fora do meu escopo. Atendo apenas pedidos de email marketing para o cliente MRV."
+                };
+                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, msgFora, ct);
+                return;
 
-        await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
-
-        var resultadoLoop = await _loop.ExecutarAsync(
-            chatId,
-            briefing,
-            async (progresso) =>
-            {
+            case "conversa":
+                var resposta = resultado.Resposta ?? "";
+                if (string.IsNullOrEmpty(resposta))
+                {
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao entendi. Pode reformular?", ct);
+                    return;
+                }
                 try
                 {
-                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, progresso, ct);
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resposta, ct);
                 }
-                catch (Exception ex)
+                catch
                 {
-                    _logger.LogWarning(ex, "Erro ao atualizar progresso");
+                    await EnviarMensagemLongaAsync(chatId, resposta, ct);
                 }
-            },
-            ct,
-            pedidoOriginal: resultado.MensagemOriginal);
+                return;
 
-        if (IsEntregavelHtml(resultadoLoop.RespostaFinal))
-        {
-            await EnviarHtmlZipAsync(chatId, resultadoLoop, ct);
-        }
-        else
-        {
-            await EnviarDeckImagensAsync(chatId, resultadoLoop.Imagens, ct);
+            case "esclarecimento":
+                var perguntas = string.Join("\n", resultado.Perguntas.Select((p, i) => $"{i + 1}. {p}"));
+                var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
+                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
+                return;
 
-            foreach (var asset in resultadoLoop.AssetsAnexados)
-            {
-                await EnviarFotoComLegendaAsync(chatId, asset.Bytes, asset.Legenda, ct);
-            }
-
-            if (!string.IsNullOrEmpty(resultadoLoop.RespostaFinal))
-            {
-                if (resultadoLoop.Imagens.Count == 0 && resultadoLoop.AssetsAnexados.Count == 0)
+            case "producao":
+                if (resultado.Brief == null)
                 {
-                    try
-                    {
-                        await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resultadoLoop.RespostaFinal, ct);
-                    }
-                    catch
-                    {
-                        await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
-                    }
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui montar o briefing. Pode reformular?", ct);
+                    return;
                 }
-                else
+
+                if (!resultado.Brief.Canal.Equals("email", StringComparison.OrdinalIgnoreCase))
                 {
-                    await EnviarMensagemLongaAsync(chatId, resultadoLoop.RespostaFinal, ct);
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, $"O canal '{resultado.Brief.Canal}' ainda nao e suportado. Atualmente so suportamos email marketing.", ct);
+                    return;
                 }
-            }
+
+                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
+
+                var resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
+
+                await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
+                return;
         }
     }
 
-    private static bool IsEntregavelHtml(string entregavel)
+    private async Task<ResultadoPipeline> ExecutarPipelineEmail(long chatId, RouterResultado resultado, string mensagemOriginal, CancellationToken ct)
     {
-        return entregavel.Contains("<html", StringComparison.OrdinalIgnoreCase)
-            || entregavel.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase);
+        var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
+        var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
+        var steps = pipeline.CriarSteps();
+
+        var context = new PipelineContext
+        {
+            ChatId = chatId,
+            Brief = resultado.Brief!,
+            MensagemOriginal = mensagemOriginal,
+            Cliente = resultado.Cliente
+        };
+
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
+    }
+
+    private async Task HandlePhoto(Message message, CancellationToken ct)
+    {
+        await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
+
+        try
+        {
+            var photo = message.Photo!.OrderByDescending(p => p.FileSize).First();
+            var imagemBytes = await _gateway!.DownloadFileAsync(photo.FileId, ct);
+
+            var contexto = message.Caption;
+            var resposta = await _analisadorImagem.DescreverImagemAsync(
+                imagemBytes,
+                contexto,
+                ct);
+
+            await EnviarMensagemLongaAsync(message.Chat.Id, resposta, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao processar foto");
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Erro ao analisar a imagem. Tente novamente.", ct);
+        }
+    }
+
+    private async Task EnviarMensagemLongaAsync(long chatId, string texto, CancellationToken ct)
+    {
+        var partes = TelegramMessageSplitter.Dividir(texto);
+        foreach (var parte in partes)
+        {
+            await _gateway!.SendMessageAsync(chatId, parte, ct);
+        }
     }
 
     private async Task EnviarHtmlZipAsync(long chatId, ResultadoPipeline resultado, CancellationToken ct)
@@ -488,117 +368,5 @@ public class TelegramService : BackgroundService
         if (bytes.Length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46)
             return ".webp";
         return ".bin";
-    }
-
-    private async Task HandlePhoto(Message message, CancellationToken ct)
-    {
-        await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
-
-        try
-        {
-            var photo = message.Photo!.OrderByDescending(p => p.FileSize).First();
-            var imagemBytes = await _gateway!.DownloadFileAsync(photo.FileId, ct);
-
-            var contexto = message.Caption;
-            var resposta = await _analisadorImagem.DescreverImagemAsync(
-                imagemBytes,
-                contexto,
-                ct);
-
-            _historico.AdicionarMensagem(message.Chat.Id, "user", contexto ?? "[imagem]");
-            _historico.AdicionarMensagem(message.Chat.Id, "assistant", resposta);
-
-            await EnviarMensagemLongaAsync(message.Chat.Id, resposta, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao processar foto");
-            await _gateway!.SendMessageAsync(message.Chat.Id, "Erro ao analisar a imagem. Tente novamente.", ct);
-        }
-    }
-
-    private async Task EnviarComStreaming(long chatId, Func<Task<IAsyncEnumerable<string>>> obterStream, CancellationToken ct)
-    {
-        int? mensagemId = null;
-
-        await _streaming.ProcessarStreamingAsync(
-            chatId,
-            await obterStream(),
-            async (texto) =>
-            {
-                var msg = await _gateway!.SendMessageAsync(chatId, texto, ct);
-                mensagemId = msg.MessageId;
-                return mensagemId.Value;
-            },
-            async (msgId, texto) =>
-            {
-                await _gateway!.EditMessageTextAsync(chatId, (int)msgId, texto, ct);
-            },
-            ct);
-    }
-
-    private Task<string> GetAgentsList()
-    {
-        var agentes = _agenteLoader.ListarAgentes();
-        if (agentes.Count == 0)
-        {
-            return Task.FromResult("Nenhum agente disponivel no momento.");
-        }
-
-        var lines = agentes.Select(a => $"• {a.Nome} - {a.Descricao}\n  Comandos: {string.Join(", ", a.Comandos)}");
-        return Task.FromResult("Agentes disponiveis:\n\n" + string.Join("\n\n", lines));
-    }
-
-    private async Task EnviarMensagemLongaAsync(long chatId, string texto, CancellationToken ct)
-    {
-        var partes = TelegramMessageSplitter.Dividir(texto);
-        foreach (var parte in partes)
-        {
-            await _gateway!.SendMessageAsync(chatId, parte, ct);
-        }
-    }
-
-    private async Task EnviarFotoComLegendaAsync(long chatId, byte[] bytes, string? legenda, CancellationToken ct)
-    {
-        var (caption, overflow) = TelegramMessageSplitter.DividirLegenda(legenda);
-        using var stream = new MemoryStream(bytes);
-        await _gateway!.SendPhotoAsync(chatId, stream, caption, ct);
-        foreach (var parte in overflow)
-        {
-            await _gateway!.SendMessageAsync(chatId, parte, ct);
-        }
-    }
-
-    private async Task EnviarDeckImagensAsync(long chatId, List<ImagemGerada> imagens, CancellationToken ct)
-    {
-        if (imagens.Count == 0) return;
-
-        if (imagens.Count == 1)
-        {
-            await EnviarFotoComLegendaAsync(chatId, imagens[0].Bytes, imagens[0].Legenda, ct);
-            return;
-        }
-
-        try
-        {
-            var total = imagens.Count;
-            var fotos = imagens.Select((img, i) =>
-            {
-                var slideLabel = $"Slide {i + 1}/{total}";
-                var caption = !string.IsNullOrEmpty(img.Legenda) ? $"{slideLabel} — {img.Legenda}" : slideLabel;
-                var (captionTruncada, _) = TelegramMessageSplitter.DividirLegenda(caption);
-                return (new MemoryStream(img.Bytes) as Stream, captionTruncada);
-            }).ToList();
-
-            await _gateway!.SendMediaGroupAsync(chatId, fotos, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Falha ao enviar media group, fallback para envio individual");
-            foreach (var img in imagens)
-            {
-                await EnviarFotoComLegendaAsync(chatId, img.Bytes, img.Legenda, ct);
-            }
-        }
     }
 }

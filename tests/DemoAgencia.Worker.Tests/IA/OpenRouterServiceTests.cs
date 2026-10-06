@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
-using DemoAgencia.Worker.IA.OrquestradorLoop;
 using DemoAgencia.Worker.Observabilidade;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
@@ -24,7 +23,7 @@ public class OpenRouterServiceTests
     [InlineData("{invalido}", "{invalido}")]
     public void ExtrairJson_ShouldExtractJsonFromText(string input, string? expected)
     {
-        var result = ParserDecisao.ExtrairJson(input);
+        var result = JsonHelper.ExtrairJson(input);
         result.Should().Be(expected);
     }
 
@@ -32,7 +31,7 @@ public class OpenRouterServiceTests
     public void ExtrairJson_WithNestedJson_ShouldExtractOuter()
     {
         var input = "{\"outer\": {\"inner\": \"value\"}}";
-        var result = ParserDecisao.ExtrairJson(input);
+        var result = JsonHelper.ExtrairJson(input);
         result.Should().Be(input);
     }
 
@@ -40,7 +39,7 @@ public class OpenRouterServiceTests
     public void ExtrairJson_WithMarkdownCodeBlock_ShouldExtractJson()
     {
         var input = "```json\n{\"acao\": \"pipeline\"}\n```";
-        var result = ParserDecisao.ExtrairJson(input);
+        var result = JsonHelper.ExtrairJson(input);
         result.Should().Be("{\"acao\": \"pipeline\"}");
     }
 
@@ -186,7 +185,7 @@ public class OpenRouterServiceTests
     }
 
     [Fact]
-    public async Task ChamarAgenteAsync_WithPreflightEtapa_ShouldSendReasoningDisabled()
+    public async Task ChamarAgenteAsync_WithRouterEtapa_ShouldSendReasoningDisabled()
     {
         var handler = new CapturingTestHandler();
         handler.Response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -199,7 +198,7 @@ public class OpenRouterServiceTests
         var httpClientFactory = CreateHttpClientFactory(handler);
         var service = CreateService(httpClientFactory, CreateOptions());
 
-        await service.ChamarAgenteAsync(1, "persona", "test-model", "instrucoes", "preflight_montador");
+        await service.ChamarAgenteAsync(1, "persona", "test-model", "instrucoes", "router");
 
         handler.CapturedBody.Should().NotBeNull();
         using var doc = JsonDocument.Parse(handler.CapturedBody!);
@@ -211,7 +210,7 @@ public class OpenRouterServiceTests
     }
 
     [Fact]
-    public async Task ChamarAgenteAsync_WithNonPreflightEtapa_ShouldNotSendReasoning()
+    public async Task ChamarAgenteAsync_WithNonRouterEtapa_ShouldNotSendReasoning()
     {
         var handler = new CapturingTestHandler();
         handler.Response = new HttpResponseMessage(HttpStatusCode.OK)

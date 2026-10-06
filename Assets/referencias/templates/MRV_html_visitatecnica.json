@@ -1,0 +1,7 @@
+{
+  "cliente": "mrv",
+  "fase": "pos-chaves",
+  "sub_jornadas": ["assistencia", "visita-tecnica", "reparo"],
+  "palavras_chave": ["visita tecnica", "agendamento", "reparo", "imovel", "protocolo"],
+  "padrao": false
+}

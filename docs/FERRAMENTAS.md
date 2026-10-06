@@ -60,14 +60,6 @@ flowchart LR
     SSH -->|docker pull + run| OCI[Oracle Cloud VM]
 ```
 
-**Recursos utilizados:**
-
-- Repositorio Git com historico versionado
-- Pull requests para revisao de codigo
-- GitHub Actions (workflows YAML) para automatizacao
-- Secrets para credenciais (tokens, chaves de API)
-- Deploy automatico via SSH para a VM na Oracle Cloud
-
 ---
 
 ## OpenRouter
@@ -85,30 +77,11 @@ flowchart LR
 
 | Modelo | Agente | Finalidade |
 |--------|--------|------------|
-| `qwen/qwen3.7-plus` | Redator, Prompt para Imagens | Copywriting e direcao de arte |
-| `qwen/qwen-2.5-coder-32b-instruct` | Dev | Geracao de codigo HTML |
-| `deepseek/deepseek-r1-0528` | Estrategista, Qualidade | Estrategia e revisao critica |
-| `deepseek/deepseek-v3.2` | Orquestrador | Loop supervisor |
+| `deepseek/deepseek-v3.2` | router | Intake, classificacao e estruturação do brief |
+| `qwen/qwen3.7-plus` | redator, hero | Copy de email e direcao de arte para imagem hero |
+| `deepseek/deepseek-r1-0528` | qa | Revisor critico independente |
 | `qwen/qwen2.5-vl-72b-instruct` | (visao) | Analise de imagens (multimodal) |
-| `qwen/qwen-image-3-pro` | (ferramenta) | Geracao de imagens |
-
-**Vantagens:**
-
-- Unifica acesso a dezenas de modelos em uma so API
-- Permite trocar de modelo sem alterar a integracao
-- Suporte nativo a streaming e function calling
-- Politica de coleta de dados configuravel (`DataCollection: deny`)
-
-**Configuracao:**
-
-```json
-{
-  "OpenRouter": {
-    "ApiKey": "<chave>",
-    "DataCollection": "deny"
-  }
-}
-```
+| `qwen/qwen-image-3-pro` | (imagem) | Geracao de imagens |
 
 ---
 
@@ -134,28 +107,6 @@ flowchart LR
     D -->|POST /api/public/ingestion| E[Langfuse Cloud]
 ```
 
-**Dados rastreados:**
-
-- ID do trace e sessao
-- Modelo utilizado
-- Input (mensagem do usuario)
-- Output (resposta do LLM)
-- Tokens de prompt e completacao
-- Duracao da chamada
-- UserID (anonimizado quando configurado)
-
-**Configuracao:**
-
-```json
-{
-  "Langfuse": {
-    "PublicKey": "<public-key>",
-    "SecretKey": "<secret-key>",
-    "Host": "https://cloud.langfuse.com"
-  }
-}
-```
-
 ---
 
 ## Grafana Loki
@@ -169,34 +120,6 @@ flowchart LR
 | Integracao | Serilog com sink para Grafana Loki |
 | Plano | Grafana Cloud Free Tier |
 
-**Fluxo de logs:**
-
-```mermaid
-flowchart LR
-    APP[DemoAgencia Worker] -->|Serilog| SINK[Loki Sink]
-    SINK -->|HTTP push| LOKI[Grafana Loki]
-    LOKI -->|consulta| GRAFANA[Grafana Dashboard]
-```
-
-**Caracteristicas:**
-
-- Logs estruturados com propriedades (`{Property}`)
-- Rotulacao por ambiente e aplicacao
-- Consulta via LogQL no Grafana
-- Complementa os logs locais em arquivo
-
-**Configuracao:**
-
-```json
-{
-  "GrafanaLoki": {
-    "Endpoint": "<endpoint>",
-    "LoginId": "<login-id>",
-    "Password": "<api-key>"
-  }
-}
-```
-
 ---
 
 ## Codecov
@@ -206,25 +129,9 @@ flowchart LR
 | Aspecto | Detalhe |
 |---------|---------|
 | Tipo | Plataforma de cobertura de codigo |
-| Uso no projeto | Analise de cobertura dos 103 testes unitarios |
+| Uso no projeto | Analise de cobertura dos 174 testes unitarios |
 | Integracao | Upload via GitHub Actions apos `dotnet test --collect:"XPlat Code Coverage"` |
 | Plano | Free para repositorios publicos |
-
-**Fluxo:**
-
-```mermaid
-flowchart LR
-    GHA[GitHub Actions] -->|dotnet test --coverage| XML[Arquivo .xml]
-    XML -->|upload| CC[Codecov]
-    CC -->|badge e relatorio| PR[Pull Request]
-```
-
-**Recursos utilizados:**
-
-- Badge de cobertura no README
-- Comentario automatico em PRs com diff de cobertura
-- Historico de evolucao da cobertura ao longo do tempo
-- Validacao de minimo de cobertura (quando configurado)
 
 ---
 
@@ -248,64 +155,9 @@ flowchart LR
 | Rede | VPC com IP publico |
 | Armazenamento | Block Volume 50 GB |
 
-**Arquitetura de deploy:**
-
-```mermaid
-graph TB
-    subgraph "Oracle Cloud - Always Free"
-        subgraph "VM ARM64 (Ubuntu)"
-            DOCKER[Docker Engine]
-            subgraph "Container"
-                APP[DemoAgencia Worker]
-                LOGS[/logs/]
-                ASSETS[/Assets/]
-            end
-        end
-    end
-
-    subgraph "Externos"
-        TG[Telegram API]
-        OR[OpenRouter API]
-        LF[Langfuse]
-    end
-
-    DOCKER -->|run| APP
-    APP -->|Long Polling| TG
-    APP -->|API calls| OR
-    APP -->|Traces| LF
-    APP -->|Write| LOGS
-    APP -->|Read| ASSETS
-```
-
-**Vantagens do Always Free Tier:**
-
-- VM ARM64 generosa (4 CPUs, 24 GB RAM) gratuitamente
-- Sem custo para PoC e ambientes de desenvolvimento
-- Armazenamento em bloco incluso
-- Suficiente para rodar o worker + Docker
-
 ---
 
 ## Resumo da Integracao
-
-```mermaid
-graph LR
-    subgraph "Desenvolvimento"
-        GH[GitHub] -->|CI/CD| GHA[GitHub Actions]
-        GHA -->|coverage| CC[Codecov]
-    end
-
-    subgraph "Producao"
-        GHA -->|SSH deploy| OCI[Oracle Cloud]
-        OCI --> APP[DemoAgencia]
-    end
-
-    subgraph "Servicos"
-        APP -->|LLM| OR[OpenRouter]
-        APP -->|Traces| LF[Langfuse]
-        APP -->|Logs| GF[Grafana Loki]
-    end
-```
 
 | Ferramenta | Categoria | Custo | Critico? |
 |------------|-----------|-------|----------|

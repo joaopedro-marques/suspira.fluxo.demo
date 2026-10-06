@@ -7,7 +7,7 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 namespace DemoAgencia.Worker.IA;
 
-public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, IAnalisadorImagem
+public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
 {
     private readonly ILogger<OpenRouterService> _logger;
     private readonly OpenRouterOptions _options;
@@ -36,62 +36,6 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
             apiKey: _options.ApiKey,
             httpClient: httpClient);
         return builder.Build();
-    }
-
-    public async IAsyncEnumerable<string> CompletarStreamingAsync(
-        long chatId,
-        string mensagem,
-        string? persona,
-        string modelo,
-        IHistoricoChat historico,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-    {
-        var traceContext = _langfuse.IniciarTrace(chatId, "chat-completion-streaming", modelo);
-
-        var kernel = CriarKernel(modelo);
-        var chatService = kernel.GetRequiredService<IChatCompletionService>();
-
-        var chatHistory = new ChatHistory();
-
-        if (!string.IsNullOrEmpty(persona))
-        {
-            chatHistory.AddSystemMessage(persona);
-        }
-
-        var historicoMensagens = historico.ObterHistorico(chatId);
-        foreach (var msg in historicoMensagens)
-        {
-            if (msg.Role == "user")
-                chatHistory.AddUserMessage(msg.Content);
-            else if (msg.Role == "assistant")
-                chatHistory.AddAssistantMessage(msg.Content);
-        }
-
-        chatHistory.AddUserMessage(mensagem);
-
-        var settings = new OpenAIPromptExecutionSettings
-        {
-            Temperature = 0.7,
-            MaxTokens = 2000
-        };
-
-        var respostaCompleta = "";
-        await foreach (var chunk in chatService.GetStreamingChatMessageContentsAsync(chatHistory, settings, kernel, ct))
-        {
-            var content = chunk.Content;
-            if (!string.IsNullOrEmpty(content))
-            {
-                respostaCompleta += content;
-                yield return content;
-            }
-        }
-
-        historico.AdicionarMensagem(chatId, "user", mensagem);
-        historico.AdicionarMensagem(chatId, "assistant", respostaCompleta);
-
-        _logger.LogInformation("Streaming completo com {Modelo}: {Length} caracteres", modelo, respostaCompleta.Length);
-
-        await _langfuse.FinalizarTraceAsync(traceContext, mensagem, respostaCompleta, ct);
     }
 
     public virtual async Task<string> DescreverImagemAsync(
@@ -238,7 +182,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
 
         try
         {
-            var desativarRaciocinio = etapaNome.StartsWith("preflight_", StringComparison.OrdinalIgnoreCase);
+            var desativarRaciocinio = etapaNome.StartsWith("router", StringComparison.OrdinalIgnoreCase);
             ReasoningDisablingHandler.IsActive = desativarRaciocinio;
             var kernel = CriarKernel(modelo);
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
@@ -281,22 +225,6 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IStreamingChat, I
             _logger.LogError(ex, "Erro ao chamar agente ({Etapa}) com modelo {Modelo}", etapaNome, modelo);
             throw;
         }
-    }
-
-    public static string? ExtrairJson(string texto)
-    {
-        if (string.IsNullOrWhiteSpace(texto))
-            return null;
-
-        var primeiro = texto.IndexOf('{');
-        var ultimo = texto.LastIndexOf('}');
-
-        if (primeiro >= 0 && ultimo > primeiro)
-        {
-            return texto.Substring(primeiro, ultimo - primeiro + 1);
-        }
-
-        return null;
     }
 }
 

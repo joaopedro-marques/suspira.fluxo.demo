@@ -90,9 +90,10 @@ jobs:
           ".env.example"
           "deploy.sh"
           "validate.sh"
+          "Assets/agentes/router.md"
           "Assets/agentes/redator.md"
-          "Assets/agentes/dev.md"
-          "Assets/agentes/estrategista.md"
+          "Assets/agentes/hero.md"
+          "Assets/agentes/qa.md"
         )
         
         for file in "${required_files[@]}"; do

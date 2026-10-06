@@ -4,7 +4,7 @@ Documentação técnica da arquitetura do sistema DemoAgencia.
 
 ## Visão Geral
 
-O DemoAgencia é uma Prova de Conceito (PoC) de um sistema multi-agente de IA operando via Telegram, com orquestração inteligente e pipeline de produção com controle de qualidade.
+O DemoAgencia é uma Prova de Conceito (PoC) de um sistema de automação de marketing via Telegram, com pipeline de email marketing gerada por IA. A arquitetura evoluiu de um loop multi-agente para uma abordagem mais simples e determinística baseada em **Router + Pipelines**.
 
 ```mermaid
 graph TB
@@ -18,18 +18,15 @@ graph TB
     
     subgraph "DemoAgencia Worker"
         TS[TelegramService]
-        PF[PipelinePreFlightService]
+        RS[RouterService]
         PS[ConversaPendenteStore]
-        AL[AgenteLoader]
-        OL[OrquestradorLoopService]
-        OR[OpenRouterService]
-        SS[StreamingService]
-        HC[HistoricoChat]
-        LI[LangfuseInterceptor]
-        FR[FerramentaRegistry]
-        RC[ReferenciaClienteLoader]
-        EC[EnriquecedorContextoCliente]
-    end
+    PR[PipelineRunner]
+    PE[PipelineEmail]
+    SE[StepEstrategiaEmail]
+    OR[OpenRouterService]
+    LI[LangfuseInterceptor]
+    RC[ReferenciaClienteLoader]
+}
     
     subgraph "Servicos Externos"
         OR_API[OpenRouter API]
@@ -38,658 +35,521 @@ graph TB
     end
     
     subgraph "Armazenamento"
-        MD[Agentes .md]
+        TPL[referencias/templates/*.html]
         REF[Referencias {cliente}_*]
+        EST[Referencias/estrategia/*.json]
         LOG[Logs]
     end
     
     User -->|Mensagens| Bot
     Bot -->|Long Polling| TS
-    TS -->|Carrega| AL
-    TS -->|Pre-Flight| PF
-    PF -->|Pendencias| PS
-    PF -->|Contexto| EC
-    TS -->|Loop| OL
-    OL -->|Executa| OR
-    OL -->|Ferramentas| FR
-    OL -->|Contexto| EC
-    EC -->|Referencias| RC
+    TS -->|Router| RS
+    RS -->|Pendencias| PS
+    RS -->|Dispatch email| PR
+    PR -->|Executa steps| PE
+    PE -->|Estrategia| SE
+    PE -->|Marca| RC
+    PE -->|LLM| OR
     OR -->|API| OR_API
     OR -->|Traces| LI
     LI -->|Envia| LF
-    TS -->|Streaming| SS
-    TS -->|Historico| HC
-    AL -->|Le| MD
+    SE -->|Le| RC
     RC -->|Le| REF
+    RC -->|Le| EST
     TS -->|Logs| LOG
     LOG --> GL
 ```
 
-## Pipeline Pre-Flight (Intake)
+## Router (Intake Único)
 
-Antes do loop de orquestracao, o sistema executa uma etapa de **pre-flight** (intake) que prepara o trabalho:
+O RouterService substitui o antigo PipelinePreFlightService. Sua função é classificar a mensagem e estruturar o brief para pipelines de produção.
 
 ```mermaid
 sequenceDiagram
     participant U as Usuario
     participant T as TelegramService
-    participant PF as PipelinePreFlightService
-    participant R as Refinador (LLM)
-    participant M as Montador de Briefing (LLM)
+    participant R as RouterService
     participant PS as ConversaPendenteStore
     
     U->>T: Mensagem livre
-    T->>PF: IniciarAsync()
+    T->>R: IniciarAsync(chatId, mensagem)
     
-    PF->>PF: 1. Detectar cliente (match deterministico)
-    PF->>PF: 2. Carregar contexto (EnriquecedorContextoCliente)
-    PF->>R: 3. Refinar pedido
-    R-->>PF: JSON (precisa_esclarecimento?)
+    R->>R: 1. Detectar cliente (match deterministico)
+    R->>R: 2. Chamar LLM (deepseek-v3.2, temp 0.2)
+    R-->>T: RouterResultado
     
-    alt Precisa esclarecimento
-        PF->>PS: Guardar estado
-        PF-->>T: PrecisaEsclarecimento(perguntas)
+    alt tipo = conversa
+        T-->>U: Resposta direta
+    else tipo = esclarecimento
+        R->>PS: Guardar estado (perguntas)
         T-->>U: Perguntas
         U->>T: Respostas
-        T->>PF: ResumirAsync()
-        PF->>R: Re-refinar com respostas
-        R-->>PF: JSON (pedido refinado)
-    end
-    
-    PF->>M: 4. Montar briefing
-    M-->>PF: JSON (briefing + assets_reservados)
-    PF->>PF: 5. Validar assets reservados
-    PF-->>T: Concluido(briefing, assets)
-    
-    Note over T: Loop de Orquestracao (ver abaixo)
-    Note over T: Pos-criacao: anexar assets + zip HTML
-```
-
-### Etapas do Pre-Flight
-
-| Etapa | Executor | Descricao |
-|-------|----------|-----------|
-| 1. Identificar cliente | C# (deterministico) | Match do nome do cliente na mensagem contra `ListarClientes()` |
-| 2. Carregar contexto | `EnriquecedorContextoCliente` | Referencias de texto (manual de marca) + analise de imagens |
-| 3. Refinar pedido | Agente `Refinador` (LLM) | Analisa intencao; faz perguntas se necessario (max 2 rodadas) |
-| 4. Montar briefing | Agente `Montador de Briefing` (LLM) | Briefing autocontido + lista de assets reservados |
-| 5. Validar assets | C# (deterministico) | Filtra IDs invalidos contra `ListarAssets(cliente)` |
-
-### Mensagens Simples
-
-Quando o Refinador detecta que a mensagem e uma pergunta casual/conversa (campo `simples: true`), o pre-flight retorna diretamente com a mensagem original como briefing, pulando o Montador. O orquestrador decidira `responder_direto` ou `fora_contexto`.
-
-### Pos-Criacao
-
-Apos o loop de orquestracao finalizar:
-- **Assets reservados** sao anexados automaticamente ao resultado
-- Se o entregavel for **HTML**: zip (HTML + imagens geradas + assets reservados) enviado como documento
-- Caso contrario: texto + imagens como fotos + assets como fotos
-
-## Orquestrador Loop (Supervisor)
-
-O sistema utiliza um **loop de orquestracao** (padrao supervisor/hub-and-spoke) onde o orquestrador decide a cada turno qual acao executar:
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant T as TelegramService
-    participant L as OrquestradorLoopService
-    participant O as Orquestrador (LLM)
-    participant A as Agentes (Redator, Dev, etc)
-    participant F as Ferramentas (gerar_imagem)
-    participant Q as Qualidade
-
-    U->>T: Mensagem livre
-    T->>L: ExecutarAsync()
-
-    loop Max 24 turnos (retries gratis ate 4)
-        L->>O: Transcript + acao anterior
-        O-->>L: JSON {acao: ...}
-
-        alt responder_direto
-            L-->>T: Resposta direta
-        else fora_contexto
-            L-->>T: Mensagem fixa
-        else chamar_agente
-            L->>A: Briefing autocontido
-            A-->>L: Output (entra no transcript)
-        else chamar_ferramenta
-            L->>F: Parametros
-            F-->>L: Resultado (entra no transcript)
-        else finalizar
-            L->>Q: Entregavel para revisao
-            Q-->>L: {aprovado: true/false}
-            alt Aprovado
-                L-->>T: Resposta final
-            else Reprovado (max 2)
-                Note over L: Feedback entra no transcript
-            end
-        end
+        T->>R: ResumirAsync(chatId, respostas)
+        R->>R: Re-processar com respostas acumuladas
+        R-->>T: RouterResultado (producao)
+    else tipo = fora_contexto
+        T-->>U: Mensagem específica por motivo (cliente/canal/assunto)
+    else tipo = producao
+        T->>T: Dispatch por canal
     end
 ```
 
-### Acoes do Orquestrador
-
-| Acao | Descricao |
-|------|-----------|
-| `responder_direto` | Resposta direta a perguntas simples |
-| `fora_contexto` | Mensagem fora do escopo de Marketing |
-| `chamar_agente` | Delega a um agente especializado (Redator, Dev, etc) |
-| `chamar_ferramenta` | Usa uma ferramenta (gerar_imagem) |
-| `finalizar` | Entregavel pronto → QA obrigatorio → entrega |
-
-### Papeis dos Agentes
-
-| Papel | Descricao | Exemplos |
-|-------|-----------|----------|
-| **orquestrador** | Loop supervisor, decide acoes e costura contexto | Orquestrador |
-| **producao** | Executa tarefas especificas | Redator, Dev, Estrategista, Prompt para Imagens |
-| **qualidade** | Revisor critico independente de qualquer entregavel | Qualidade |
-
-### Ferramentas
-
-Ferramentas sao registradas em codigo e chamadas pelo orquestrador via `chamar_ferramenta`:
-
-| Ferramenta | Descricao |
-|------------|-----------|
-| `gerar_imagem` | Gera imagem a partir de prompt; suporta `legenda` e `assets: [ids]` para identidade visual |
-| `listar_assets` | Lista assets visuais (header, footer, icon, logo, foto, post) de um cliente |
-| `anexar_asset` | Anexa um asset pre-existente ao resultado final para envio ao usuario |
-
-Novas ferramentas = novo `.cs` implementando `IFerramenta` + registro no `FerramentaRegistry`.
-
-### Referencias de Cliente
-
-O sistema suporta carregar referencias de clientes (manuais de marca, exemplos, imagens) para personalizar a producao. As referencias ficam em `Assets/referencias/` com o padrao `{cliente}_{nome}.ext`. O primeiro token antes do underscore e o identificador do cliente (case-insensitive).
-
-**Fluxo de referencias:**
-
-```mermaid
-flowchart LR
-    subgraph "Assets/referencias/"
-        JSON[acme_marca.json]
-        HTML[acme_exemplo.html]
-        IMG[acme_ref-visual.png]
-    end
-
-    subgraph "Loop"
-        ORQ[Orquestrador<br/>identifica cliente]
-        LOOP[OrquestradorLoopService<br/>injeta no transcript]
-        AG[Agentes<br/>recebem contexto]
-    end
-
-    JSON --> LOOP
-    HTML --> LOOP
-    IMG -->|AnalisarImagemAsync| LOOP
-    LOOP -->|transcript enriquecido| AG
-```
-
-**Como funciona:**
-
-1. **Orquestrador** identifica o cliente na mensagem (campo `cliente` no JSON)
-2. **Loop** carrega as referencias de texto (JSON, HTML, MD) e analisa imagens on-demand
-3. **Loop** injeta as referencias no transcript do orquestrador
-4. **Orquestrador** usa o contexto enriquecido ao chamar agentes de producao
-
-**Configuracao (appsettings.json):**
+### Schema do Brief
 
 ```json
 {
-  "Loop": {
-    "MaxTurnos": 24,
-    "MaxRefacoesQa": 2,
-    "MaxRetriesGratis": 4,
-    "MensagemForaContexto": "...",
-    "MensagemFalha": "..."
-  },
-  "Pipeline": {
-    "Referencias": {
-      "MaxCharsPorArquivo": 4000
-    }
+  "tipo": "producao",
+  "cliente": "acme",
+  "brief": {
+    "canal": "email | instagram | landing",
+    "objetivo": "vender | engajar | informar",
+    "publico": "empresarios",
+    "oferta": "Black Friday 50% off",
+    "tom": "urgente",
+    "link": "https://acme.com/promo",
+    "etapa_jornada": "pos-compra | pre-chaves | pos-chaves",
+    "sub_jornada": "Pos Financiamento",
+    "restricoes": ["sem emojis", "max 200 palavras"],
+    "imagens": [{"papel": "hero", "descricao": "Banner com produto"}]
   }
 }
 ```
 
-**Extensões suportadas:**
-- Texto: `.json`, `.html`, `.htm`, `.md`, `.txt`, `.css`
-- Imagem: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+### Dispatch por Canal
 
-### Fluxo do Loop
+| Canal | Handler | Status |
+|-------|---------|--------|
+| `email` | `PipelineEmail` | Implementado |
+| `instagram` | PipelineInstagram | Planejado |
+| `landing` | PipelineLanding | Planejado |
+
+Canais não implementados são rejeitados pela guarda determinística do router como `fora_contexto` (motivo: `canal_nao_permitido`).
+
+### Escopo Configurável
+
+O router opera com escopo configurável via `PreFlightOptions`:
+- `ClientesPermitidos` (default: `["mrv"]`)
+- `CanaisPermitidos` (default: `["email"]`)
+
+**Guarda determinística**: após a classificação do LLM, o RouterService valida se `cliente ∈ ClientesPermitidos` e `canal ∈ CanaisPermitidos`. Se não, coage o resultado para `fora_contexto` com motivo (`cliente_nao_permitido`, `canal_nao_permitido`). Isso é defense-in-depth: mesmo que o LLM ignore as regras do prompt, a guarda impede que a pipeline execute para clientes/canais não autorizados.
+
+O prompt injetado pelo `MontarPrompt` lista apenas clientes/canais permitidos (não todos os registrados), e a estratégia do cliente só é injetada quando o cliente detectado é permitido.
+
+## Pipeline de Email
+
+A PipelineEmail é uma lista ordenada de steps executados deterministicamente pelo PipelineRunner. Cada step recebe apenas o contexto necessário.
+
+```mermaid
+sequenceDiagram
+    participant PR as PipelineRunner
+    participant SE as StepEstrategiaEmail
+    participant SM as StepMarcaEmail
+    participant SC as StepCopyEmail
+    participant SH as StepImagemHero
+    participant ST as StepTemplateEmail
+    participant SQ as StepQaEmail
+    participant OR as OpenRouterService
+    participant GI as GeradorImagem
+    participant RC as ReferenciasCliente
+    
+    PR->>SE: ExecutarAsync(context)
+    SE->>RC: ObterEstrategia(cliente)
+    RC-->>SE: Fase, paleta, temas, mapa, satisfacoes
+    SE-->>PR: context.Estrategia
+    
+    PR->>SM: ExecutarAsync(context)
+    SM->>RC: ListarAssets(cliente)
+    RC-->>SM: Assets (logo, cores, tom)
+    SM-->>PR: context.Marca
+    
+    PR->>SC: ExecutarAsync(context)
+    SC->>OR: ChamarAgenteAsync(email_copy)
+    OR-->>SC: JSON com slots
+    SC-->>PR: context.Copy
+    
+    PR->>SH: ExecutarAsync(context)
+    SH->>OR: ChamarAgenteAsync(email_hero_prompt)
+    OR-->>SH: Prompt otimizado
+    SH->>GI: GerarImagemAsync(prompt)
+    GI-->>SH: byte[] imagem
+    SH-->>PR: context.HeroSrc
+    
+    PR->>ST: ExecutarAsync(context)
+    ST->>ST: Preencher slots no template
+    ST-->>PR: context.Html
+    
+    PR->>SQ: ExecutarAsync(context)
+    SQ->>OR: ChamarAgenteAsync(email_qa)
+    OR-->>SQ: {aprovado, feedback, step_alvo}
+    
+    alt aprovado
+        SQ-->>PR: context.QaAprovado = true
+    else reprovado (max 2 refações)
+        SQ-->>PR: context.QaAprovado = false
+        PR->>PR: Voltar ao step alvo (copy/hero)
+        Note over PR,SQ: Loop até aprovação ou max refações
+    end
+    
+    PR-->>PR: ResultadoPipeline (HTML + imagens + assets)
+```
+
+### Steps da Pipeline Email
+
+| Step | Tipo | Modelo | Descrição |
+|------|------|--------|-----------|
+| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
+| `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
+| `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
+| `StepImagemHero` | LLM + API | `qwen/qwen3.7-plus` | Gera prompt otimizado + chama API de imagem |
+| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
+| `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
+
+### Contexto por Step
+
+Cada step recebe apenas o contexto necessário (princípio do mínimo privilégio):
+
+| Step | Recebe | Não recebe |
+|------|--------|------------|
+| `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
+| `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
+| `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
+| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) | Copy, outros steps |
+| `StepTemplateEmail` | Copy slots + Hero src + Marca | Brief, outros steps |
+| `StepQaEmail` | Brief original + HTML final + Estrategia | Few-shots, outros steps |
+
+## Template HTML
+
+Os templates HTML são table-based para compatibilidade com clientes de email (Outlook, Gmail, etc.). Múltiplos templates podem coexistir em `Assets/referencias/templates/`, cada um com um sidecar JSON de afinidade (cliente, fase, sub-jornadas, palavras-chave). O `StepEstrategiaEmail` seleciona o template mais afim ao pedido do cliente via `ITemplateCatalogo`.
+
+### Estrutura de um Template
+
+Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) com placeholders `{{...}}` para conteúdo dinâmico:
+
+```html
+<!-- Estrutura principal -->
+<table width="600">
+  <tr><td><!-- Banner fixo --></td></tr>
+  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA -->
+  <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
+  <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
+  <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
+  <tr><td><!-- Despedida fixa --></td></tr>
+  <tr><td><!-- Rodapé fixo --></td></tr>
+</table>
+```
+
+### Sidecar JSON de Afinidade
+
+Cada template `MRV_html_exemplo.html` pode ter um `MRV_html_exemplo.json`:
+
+```json
+{
+  "cliente": "mrv",
+  "fase": "pos-chaves",
+  "sub_jornadas": ["assistencia", "visita-tecnica"],
+  "palavras_chave": ["visita tecnica", "reparo"],
+  "padrao": false
+}
+```
+
+### Seleção de Template
+
+O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é determinística:
+1. Filtra por cliente (fallback: templates sem restrição ou default)
+2. Score: fase (+10), sub-jornada (+5), palavras-chave (+1 por match)
+3. Fallback: `padrao: true` ou primeiro alfabético
+
+### Placeholders
+
+- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{hero_section}}`, `{{hero_src}}`
+- **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
+
+### Características do Template
+
+- **Table-based layout**: Compatível com Outlook, Gmail, Apple Mail
+- **CSS inline**: Cada tag tem `style=""` explícito
+- **Ghost tables**: `<!--[if mso]>` para Outlook
+- **Imagens**: `<img>` com `alt`, `border="0"`, `style="display: block;"`
+- **Max-width 600px**: Padrão de email marketing
+- **CTA bulletproof**: Botão como tabela, não `<a>` com background
+- **Hero section**: Condicional (`{{hero_section}}` preenchido ou vazio)
+- **HTML escaping**: Slots de texto escapados via `WebUtility.HtmlEncode`
+
+### Testes HTML (TDD)
+
+O `StepTemplateEmail` tem 11 testes unitários cobrindo:
+
+1. **Preenchimento de slots**: Todos os placeholders substituídos
+2. **Estrutura table**: Zero `<div>`, apenas `<table>`
+3. **Ghost tables**: Presença de `<!--[if mso]>`
+4. **CSS inline**: Presença de `style=""`
+5. **Imagens**: `alt`, `border="0"`, `display: block`
+6. **Max-width**: `max-width: 600px`
+7. **CTA bulletproof**: Tabela ao redor do link
+8. **Hero condicional**: Presente quando `hero_src` definido, ausente quando nulo
+9. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
+10. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
+11. **Logo**: `logo_src` preenchido corretamente
+
+## PipelineRunner
+
+O PipelineRunner executa uma lista ordenada de steps com suporte a QA retry loop:
+
+```csharp
+public class PipelineRunner
+{
+    public async Task<ResultadoPipeline> ExecutarAsync(
+        PipelineContext context,
+        IReadOnlyList<IPipelineStep> steps,
+        int maxRefacoesQa,
+        Func<string, Task>? onProgresso,
+        CancellationToken ct)
+    {
+        // Executa steps em ordem
+        // Se QA reprova, volta ao step alvo (copy/hero)
+        // Max refações = maxRefacoesQa (default 2)
+        // Retorna ResultadoPipeline (HTML + imagens + assets)
+    }
+}
+```
+
+### QA Retry Loop
 
 ```mermaid
 graph TD
-    A[Mensagem do Usuario] --> B[OrquestradorLoopService]
-    B --> C{Orquestrador LLM}
-    C -->|responder_direto| D[Resposta Direta]
-    C -->|fora_contexto| E[Mensagem Fixa]
-    C -->|chamar_agente| F[Agente Especializado]
-    C -->|chamar_ferramenta| G[Ferramenta]
-    C -->|finalizar| H[Qualidade]
-    F -->|output no transcript| C
-    G -->|resultado no transcript| C
-    H -->|aprovado| D
-    H -->|reprovado max 2| I[Falha]
-    H -->|reprovado| C
-    D --> J[Resposta Final]
+    A[Iniciar pipeline] --> B[Executar step 1]
+    B --> C[Executar step 2]
+    C --> D[Executar step 3]
+    D --> E[Executar QA]
+    E --> F{Aprovado?}
+    F -->|Sim| G[Retornar resultado]
+    F -->|Não| H{Refações < max?}
+    H -->|Sim| I{step_alvo = copy?}
+    I -->|Sim| C[Re-executar copy]
+    I -->|Não| D[Re-executar hero]
+    H -->|Não| J[Retornar com feedback]
 ```
 
-## Diagrama de Componentes
+## Observabilidade
 
-```mermaid
-graph LR
-    subgraph "Camada de Comunicacao"
-        TS[TelegramService<br/>BackgroundService]
-    end
-    
-    subgraph "Camada de Agentes"
-        AL[AgenteLoader<br/>IHostedService]
-        AD[AgenteDefinicao]
-    end
-    
-    subgraph "Camada de IA"
-        OL[OrquestradorLoopService]
-        FR[FerramentaRegistry]
-        OR[OpenRouterService]
-        SS[StreamingService]
-        HC[HistoricoChat]
-    end
-    
-    subgraph "Camada de Observabilidade"
-        LI[LangfuseInterceptor]
-        LC[LangfuseClient]
-        SL[Serilog]
-    end
-    
-    TS --> AL
-    TS --> OL
-    TS --> SS
-    TS --> HC
-    AL --> AD
-    OL --> FR
-    OL --> OR
-    OR --> LI
-    LI --> LC
-    TS --> SL
+### Langfuse Traces
+
+Cada step LLM gera um trace no Langfuse com etapa nomeada:
+
+| Etapa | Descrição | Modelo |
+|-------|-----------|--------|
+| `router` | Classificação + estruturação do brief | `deepseek/deepseek-v3.2` |
+| `router_retry` | Retry do router (JSON inválido) | `deepseek/deepseek-v3.2` |
+| `email_copy` | Geração de copy (assunto, corpo, CTA) | `qwen/qwen3.7-plus` |
+| `email_hero_prompt` | Geração de prompt para imagem hero | `qwen/qwen3.7-plus` |
+| `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
+| `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
+| `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
+| `image-generation` | Geração de imagem via API | `qwen/qwen-image-3-pro` |
+
+Steps determinísticos (estrategia, marca, template) não geram traces LLM, apenas logs Serilog.
+
+### Grafana Loki
+
+Todos os steps logam via Serilog para Grafana Loki:
+
+```
+[StepMarcaEmail] Cliente=acme, Assets=3, Logo=true
+[StepCopyEmail] Modelo=qwen3.7-plus, Tokens=1200
+[StepTemplateEmail] Slots=11, HeroIncluded=true
+[StepQaEmail] Aprovado=true, Feedback="Copy clara e persuasiva"
 ```
 
-## Fluxo de Mensagem
+### Reasoning Disabling
 
-### Fluxo Principal (Comando de Agente)
+Etapas com prefixo `router` desabilitam reasoning do modelo (otimização de custo/latência):
 
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant T as Telegram Bot
-    participant TS as TelegramService
-    participant AL as AgenteLoader
-    participant OR as OpenRouterService
-    participant SK as Semantic Kernel
-    participant ORAPI as OpenRouter API
-    participant LF as Langfuse
-    
-    U->>T: /redator mensagem
-    T->>TS: Update (Long Polling)
-    TS->>AL: ObterPorComando(/redator)
-    AL-->>TS: AgenteDefinicao (persona, modelo)
-    
-    TS->>TS: SendChatAction (typing)
-    TS->>OR: CompletarStreamingAsync(mensagem, persona, modelo)
-    OR->>SK: Chat com historico
-    OR->>LF: IniciarTrace
-    
-    loop Streaming (throttle 1s)
-        SK->>ORAPI: Request
-        ORAPI-->>SK: Chunk
-        SK-->>OR: IAsyncEnumerable
-        OR-->>TS: Chunk
-        TS-->>T: EditMessageText
-        T-->>U: Mensagem atualizada
-    end
-    
-    OR->>LF: FinalizarTrace
-    OR-->>TS: Resposta completa
-```
-
-### Fluxo Principal (Mensagem Livre - Loop)
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant T as Telegram Bot
-    participant TS as TelegramService
-    participant OL as OrquestradorLoopService
-    participant O as Orquestrador (LLM)
-    participant A as Agente Especializado
-    participant F as Ferramenta (gerar_imagem)
-    participant Q as Qualidade
-    
-    U->>T: Mensagem livre
-    T->>TS: Update (Long Polling)
-    TS->>OL: ExecutarAsync(chatId, mensagem)
-    
-    loop Max 24 turnos (retries gratis ate 4)
-        OL->>O: Transcript + contexto
-        O-->>OL: JSON {acao: ...}
-        
-        alt chamar_agente
-            OL->>A: Briefing autocontido
-            A-->>OL: Output (entra no transcript)
-        else chamar_ferramenta
-            OL->>F: Parametros
-            F-->>OL: Resultado (entra no transcript)
-        else finalizar
-            OL->>Q: Entregavel para revisao
-            Q-->>OL: {aprovado: true/false}
-        end
-    end
-    
-    OL-->>TS: ResultadoPipeline (resposta + imagem?)
-    TS-->>T: SendMessage/SendPhoto
-    T-->>U: Resposta final
-```
-
-### Fluxo de Imagem (Analise)
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant T as Telegram Bot
-    participant TS as TelegramService
-    participant OR as OpenRouterService
-    participant SK as Semantic Kernel
-    participant ORAPI as OpenRouter API
-    
-    U->>T: Foto + legenda
-    T->>TS: Update com Photo
-    TS->>TS: Download foto
-    TS->>TS: SendChatAction (typing)
-    TS->>OR: DescreverImagemAsync(imagem, contexto)
-    OR->>SK: Chat com ImageContent
-    SK->>ORAPI: qwen/qwen2.5-vl-72b-instruct (multimodal)
-    ORAPI-->>SK: Descricao
-    SK-->>OR: Resposta
-    OR-->>TS: Descricao da imagem
-    TS->>T: SendMessage
-    T-->>U: Resposta
-```
-
-### Fluxo de Geracao de Imagem (via Ferramenta)
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant T as Telegram Bot
-    participant TS as TelegramService
-    participant OL as OrquestradorLoopService
-    participant OR as OpenRouterService
-    participant ORAPI as OpenRouter API
-    
-    U->>T: Mensagem com intencao de imagem
-    T->>TS: Update
-    TS->>OL: ExecutarAsync()
-    OL->>OL: chamar_ferramenta gerar_imagem
-    OL->>OR: GerarImagemAsync(prompt)
-    OR->>ORAPI: POST /images/generations (qwen/qwen-image-3-pro)
-    ORAPI-->>OR: b64_json
-    OR-->>OL: byte[] imagem
-    OL->>OL: finalizar → QA
-    OL-->>TS: ResultadoPipeline (imagem + legenda)
-    TS->>T: SendPhoto
-    T-->>U: Imagem gerada
+```csharp
+var desativarRaciocinio = etapaNome.StartsWith("router", StringComparison.OrdinalIgnoreCase);
+ReasoningDisablingHandler.IsActive = desativarRaciocinio;
 ```
 
 ## Estrutura do Projeto
 
-```mermaid
-graph TD
-    subgraph "src/DemoAgencia.Worker"
-        direction TB
-        PROG[Program.cs<br/>Configuracao DI + Serilog]
-        SCE[ServiceCollectionExtensions.cs<br/>Composicao DI]
-        
-        subgraph "Telegram/"
-            TS2[TelegramService.cs<br/>Long polling + handlers]
-        end
-        
-        subgraph "Agentes/"
-            AL2[AgenteLoader.cs<br/>Parser .md + cache]
-            AD2[AgenteDefinicao.cs<br/>Modelo de dados]
-        end
-
-        subgraph "Referencias/"
-            RCL[ReferenciaClienteLoader.cs<br/>Parser {cliente}_* prefix]
-        end
-
-        subgraph "IA/"
-            OL[OrquestradorLoopService<br/>Loop supervisor]
-            FR[Ferramentas/<br/>Registry + gerar_imagem]
-            OR2[OpenRouterService<br/>SK + OpenRouter]
-            SS2[StreamingService.cs<br/>Throttle de edits]
-            HC2[HistoricoChat.cs<br/>Contexto por chat]
-        end
-        
-        subgraph "Seguranca/"
-            AN[AnonimizadorService.cs]
-            RL[RateLimiterService.cs]
-        end
-        
-        subgraph "Observabilidade/"
-            LI2[LangfuseInterceptor.cs<br/>Cria traces]
-            LC2[LangfuseClient.cs<br/>HTTP client]
-        end
-
-        subgraph "Contracts/"
-            LT[LangfuseTrace.cs]
-            LTC[LangfuseTraceContext.cs]
-        end
-    end
-    
-    subgraph "Assets/"
-        MD2[agentes/*.md<br/>Definicoes dos agentes]
-        REF[referencias/{cliente}_*<br/>Referencias de clientes]
-    end
-    
-    subgraph "tests/"
-        TEST[DemoAgencia.Worker.Tests<br/>103 testes unitarios]
-    end
 ```
-
-## Diagrama de Deploy
-
-```mermaid
-graph TB
-    subgraph "Desenvolvimento"
-        DEV[Developer Machine]
-        GIT[GitHub]
-        CI[GitHub Actions]
-    end
-    
-    subgraph "Oracle Cloud - Always Free"
-        subgraph "VM ARM64 (Ubuntu)"
-            DOCKER[Docker Engine]
-            subgraph "Container"
-                APP[DemoAgencia Worker]
-                LOGS[/logs/]
-                ASSETS[/Assets/]
-            end
-        end
-    end
-    
-    subgraph "SaaS"
-        TG[Telegram API]
-        OR3[OpenRouter API]
-        LF2[Langfuse Cloud]
-    end
-    
-    DEV -->|Push| GIT
-    GIT -->|Trigger| CI
-    CI -->|Build + Test| CI
-    CI -->|Deploy automatico via SSH| DOCKER
-    DOCKER -->|Run| APP
-    APP -->|Long Polling| TG
-    APP -->|API Calls| OR3
-    APP -->|Traces| LF2
-    APP -->|Write| LOGS
-    APP -->|Read| ASSETS
-```
-
-## Ciclo de Vida do Agente
-
-```mermaid
-stateDiagram-v2
-    [*] --> Startup: Application Start
-    Startup --> Loading: AgenteLoader.StartAsync
-    Loading --> Parsing: Lê /Assets/agentes/*.md
-    Parsing --> Ready: Parse frontmatter + persona
-    Ready --> Idle: Aguarda comandos
-    
-    Idle --> Selected: /redator, /dev, /estrategista, /prompt-imagem
-    Selected --> Processing: Mensagem recebida
-    Processing --> Streaming: LLM responde
-    Streaming --> Idle: Resposta completa
-    
-    Idle --> Cleared: /limpar ou /reset
-    Cleared --> Idle
-    
-    Idle --> Shutdown: CancellationToken
-    Shutdown --> [*]
+src/DemoAgencia.Worker/
+├── Program.cs                          # Configuração DI + Serilog
+├── ServiceCollectionExtensions.cs      # Composição DI
+│
+├── Telegram/
+│   ├── TelegramService.cs              # Long polling + handlers
+│   ├── ITelegramGateway.cs             # Interface para Telegram Bot
+│   ├── TelegramBotGateway.cs           # Implementacao real + TelegramGatewayFactory
+│   ├── TelegramMessageSplitter.cs      # Divisão de mensagens longas
+│   └── TelegramTextFormatter.cs        # Formatação de texto
+│
+├── IA/
+    │   ├── Router/
+    │   │   ├── RouterService.cs            # Intake + classificação
+    │   │   ├── RouterParser.cs             # Parse JSON do router
+    │   │   └── Brief.cs                    # Modelo do brief estruturado
+    │   │
+    │   ├── Pipelines/
+    │   │   ├── IPipelineStep.cs            # Interface de step
+    │   │   ├── PipelineContext.cs          # Contexto compartilhado
+    │   │   ├── PipelineRunner.cs           # Executor de pipeline
+    │   │   ├── StepRecords.cs              # Records (MarcaEmail, CopyEmailSlots)
+    │   │   ├── EstrategiaEmail.cs          # Contexto de estratégia por fase
+    │   │   │
+    │   │   └── Email/
+    │   │       ├── PipelineEmail.cs        # Composição da pipeline email
+    │   │       ├── StepEstrategiaEmail.cs  # Retrieval de estratégia
+    │   │       ├── StepMarcaEmail.cs       # Retrieval de marca
+    │   │       ├── StepCopyEmail.cs        # LLM copy
+    │   │       ├── StepImagemHero.cs       # LLM prompt + API imagem
+    │   │       ├── StepTemplateEmail.cs    # Template HTML slots
+    │   │       └── StepQaEmail.cs          # QA com branch explícito
+│   │
+│   ├── OpenRouterService.cs            # LLM + API imagem via OpenRouter
+│   ├── IServicoChat.cs                 # Interface para LLM
+│   ├── IGeradorImagem.cs               # Interface para geração de imagem
+│   ├── IAnalisadorImagem.cs            # Interface para análise de imagem
+│   ├── JsonHelper.cs                   # Utilitário para extração de JSON
+│   └── ResultadoPipeline.cs            # Resultado final (HTML + imagens + assets)
+│
+├── Referencias/
+│   ├── IReferenciasCliente.cs          # Interface para referências
+│   ├── ReferenciaClienteLoader.cs      # Loader de referências + estratégia
+│   ├── AssetVisual.cs                  # Modelo de asset visual
+│   ├── EstrategiaCliente.cs            # Modelos de estratégia de jornada
+│   └── FaseJornada.cs                  # Chaves canônicas de fase + normalizador
+│
+├── Configuracoes/
+│   ├── OpenRouterOptions.cs            # Config OpenRouter
+│   ├── TelegramOptions.cs              # Config Telegram
+│   ├── PreFlightOptions.cs             # Config router (max rodadas)
+│   └── SegurancaOptions.cs             # Config segurança
+│
+├── Seguranca/
+│   ├── AnonimizadorService.cs          # Anonimização de dados sensíveis
+│   └── RateLimiterService.cs           # Rate limiting
+│
+├── Observabilidade/
+│   ├── LangfuseInterceptor.cs          # Interceptor para Langfuse
+│   └── LangfuseClient.cs               # HTTP client para Langfuse
+│
+├── Contracts/
+│   ├── LangfuseTrace.cs                # Modelo de trace
+│   └── LangfuseTraceContext.cs         # Contexto de trace
 ```
 
 ## Modelo de Dados
 
-### AgenteDefinicao
+### Brief
 
-```mermaid
-classDiagram
-    class AgenteDefinicao {
-        +string Nome
-        +string Descricao
-        +string ModeloAlvo
-        +List~string~ Comandos
-        +string Persona
-    }
-    
-    class ChatMessage {
-        +string Role
-        +string Content
-    }
-    
-    class HistoricoChat {
-        -Dictionary~long, List~ChatMessage~~ _historicos
-        +AdicionarMensagem(long chatId, string role, string content)
-        +List~ChatMessage~ ObterHistorico(long chatId)
-        +LimparHistorico(long chatId)
-    }
-    
-    class LangfuseTrace {
-        +string Id
-        +string Name
-        +string UserId
-        +string Model
-        +object Input
-        +object Output
-        +int PromptTokens
-        +int CompletionTokens
-        +DateTime StartTime
-        +DateTime EndTime
-    }
-    
-    HistoricoChat "1" *-- "0..20" ChatMessage
+```csharp
+public record Brief(
+    string Canal,           // email | instagram | landing
+    string? Objetivo,       // vender | engajar | informar
+    string? Publico,        // Descrição do público-alvo
+    string? Oferta,         // Produto/serviço em oferta
+    string? Tom,            // Tom de voz desejado
+    string? Link,           // URL do CTA
+    List<string> Restricoes,// Restrições adicionais
+    List<ImagemBrief> Imagens, // Imagens a gerar (papel + descrição)
+    string? EtapaJornada,   // pos-compra | pre-chaves | pos-chaves (quando cliente tem estratégia)
+    string? SubJornada      // Sub-jornada específica (quando aplicável)
+);
+
+public record ImagemBrief(string Papel, string Descricao);
 ```
 
-## Fluxo de Observabilidade
+### RouterResultado
 
-```mermaid
-flowchart LR
-    subgraph "OpenRouterService"
-        A[IniciarTrace]
-        B[Executar LLM]
-        C[FinalizarTrace]
-    end
+```csharp
+public record RouterResultado(
+    string Tipo,            // conversa | esclarecimento | producao | fora_contexto
+    string? Resposta,       // Resposta direta (conversa)
+    List<string> Perguntas, // Perguntas de esclarecimento
+    string? Cliente,        // Cliente identificado
+    Brief? Brief            // Brief estruturado (producao)
+);
+```
+
+### PipelineContext
+
+```csharp
+public class PipelineContext
+{
+    public long ChatId { get; init; }
+    public Brief Brief { get; init; } = null!;
+    public string MensagemOriginal { get; init; } = string.Empty;
+    public string? Cliente { get; init; }
     
-    subgraph "LangfuseInterceptor"
-        D[Cria contexto]
-        E[Calcula duração]
-        F[Monta trace]
-    end
+    public EstrategiaEmail? Estrategia { get; set; }
+    public MarcaEmail? Marca { get; set; }
+    public string? LogoSrc { get; set; }
+    public CopyEmailSlots? Copy { get; set; }
+    public string? HeroSrc { get; set; }
+    public string? Html { get; set; }
     
-    subgraph "LangfuseClient"
-        G[Serializa JSON]
-        H[POST /api/public/ingestion]
-        I[Batch: trace + generation]
-    end
+    public string? QaFeedback { get; set; }
+    public string? QaStepAlvo { get; set; }
+    public bool QaAprovado { get; set; }
+    public int Refacoes { get; set; }
     
-    A --> D
-    B --> E
-    C --> F
-    F --> G
-    G --> H
-    H --> I
+    public ResultadoPipeline Resultado { get; } = new();
+}
 ```
 
 ## Decisões de Arquitetura
 
 | Decisão | Justificativa | Alternativas consideradas |
 |---------|---------------|---------------------------|
-| Worker Service (BackgroundService) | Simplicidade, sem necessidade de web server | ASP.NET Core minimal API, Console App |
-| Long Polling | Não requer webhooks, sem abertura de portas | Webhooks (requer IP público fixo) |
-| OpenRouter | Acesso a múltiplos modelos com uma API | APIs diretas (mais custo, mais complexidade) |
-| Semantic Kernel | Orquestração nativa Microsoft, filtros | LangChain (Python), implementação manual |
-| Markdown para agentes | Legível, versionável, sem DB | YAML, JSON, banco de dados |
-| In-Memory para histórico | PoC, sem estado persistente | Redis, SQLite, PostgreSQL |
-| Serilog + arquivo | Simplicidade, rotação automática | ELK Stack, Seq, Application Insights |
-| Langfuse Cloud (free) | LLMOps sem custo inicial | Self-hosted Langfuse, custom dashboard |
-| Docker ARM64 | Aproveita Oracle Free Tier ARM | x86_64 (mais caro), bare metal |
-| Streaming com throttle | UX melhorada respeitando rate limits | Resposta única, streaming sem throttle |
+| Router + Pipelines (ao invés de loop multi-agente) | Elimina "telefone sem fio", reduz custo de coordenação, contexto mínimo por step | Loop de orquestração (8 agentes conversando) |
+| Steps determinísticos (ao invés de agentes decidindo ordem) | Ordem conhecida em design-time, previsível, testável | Agentes decidindo ordem em runtime |
+| Template HTML table-based (ao invés de HTML livre) | Compatibilidade com Outlook/Gmail, testável, previsível | LLM gerando HTML livre (16k tokens, bugs de layout) |
+| QA com branch explícito (ao invés de loop de conversa) | Retry determinístico ao step alvo, max refações | QA conversando com outros agentes |
+| Contexto mínimo por step | Cada step recebe só o necessário (marca, brief, step anterior) | Contexto compartilhado gigante (todos os steps) |
+| Single Router (ao invés de Refinador + Montador) | Uma única LLM call classifica + estrutura brief | Duas LLM calls (refinador + montador) |
 
 ## Trade-offs
 
-### Custo vs Complexidade
+### Simplicidade vs Flexibilidade
 
 ```mermaid
 quadrantChart
-    title Custo vs Complexidade
-    x-axis "Baixo Custo" --> "Alto Custo"
-    y-axis "Baixa Complexidade" --> "Alta Complexidade"
+    title Simplicidade vs Flexibilidade
+    x-axis "Simples" --> "Flexível"
+    y-axis "Baixo Custo" --> "Alto Custo"
     quadrant-1 "Evitar"
-    quadrant-2 "Considerar"
+    quadrant-2 "Complexo mas flexível"
     quadrant-3 "Ideal para PoC"
-    quadrant-4 "Bom para produção"
-    "OpenRouter": [0.3, 0.3]
-    "Langfuse Cloud": [0.2, 0.2]
-    "Oracle Free Tier": [0.1, 0.4]
-    "Kubernetes": [0.7, 0.8]
-    "ELK Stack": [0.8, 0.7]
-    "Redis Cluster": [0.6, 0.6]
+    quadrant-4 "Simples e eficiente"
+    "Router + Pipelines": [0.3, 0.2]
+    "Loop multi-agente": [0.8, 0.8]
+    "Template HTML": [0.2, 0.1]
+    "HTML livre (LLM)": [0.9, 0.7]
 ```
 
 ## Evolução Futura
 
 ```mermaid
 roadmap
-    title Evolucao do DemoAgencia
+    title Evolução do DemoAgencia
     section PoC (Atual)
-    Worker Service :done, 2025-01, 2025-03
-    Telegram Bot :done, 2025-01, 2025-03
-    Agentes .md :done, 2025-01, 2025-03
-    Loop de Orquestracao :done, 2025-03, 2025-06
-    OpenRouter :done, 2025-02, 2025-04
-    Langfuse :done, 2025-02, 2025-04
-    Referencias de Clientes :done, 2025-06, 2025-07
+    Router + Pipeline Email :done, 2026-10, 2026-10
+    Template HTML table-based :done, 2026-10, 2026-10
+    QA com retry :done, 2026-10, 2026-10
     
-    section MVP
-    Banco de dados :2026-01, 2026-03
-    Autenticacao :2026-02, 2026-04
-    Multi-tenant :2026-03, 2026-05
+    section Próximos Passos
+    Pipeline Instagram :2026-11, 2026-12
+    Pipeline Landing :2027-01, 2027-02
+    A/B testing de copy :2027-02, 2027-03
     
-    section Producao
-    Kubernetes :2026-06, 2026-08
-    Monitoramento avancado :2026-06, 2026-07
-    Auto-scaling :2026-07, 2026-09
+    section Produção
+    Integração com CRM :2027-03, 2027-04
+    Analytics de conversão :2027-04, 2027-05
+    Multi-tenant :2027-05, 2027-06
 ```
 
-## Referencias
+## Referências
 
-- [RUNBOOK.md](../RUNBOOK.md) - Guia de deploy e operacao
+- [RUNBOOK.md](../RUNBOOK.md) - Guia de deploy e operação
 - [CHECKLIST.md](../CHECKLIST.md) - Checklist de aceite E2E
+- [README.md](../README.md) - Visão geral do projeto

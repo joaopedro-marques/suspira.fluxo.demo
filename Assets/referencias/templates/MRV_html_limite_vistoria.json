@@ -1,0 +1,7 @@
+{
+  "cliente": "mrv",
+  "fase": "pre-chaves",
+  "sub_jornadas": ["vistoria", "entrega-chaves", "inspecao"],
+  "palavras_chave": ["vistoria", "inspecao", "agendamento", "checklist", "acompanhante"],
+  "padrao": true
+}

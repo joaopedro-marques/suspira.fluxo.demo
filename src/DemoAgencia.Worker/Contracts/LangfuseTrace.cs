@@ -16,8 +16,6 @@ public class LangfuseTrace
     public string? Model { get; set; }
     public object? Input { get; set; }
     public object? Output { get; set; }
-    public int PromptTokens { get; set; }
-    public int CompletionTokens { get; set; }
     public Dictionary<string, object>? ObservationMetadata { get; set; }
     public DateTime StartTime { get; set; } = DateTime.UtcNow;
     public DateTime EndTime { get; set; } = DateTime.UtcNow;

@@ -1,0 +1,56 @@
+{
+  "titulo": "Experiência é uma Jornada!",
+  "legenda": {
+    "E": "Emoção",
+    "R": "Razão"
+  },
+  "jornada": [
+    {
+      "etapa": "PESQUISA",
+      "fator_decisao": "ER",
+      "sentimentos": [
+        "EMPOLGAÇÃO"
+      ]
+    },
+    {
+      "etapa": "CONHECENDO O DECORADO",
+      "fator_decisao": "E",
+      "sentimentos": [
+        "ENCANTAMENTO"
+      ]
+    },
+    {
+      "etapa": "ASSINATURA DO CONTRATO",
+      "fator_decisao": "ER",
+      "sentimentos": [
+        "ANIMAÇÃO",
+        "CANSAÇO",
+        "FELICIDADE",
+        "APREENSÃO"
+      ]
+    },
+    {
+      "etapa": "VISTORIA DO APARTAMENTO",
+      "fator_decisao": "ER",
+      "sentimentos": [
+        "ALEGRIA",
+        "CONCENTRAÇÃO"
+      ]
+    },
+    {
+      "etapa": "ENTREGA DAS CHAVES",
+      "fator_decisao": "ER",
+      "sentimentos": [
+        "REALIZAÇÃO E PREOCUPAÇÃO"
+      ]
+    },
+    {
+      "etapa": "POS VENDA",
+      "fator_decisao": "ER (Múltiplos Caminhos)",
+      "resultado": [
+        "SATISFAÇÃO",
+        "INSATISFAÇÃO"
+      ]
+    }
+  ]
+}

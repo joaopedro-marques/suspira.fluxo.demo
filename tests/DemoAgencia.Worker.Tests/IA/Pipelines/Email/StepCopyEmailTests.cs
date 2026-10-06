@@ -1,0 +1,116 @@
+using DemoAgencia.Worker.IA.Pipelines;
+using DemoAgencia.Worker.IA.Pipelines.Email;
+using DemoAgencia.Worker.IA.Router;
+using DemoAgencia.Worker.Referencias;
+using FluentAssertions;
+
+namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
+
+public class StepCopyEmailTests
+{
+    [Fact]
+    public void MontarPrompt_WithEstrategia_ShouldIncludeStrategySection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", "Pos Financiamento"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    CorPrincipal = "Roxo",
+                    DescricaoCor = "Transformacao e sonho",
+                    Temas = new List<string> { "Boas vindas", "Financeiro" }
+                },
+                SubJornada = "Pos Financiamento"
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Estrategia de jornada");
+        prompt.Should().Contain("pos-compra");
+        prompt.Should().Contain("Roxo");
+        prompt.Should().Contain("Boas vindas");
+        prompt.Should().Contain("Pos Financiamento");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithSatisfacoes_ShouldIncludeGuidance()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra" },
+                Satisfacoes = new List<CategoriaSatisfacao>
+                {
+                    new() { Nome = "Atendimento", Itens = new List<string> { "Elogio", "Geral" } }
+                },
+                Insatisfacoes = new List<CategoriaSatisfacao>
+                {
+                    new() { Nome = "Entrega", Itens = new List<string> { "Demora", "Atraso" } }
+                }
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("satisfacoes");
+        prompt.Should().Contain("Elogio");
+        prompt.Should().Contain("Demora");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithMapaEmocional_ShouldIncludeSentimentos()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra" },
+                MapaEmocional = new List<EtapaEmocional>
+                {
+                    new() { Etapa = "CONTRATO", Sentimentos = new List<string> { "ANIMACAO", "FELICIDADE" } }
+                }
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Sentimentos");
+        prompt.Should().Contain("ANIMACAO");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithoutEstrategia_ShouldNotIncludeStrategySection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "acme",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), null, null),
+            Estrategia = null
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().NotContain("Estrategia de jornada");
+    }
+}
