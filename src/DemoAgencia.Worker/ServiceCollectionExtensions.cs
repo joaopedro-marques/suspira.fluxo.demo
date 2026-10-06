@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpClient("OpenRouter", client =>
         {
-            client.Timeout = TimeSpan.FromSeconds(120);
+            client.Timeout = TimeSpan.FromSeconds(360);
         })
         .AddHttpMessageHandler<OpenRouterPrivacyHandler>()
         .AddHttpMessageHandler<ReasoningDisablingHandler>()
