@@ -159,6 +159,13 @@ public class StepImagemHero : IPipelineStep
                 ct: ct);
 
             var (compativel, _) = ParseCuradorResult(resposta);
+            if (compativel == null && !string.IsNullOrEmpty(resposta))
+            {
+                _logger.LogWarning(
+                    "Curador retornou resposta sem JSON parseavel para o banner {Banner}. Resposta: {Resposta}",
+                    banner.Nome, resposta[..Math.Min(200, resposta.Length)]);
+            }
+
             return compativel;
         }
         catch (Exception ex)
