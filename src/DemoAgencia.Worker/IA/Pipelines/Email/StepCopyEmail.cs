@@ -10,11 +10,13 @@ public class StepCopyEmail : IPipelineStep
 
     private readonly AgenteDefinicao _agente;
     private readonly IServicoChat _servicoChat;
+    private readonly ILogger<StepCopyEmail> _logger;
 
-    public StepCopyEmail(AgenteDefinicao agente, IServicoChat servicoChat)
+    public StepCopyEmail(AgenteDefinicao agente, IServicoChat servicoChat, ILogger<StepCopyEmail> logger)
     {
         _agente = agente;
         _servicoChat = servicoChat;
+        _logger = logger;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -34,6 +36,13 @@ public class StepCopyEmail : IPipelineStep
         var slots = ParseCopySlots(resposta);
         if (slots == null)
             throw new InvalidOperationException($"StepCopyEmail: resposta invalida do LLM. Resposta: {resposta?[..Math.Min(200, resposta?.Length ?? 0)]}");
+
+        if (!string.IsNullOrEmpty(context.Brief.Link) && slots.CtaLink != context.Brief.Link)
+        {
+            _logger.LogWarning("StepCopyEmail: override CTA link. Redator retornou '{Redator}', briefing especificou '{Brief}'.",
+                slots.CtaLink, context.Brief.Link);
+            slots = slots with { CtaLink = context.Brief.Link };
+        }
 
         context.Copy = slots;
         return context;

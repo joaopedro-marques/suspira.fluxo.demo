@@ -105,6 +105,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<ITemplateCatalogo>(),
             sp.GetRequiredService<IBannerDescricaoCache>(),
             sp.GetRequiredService<IIconDescricaoCache>(),
+            sp.GetRequiredService<ILogger<StepCopyEmail>>(),
             sp.GetRequiredService<ILogger<StepImagemHero>>(),
             sp.GetRequiredService<ILogger<StepDiagramacaoEmail>>(),
             heroSectionTemplate,

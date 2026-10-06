@@ -1,13 +1,87 @@
+using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
 
 public class StepCopyEmailTests
 {
+    private readonly Mock<IServicoChat> _chatMock = new();
+    private readonly AgenteDefinicao _agente = new("redator", "test/model", 0.8, 8000, "persona");
+
+    private StepCopyEmail CriarStep() => new(_agente, _chatMock.Object, Mock.Of<ILogger<StepCopyEmail>>());
+
+    private static string JsonResposta(string ctaLink = "https://link.com") =>
+        $"{{\"assunto\":\"Teste\",\"preheader\":\"pre\",\"titulo\":\"T\",\"saudacao\":\"ola\",\"corpo\":\"<p>corpo</p>\",\"cta_texto\":\"CTA\",\"cta_link\":\"{ctaLink}\",\"rodape\":\"rod\"}}";
+
+    [Fact]
+    public async Task ExecutarAsync_WhenBriefLinkPresent_ShouldOverrideCtaLinkVerbatim()
+    {
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JsonResposta("%%CONFIRM_LINK%%"));
+
+        var step = CriarStep();
+        var ctx = new PipelineContext
+        {
+            ChatId = 1, Cliente = "mrv", MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, "%%LINKASSEMBLEIA%%", new(), new())
+        };
+
+        var result = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        result.Copy!.CtaLink.Should().Be("%%LINKASSEMBLEIA%%");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenBriefLinkPresentWithUrl_ShouldOverrideCtaLink()
+    {
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JsonResposta("https://wrong.com"));
+
+        var step = CriarStep();
+        var ctx = new PipelineContext
+        {
+            ChatId = 1, Cliente = "mrv", MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, "https://correct.com", new(), new())
+        };
+
+        var result = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        result.Copy!.CtaLink.Should().Be("https://correct.com");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenBriefLinkAbsent_ShouldKeepRedatorCtaLink()
+    {
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(JsonResposta("https://redator.com"));
+
+        var step = CriarStep();
+        var ctx = new PipelineContext
+        {
+            ChatId = 1, Cliente = "mrv", MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new(), new())
+        };
+
+        var result = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        result.Copy!.CtaLink.Should().Be("https://redator.com");
+    }
     [Fact]
     public void MontarPrompt_WithEstrategia_ShouldIncludeStrategySection()
     {
