@@ -589,4 +589,19 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         banner.Should().BeNull();
     }
+
+    [Fact]
+    public async Task StartAsync_ShouldIgnoreDescJsonSidecars()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_test.png"), new byte[] { 1 });
+        await File.WriteAllTextAsync(Path.Combine(bannersDir, "MRV_test.png.desc.json"), """{"descricao_geral":"cached"}""");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReferenciasTexto("mrv").Should().BeEmpty();
+        loader.ListarAssets("mrv").Should().HaveCount(1);
+    }
 }

@@ -66,7 +66,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         foreach (var file in Directory.EnumerateFiles(assetsPath, "*", SearchOption.AllDirectories)
             .Where(f => !Path.GetDirectoryName(f)?.Replace(Path.DirectorySeparatorChar, '/')
-                .Contains("/estrategia", StringComparison.OrdinalIgnoreCase) ?? true))
+                .Contains("/estrategia", StringComparison.OrdinalIgnoreCase) ?? true)
+            .Where(f => !f.EndsWith(".desc.json", StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
