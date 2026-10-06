@@ -417,6 +417,48 @@ public class RouterServiceTests
         promptCapturado.Should().NotContain("Estrategia do cliente");
     }
 
+    [Fact]
+    public async Task IniciarAsync_WithResponseEnvelope_ShouldSucceed()
+    {
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"response": {"classificacao": "conversa", "resposta": "Ola!"}}""");
+
+        var resultado = await _service.IniciarAsync(123, "ola");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("conversa");
+        resultado.Resposta.Should().Be("Ola!");
+        _chatMock.Verify(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task IniciarAsync_WithInvalidJson_ShouldIncludeSchemaInRetryPrompt()
+    {
+        var prompts = new List<string>();
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<long, string, string, string, string, double, int, CancellationToken>(
+                (_, _, _, prompt, _, _, _, _) =>
+                {
+                    prompts.Add(prompt);
+                    if (prompts.Count == 1) return Task.FromResult("Texto invalido");
+                    return Task.FromResult("""{"tipo": "conversa", "resposta": "ok"}""");
+                });
+
+        await _service.IniciarAsync(123, "ola");
+
+        prompts.Should().HaveCount(2);
+        prompts[1].Should().Contain("tipo");
+        prompts[1].Should().Contain("fora_contexto");
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;

@@ -90,7 +90,11 @@ public class RouterService
         _logger.LogWarning("Router retornou JSON invalido. Tentando retry. Resposta: {Resposta}",
             resposta?[..Math.Min(200, resposta?.Length ?? 0)]);
 
-        var retryPrompt = prompt + "\n\nATENCION: Responda APENAS com JSON valido, sem fences markdown, sem explicacoes.";
+        var retryPrompt = prompt + """
+
+            ATENCAO: Responda APENAS com JSON valido na raiz (sem envelope "response"), sem fences markdown, sem explicacoes.
+            Campo obrigatorio: "tipo" com um destes valores: "fora_contexto", "conversa", "esclarecimento", "producao".
+            """;
         var retryResposta = await _servicoChat.ChamarAgenteAsync(
             estado.ChatId,
             router.Persona,

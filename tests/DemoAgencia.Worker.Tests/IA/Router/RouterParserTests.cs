@@ -253,4 +253,53 @@ public class RouterParserTests
         resultado.Should().NotBeNull();
         resultado!.Motivo.Should().BeNull();
     }
+
+    [Fact]
+    public void TentarExtrair_WithResponseEnvelope_ShouldUnwrap()
+    {
+        var texto = """{"response": {"tipo": "conversa", "resposta": "Ola!"}}""";
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("conversa");
+        resultado.Resposta.Should().Be("Ola!");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithClassificacaoAlias_ShouldExtract()
+    {
+        var texto = """{"classificacao": "esclarecimento", "perguntas": ["Qual o publico?"]}""";
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("esclarecimento");
+        resultado.Perguntas.Should().ContainSingle("Qual o publico?");
+    }
+
+    [Fact]
+    public void TentarExtrair_WithResponseEnvelopeAndClassificacao_ShouldExtract()
+    {
+        var texto = """
+        {
+            "response": {
+                "classificacao": "esclarecimento",
+                "resposta": "",
+                "perguntas": ["Qual e o objetivo?", "Para qual etapa?"],
+                "brief": null,
+                "motivo": null
+            }
+        }
+        """;
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("esclarecimento");
+        resultado.Resposta.Should().Be("");
+        resultado.Perguntas.Should().HaveCount(2);
+        resultado.Perguntas.Should().Contain("Qual e o objetivo?");
+        resultado.Brief.Should().BeNull();
+    }
 }

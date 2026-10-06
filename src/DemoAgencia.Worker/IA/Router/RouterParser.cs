@@ -29,7 +29,18 @@ public static class RouterParser
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            var tipo = root.TryGetProperty("tipo", out var tipoEl) ? tipoEl.GetString() : null;
+            if (root.ValueKind == JsonValueKind.Object &&
+                !root.TryGetProperty("tipo", out _) &&
+                !root.TryGetProperty("classificacao", out _) &&
+                root.TryGetProperty("response", out var envEl) &&
+                envEl.ValueKind == JsonValueKind.Object)
+            {
+                root = envEl;
+            }
+
+            var tipo = root.TryGetProperty("tipo", out var tipoEl) ? tipoEl.GetString()
+                       : root.TryGetProperty("classificacao", out var classEl) ? classEl.GetString()
+                       : null;
             if (string.IsNullOrEmpty(tipo) || !TiposValidos.Contains(tipo))
                 return null;
 
