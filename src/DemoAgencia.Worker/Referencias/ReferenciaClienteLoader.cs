@@ -89,6 +89,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                     var (tipo, nome) = ParseTipoENome(nomeSemExt);
                     if (tipo == TipoAsset.Outro && PathInSubdir(file, assetsPath, "banners"))
                         tipo = TipoAsset.Banner;
+                    if (tipo == TipoAsset.Outro && PathInSubdir(file, assetsPath, "icons"))
+                        tipo = TipoAsset.Icon;
                     var asset = new AssetVisual
                     {
                         Id = $"asset_{Interlocked.Increment(ref _assetIdCounter)}",

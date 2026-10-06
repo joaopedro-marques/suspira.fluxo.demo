@@ -604,4 +604,22 @@ public class ReferenciaClienteLoaderTests : IDisposable
         loader.ObterReferenciasTexto("mrv").Should().BeEmpty();
         loader.ListarAssets("mrv").Should().HaveCount(1);
     }
+
+    [Fact]
+    public async Task ListarAssets_WithIconsDirectory_ShouldClassifyAsIcon()
+    {
+        var iconsDir = Path.Combine(_tempDir, "imagens", "icons");
+        Directory.CreateDirectory(iconsDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(iconsDir, "MRV_casa.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(iconsDir, "MRV_telefone.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("mrv");
+
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Icon && a.Nome == "casa");
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Icon && a.Nome == "telefone");
+    }
 }
