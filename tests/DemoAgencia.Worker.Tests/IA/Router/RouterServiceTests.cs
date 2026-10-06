@@ -437,6 +437,71 @@ public class RouterServiceTests
     }
 
     [Fact]
+    public async Task ResumirAsync_AfterTwoRounds_ShouldRenderFullTranscriptInPrompt()
+    {
+        var prompts = new List<string>();
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) =>
+                {
+                    prompts.Add(prompt);
+                    return prompts.Count switch
+                    {
+                        1 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Q1", "Q2"]}"""),
+                        2 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Q3"]}"""),
+                        _ => Task.FromResult("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""")
+                    };
+                });
+
+        await _service.IniciarAsync(123, "criar email");
+        await _service.ResumirAsync(123, "resposta-1");
+        await _service.ResumirAsync(123, "resposta-2");
+
+        prompts.Count.Should().BeGreaterThanOrEqualTo(3);
+        var promptTerceiraChamada = prompts[2];
+
+        promptTerceiraChamada.Should().Contain("Esclarecimentos ja respondidos");
+        promptTerceiraChamada.Should().Contain("Rodada 1");
+        promptTerceiraChamada.Should().Contain("P: Q1");
+        promptTerceiraChamada.Should().Contain("P: Q2");
+        promptTerceiraChamada.Should().Contain("R: resposta-1");
+        promptTerceiraChamada.Should().Contain("Rodada 2");
+        promptTerceiraChamada.Should().Contain("P: Q3");
+        promptTerceiraChamada.Should().Contain("R: resposta-2");
+        promptTerceiraChamada.Should().Contain("NAO re-pergunte nada disto");
+        promptTerceiraChamada.Should().Contain("Pergunte APENAS campos criticos ainda faltantes");
+    }
+
+    [Fact]
+    public async Task ResumirAsync_Prompt_ShouldIncludeAntiRepeatInstruction()
+    {
+        var prompts = new List<string>();
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<long, string, string, string, string, double, int, CancellationToken>(
+                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) =>
+                {
+                    prompts.Add(prompt);
+                    return prompts.Count switch
+                    {
+                        1 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Qual o publico?"]}"""),
+                        _ => Task.FromResult("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""")
+                    };
+                });
+
+        await _service.IniciarAsync(123, "msg");
+        await _service.ResumirAsync(123, "jovens");
+
+        prompts.Count.Should().BeGreaterThanOrEqualTo(2);
+        prompts[1].Should().Contain("NAO re-pergunte");
+    }
+
+    [Fact]
     public async Task IniciarAsync_WithInvalidJson_ShouldIncludeSchemaInRetryPrompt()
     {
         var prompts = new List<string>();
