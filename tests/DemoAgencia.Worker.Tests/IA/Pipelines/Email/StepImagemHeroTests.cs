@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
+using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
 using Moq;
@@ -13,6 +14,7 @@ public class StepImagemHeroTests
     private readonly Mock<IGeradorImagem> _geradorMock;
     private readonly Mock<IReferenciasCliente> _refsMock;
     private readonly Mock<IAnalisadorImagem> _analisadorMock;
+    private readonly Mock<ITemplateCatalogo> _catalogoMock;
     private readonly StepImagemHero _step;
 
     public StepImagemHeroTests()
@@ -21,9 +23,10 @@ public class StepImagemHeroTests
         _geradorMock = new Mock<IGeradorImagem>();
         _refsMock = new Mock<IReferenciasCliente>();
         _analisadorMock = new Mock<IAnalisadorImagem>();
+        _catalogoMock = new Mock<ITemplateCatalogo>();
 
         var agente = new DemoAgencia.Worker.Agentes.AgenteDefinicao("hero", "test/model", 0.7, 1000, "persona");
-        _step = new StepImagemHero(agente, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object);
+        _step = new StepImagemHero(agente, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object);
     }
 
     [Fact]
@@ -70,5 +73,79 @@ public class StepImagemHeroTests
         var prompt = await _step.ConstruirPromptBase("A professional banner", null, null, CancellationToken.None);
 
         prompt.Should().Be("A professional banner");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithMatchingBanner_ShouldSkipImageGeneration()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        var bannerAsset = new AssetVisual
+        {
+            Cliente = "mrv",
+            Tipo = TipoAsset.Banner,
+            Nome = "agendar_vistoria",
+            Caminho = tempFile
+        };
+
+        _refsMock.Setup(r => r.SelecionarBanner(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>()))
+            .Returns(bannerAsset);
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "quero agendar vistoria",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            TemplateId = "MRV_html_limite_vistoria",
+            Estrategia = new EstrategiaEmail { Fase = "pre-chaves", SubJornada = "vistoria" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().Be("assets/agendar_vistoria.png");
+        context.HeroSrc.Should().BeNull();
+        context.Resultado.AssetsAnexados.Should().HaveCount(1);
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutMatchingBanner_ShouldGenerateHeroViaIA()
+    {
+        _refsMock.Setup(r => r.SelecionarBanner(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>()))
+            .Returns((AssetVisual?)null);
+
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A hero image prompt");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email sobre pintura",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(),
+                new List<ImagemBrief> { new("hero", "A hero image") }),
+            Estrategia = new EstrategiaEmail { Fase = "pos-chaves" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().BeNull();
+        context.HeroSrc.Should().NotBeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

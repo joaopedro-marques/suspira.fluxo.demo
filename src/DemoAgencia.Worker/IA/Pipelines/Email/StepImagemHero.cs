@@ -13,24 +13,48 @@ public class StepImagemHero : IPipelineStep
     private readonly IGeradorImagem _geradorImagem;
     private readonly IReferenciasCliente _referencias;
     private readonly IAnalisadorImagem _analisadorImagem;
+    private readonly ITemplateCatalogo _templateCatalogo;
 
     public StepImagemHero(
         AgenteDefinicao agentePrompt,
         IServicoChat servicoChat,
         IGeradorImagem geradorImagem,
         IReferenciasCliente referencias,
-        IAnalisadorImagem analisadorImagem)
+        IAnalisadorImagem analisadorImagem,
+        ITemplateCatalogo templateCatalogo)
     {
         _agentePrompt = agentePrompt;
         _servicoChat = servicoChat;
         _geradorImagem = geradorImagem;
         _referencias = referencias;
         _analisadorImagem = analisadorImagem;
+        _templateCatalogo = templateCatalogo;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
         var cliente = context.Cliente;
+        var fase = context.Estrategia?.Fase;
+        var subJornada = context.Estrategia?.SubJornada ?? context.Brief.SubJornada;
+
+        var templateSubJornadas = !string.IsNullOrEmpty(context.TemplateId)
+            ? _templateCatalogo.ObterSubJornadas(context.TemplateId)
+            : null;
+
+        var banner = _referencias.SelecionarBanner(
+            cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal);
+
+        if (banner != null && File.Exists(banner.Caminho))
+        {
+            var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
+            var legenda = $"{banner.Nome}{Path.GetExtension(banner.Caminho)}";
+            context.BannerSrc = $"assets/{legenda}";
+            if (!context.Resultado.AssetsAnexados.Any(a => a.Legenda == legenda))
+                context.Resultado.AssetsAnexados.Add(new ImagemGerada(bytes, legenda));
+            context.HeroSrc = null;
+            return context;
+        }
+
         var heroBrief = context.Brief.Imagens.FirstOrDefault(i =>
             i.Papel.Equals("hero", StringComparison.OrdinalIgnoreCase) ||
             i.Papel.Equals("banner", StringComparison.OrdinalIgnoreCase));
