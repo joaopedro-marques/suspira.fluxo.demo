@@ -35,6 +35,7 @@ public static class RouterParser
 
             var resposta = root.TryGetProperty("resposta", out var resEl) ? resEl.GetString() : null;
             var cliente = root.TryGetProperty("cliente", out var cliEl) ? cliEl.GetString()?.ToLowerInvariant() : null;
+            var motivo = root.TryGetProperty("motivo", out var motEl) ? motEl.GetString() : null;
 
             var perguntas = new List<string>();
             if (root.TryGetProperty("perguntas", out var pergEl) && pergEl.ValueKind == JsonValueKind.Array)
@@ -58,7 +59,7 @@ public static class RouterParser
             if (string.Equals(tipo, "producao", StringComparison.OrdinalIgnoreCase) && brief == null)
                 return null;
 
-            return new RouterResultado(tipo, resposta, perguntas, cliente, brief);
+            return new RouterResultado(tipo, resposta, perguntas, cliente, brief, motivo);
         }
         catch
         {
