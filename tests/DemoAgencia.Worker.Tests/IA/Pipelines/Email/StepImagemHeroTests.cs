@@ -1,3 +1,4 @@
+using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
@@ -31,8 +32,9 @@ public class StepImagemHeroTests
         _iconCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IconDescricao("Icone teste", new List<string> { "teste" }, "Flat"));
 
-        var agente = new DemoAgencia.Worker.Agentes.AgenteDefinicao("hero", "test/model", 0.7, 1000, "persona");
-        _step = new StepImagemHero(agente, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object, _bannerCacheMock.Object, _iconCacheMock.Object);
+        var agente = new AgenteDefinicao("hero", "test/model", 0.7, 1000, "persona");
+        var curador = new AgenteDefinicao("curador", "test/model", 0.2, 1000, "curador persona");
+        _step = new StepImagemHero(agente, curador, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object, _bannerCacheMock.Object, _iconCacheMock.Object);
     }
 
     [Fact]
@@ -82,7 +84,7 @@ public class StepImagemHeroTests
     }
 
     [Fact]
-    public async Task ExecutarAsync_WithMatchingBanner_ShouldSkipImageGeneration()
+    public async Task ExecutarAsync_WithCompatibleBanner_ShouldAttachBanner()
     {
         var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
         await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
@@ -95,10 +97,19 @@ public class StepImagemHeroTests
             Caminho = tempFile
         };
 
-        _refsMock.Setup(r => r.SelecionarBanner(
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>()))
-            .Returns(bannerAsset);
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual> { bannerAsset });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de agendamento de vistoria", "", new List<string>(), "", "", "Agende sua vistoria"));
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"compativel\": true, \"motivo\": \"Tema compativel\"}");
 
         var context = new PipelineContext
         {
@@ -119,12 +130,163 @@ public class StepImagemHeroTests
     }
 
     [Fact]
+    public async Task ExecutarAsync_WithFirstIncompatible_SecondCompatible_ShouldUseSecond()
+    {
+        var tempFile1 = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        var tempFile2 = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile1, new byte[] { 0x89, 0x50 });
+        await File.WriteAllBytesAsync(tempFile2, new byte[] { 0x89, 0x50 });
+
+        var banner1 = new AssetVisual { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "agendar_vistoria", Caminho = tempFile1 };
+        var banner2 = new AssetVisual { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "entrega_chaves", Caminho = tempFile2 };
+
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual> { banner1, banner2 });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.Is<AssetVisual>(a => a.Nome == "agendar_vistoria"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de agendamento de vistoria", "", new List<string>(), "", "", "Agende vistoria"));
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.Is<AssetVisual>(a => a.Nome == "entrega_chaves"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de entrega de chaves", "", new List<string>(), "", "", "Parabens pela entrega"));
+
+        var callCount = 0;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() =>
+            {
+                callCount++;
+                return callCount == 1
+                    ? "{\"compativel\": false, \"motivo\": \"Banner de vistoria nao condiz com assembleia\"}"
+                    : "{\"compativel\": true, \"motivo\": \"Banner de entrega de chaves compativel\"}";
+            });
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia de condominio",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail { Fase = "pos-compra", SubJornada = "assembleia" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().Be("assets/entrega_chaves.png");
+        context.HeroSrc.Should().BeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_AllBannersIncompatible_WithHeroBrief_ShouldGenerateImage()
+    {
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual>
+            {
+                new() { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "agendar_vistoria", Caminho = Path.GetTempFileName() }
+            });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de vistoria", "", new List<string>(), "", "", "Vistoria"));
+
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"compativel\": false, \"motivo\": \"Tema incompativel\"}");
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_hero_prompt", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A hero image prompt");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia de condominio",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(),
+                new List<ImagemBrief> { new("hero", "Banner de assembleia") }),
+            Estrategia = new EstrategiaEmail { Fase = "pos-compra" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().BeNull();
+        context.HeroSrc.Should().NotBeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_AllBannersIncompatible_WithoutHeroBrief_ShouldGenerateWithDefaultPrompt()
+    {
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual>
+            {
+                new() { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "agendar_vistoria", Caminho = Path.GetTempFileName() }
+            });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de vistoria", "", new List<string>(), "", "", "Vistoria"));
+
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"compativel\": false, \"motivo\": \"Tema incompativel\"}");
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_hero_prompt", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A default hero image prompt");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia de condominio",
+            Brief = new Brief("email", "convocar moradores", null, "assembleia geral", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra", Temas = new List<string> { "assembleia", "condominio" } }
+            }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().BeNull();
+        context.HeroSrc.Should().NotBeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task ExecutarAsync_WithoutMatchingBanner_ShouldGenerateHeroViaIA()
     {
-        _refsMock.Setup(r => r.SelecionarBanner(
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>()))
-            .Returns((AssetVisual?)null);
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual>());
 
         _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
 
@@ -153,6 +315,93 @@ public class StepImagemHeroTests
         context.BannerSrc.Should().BeNull();
         context.HeroSrc.Should().NotBeNull();
         _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_CuradorReturnsInvalidJson_ShouldFailOpenAndKeepBanner()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        var bannerAsset = new AssetVisual
+        {
+            Cliente = "mrv",
+            Tipo = TipoAsset.Banner,
+            Nome = "agendar_vistoria",
+            Caminho = tempFile
+        };
+
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual> { bannerAsset });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner generico", "", new List<string>(), "", "", ""));
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("this is not valid json");
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email generico",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail { Fase = "pos-compra" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().Be("assets/agendar_vistoria.png");
+        context.HeroSrc.Should().BeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_CuradorThrows_ShouldFailOpenAndKeepBanner()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        var bannerAsset = new AssetVisual
+        {
+            Cliente = "mrv",
+            Tipo = TipoAsset.Banner,
+            Nome = "agendar_vistoria",
+            Caminho = tempFile
+        };
+
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            .Returns(new List<AssetVisual> { bannerAsset });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner generico", "", new List<string>(), "", "", ""));
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("LLM unavailable"));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email generico",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail { Fase = "pos-compra" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().Be("assets/agendar_vistoria.png");
+        context.HeroSrc.Should().BeNull();
     }
 
     [Fact]
@@ -207,22 +456,6 @@ public class StepImagemHeroTests
     [Fact]
     public async Task ExecutarAsync_WhenRefacaoHero_ShouldSkipBannerAndGenerateImage()
     {
-        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
-        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50 });
-
-        var bannerAsset = new AssetVisual
-        {
-            Cliente = "mrv",
-            Tipo = TipoAsset.Banner,
-            Nome = "agendar_visita_tecnica",
-            Caminho = tempFile
-        };
-
-        _refsMock.Setup(r => r.SelecionarBanner(
-            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>()))
-            .Returns(bannerAsset);
-
         _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
 
         _chatMock.Setup(c => c.ChamarAgenteAsync(
@@ -254,5 +487,89 @@ public class StepImagemHeroTests
         context.BannerSrc.Should().BeNull();
         context.HeroSrc.Should().NotBeNull();
         _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        _refsMock.Verify(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public void ParseCuradorResult_WithValidCompatible_ShouldReturnTrue()
+    {
+        var json = "{\"compativel\": true, \"motivo\": \"Tema ok\"}";
+
+        var (compativel, motivo) = StepImagemHero.ParseCuradorResult(json);
+
+        compativel.Should().BeTrue();
+        motivo.Should().Be("Tema ok");
+    }
+
+    [Fact]
+    public void ParseCuradorResult_WithValidIncompatible_ShouldReturnFalse()
+    {
+        var json = "{\"compativel\": false, \"motivo\": \"Tema diferente\"}";
+
+        var (compativel, _) = StepImagemHero.ParseCuradorResult(json);
+
+        compativel.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ParseCuradorResult_WithInvalidJson_ShouldReturnNull()
+    {
+        var (compativel, _) = StepImagemHero.ParseCuradorResult("not json at all");
+
+        compativel.Should().BeNull();
+    }
+
+    [Fact]
+    public void ConstruirDescricaoDefault_ShouldIncludeOfertaAndFase()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia",
+            Brief = new Brief("email", "convocar", null, "assembleia geral", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra", Temas = new List<string> { "assembleia" } }
+            }
+        };
+
+        var descricao = StepImagemHero.ConstruirDescricaoDefault(context);
+
+        descricao.Should().Contain("assembleia geral");
+        descricao.Should().Contain("pos-compra");
+        descricao.Should().Contain("assembleia");
+    }
+
+    [Fact]
+    public void MontarPromptCurador_ShouldIncludeAllContext()
+    {
+        var descricao = new BannerDescricao("Banner de vistoria", "Centralizado", new List<string>(), "Flat", "Tecnico", "Agende vistoria");
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia de condominio",
+            Brief = new Brief("email", "convocar moradores", null, "assembleia geral", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                SubJornada = "assembleia",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra", Temas = new List<string> { "assembleia", "condominio" } }
+            }
+        };
+
+        var prompt = StepImagemHero.MontarPromptCurador(descricao, context);
+
+        prompt.Should().Contain("Banner de vistoria");
+        prompt.Should().Contain("convocar moradores");
+        prompt.Should().Contain("assembleia geral");
+        prompt.Should().Contain("pos-compra");
+        prompt.Should().Contain("assembleia");
+        prompt.Should().Contain("condominio");
+        prompt.Should().Contain("assembleia de condominio");
     }
 }

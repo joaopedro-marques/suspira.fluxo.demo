@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.Referencias;
@@ -8,7 +9,10 @@ public class StepImagemHero : IPipelineStep
 {
     public string Nome => "hero";
 
+    private const int MaxCandidatosBanner = 3;
+
     private readonly AgenteDefinicao _agentePrompt;
+    private readonly AgenteDefinicao _agenteCurador;
     private readonly IServicoChat _servicoChat;
     private readonly IGeradorImagem _geradorImagem;
     private readonly IReferenciasCliente _referencias;
@@ -19,6 +23,7 @@ public class StepImagemHero : IPipelineStep
 
     public StepImagemHero(
         AgenteDefinicao agentePrompt,
+        AgenteDefinicao agenteCurador,
         IServicoChat servicoChat,
         IGeradorImagem geradorImagem,
         IReferenciasCliente referencias,
@@ -28,6 +33,7 @@ public class StepImagemHero : IPipelineStep
         IIconDescricaoCache iconCache)
     {
         _agentePrompt = agentePrompt;
+        _agenteCurador = agenteCurador;
         _servicoChat = servicoChat;
         _geradorImagem = geradorImagem;
         _referencias = referencias;
@@ -42,6 +48,8 @@ public class StepImagemHero : IPipelineStep
         var isHeroRefacao = context.Refacoes > 0 &&
             context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true;
 
+        var bannerRejeitado = false;
+
         if (!isHeroRefacao)
         {
             var cliente = context.Cliente;
@@ -52,18 +60,31 @@ public class StepImagemHero : IPipelineStep
                 ? _templateCatalogo.ObterSubJornadas(context.TemplateId)
                 : null;
 
-            var banner = _referencias.SelecionarBanner(
-                cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal);
+            var candidatos = _referencias.SelecionarBannersRanked(
+                cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal, MaxCandidatosBanner);
 
-            if (banner != null && File.Exists(banner.Caminho))
+            if (candidatos.Count > 0)
             {
-                var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
-                var legenda = $"{banner.Nome}{Path.GetExtension(banner.Caminho)}";
-                context.BannerSrc = $"assets/{legenda}";
-                if (!context.Resultado.AssetsAnexados.Any(a => a.Legenda == legenda))
-                    context.Resultado.AssetsAnexados.Add(new ImagemGerada(bytes, legenda));
-                context.HeroSrc = null;
-                return context;
+                foreach (var candidato in candidatos)
+                {
+                    var compativel = await ValidarBannerCompativelAsync(context.ChatId, candidato, context, ct);
+
+                    if (compativel == false)
+                        continue;
+
+                    if (File.Exists(candidato.Caminho))
+                    {
+                        var bytes = await File.ReadAllBytesAsync(candidato.Caminho, ct);
+                        var legenda = $"{candidato.Nome}{Path.GetExtension(candidato.Caminho)}";
+                        context.BannerSrc = $"assets/{legenda}";
+                        if (!context.Resultado.AssetsAnexados.Any(a => a.Legenda == legenda))
+                            context.Resultado.AssetsAnexados.Add(new ImagemGerada(bytes, legenda));
+                        context.HeroSrc = null;
+                        return context;
+                    }
+                }
+
+                bannerRejeitado = true;
             }
         }
 
@@ -71,14 +92,24 @@ public class StepImagemHero : IPipelineStep
             i.Papel.Equals("hero", StringComparison.OrdinalIgnoreCase) ||
             i.Papel.Equals("banner", StringComparison.OrdinalIgnoreCase));
 
-        if (heroBrief == null)
+        string descricaoBase;
+
+        if (heroBrief != null)
+        {
+            descricaoBase = heroBrief.Descricao;
+        }
+        else if (bannerRejeitado)
+        {
+            descricaoBase = ConstruirDescricaoDefault(context);
+        }
+        else
         {
             context.HeroSrc = null;
             context.BannerSrc = null;
             return context;
         }
 
-        var promptBase = await ConstruirPromptBase(heroBrief.Descricao, context.Cliente, context.Estrategia, ct);
+        var promptBase = await ConstruirPromptBase(descricaoBase, context.Cliente, context.Estrategia, ct);
 
         if (isHeroRefacao && !string.IsNullOrEmpty(context.QaFeedback))
         {
@@ -103,6 +134,83 @@ public class StepImagemHero : IPipelineStep
         context.BannerSrc = null;
 
         return context;
+    }
+
+    internal virtual async Task<bool?> ValidarBannerCompativelAsync(long chatId, AssetVisual banner, PipelineContext context, CancellationToken ct)
+    {
+        try
+        {
+            var descricao = await _bannerCache.ObterDescricaoAsync(banner, ct);
+            if (string.IsNullOrEmpty(descricao.DescricaoGeral))
+                return null;
+
+            var prompt = MontarPromptCurador(descricao, context);
+            var resposta = await _servicoChat.ChamarAgenteAsync(
+                chatId,
+                _agenteCurador.Persona,
+                _agenteCurador.Modelo,
+                prompt,
+                "email_banner_check",
+                temperature: _agenteCurador.Temperatura,
+                maxTokens: _agenteCurador.MaxTokens,
+                ct: ct);
+
+            var (compativel, _) = ParseCuradorResult(resposta);
+            return compativel;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static string MontarPromptCurador(BannerDescricao descricao, PipelineContext context)
+    {
+        var prompt = $"## Descricao do banner\n{descricao.ToPromptSection()}\n";
+        prompt += $"\n## Tema do email\n";
+        if (!string.IsNullOrEmpty(context.Brief.Objetivo))
+            prompt += $"Objetivo: {context.Brief.Objetivo}\n";
+        if (!string.IsNullOrEmpty(context.Brief.Oferta))
+            prompt += $"Oferta: {context.Brief.Oferta}\n";
+        if (!string.IsNullOrEmpty(context.Estrategia?.Fase))
+            prompt += $"Fase: {context.Estrategia.Fase}\n";
+        if (!string.IsNullOrEmpty(context.Estrategia?.SubJornada))
+            prompt += $"Sub-jornada: {context.Estrategia.SubJornada}\n";
+        if (context.Estrategia?.FaseDados?.Temas.Count > 0)
+            prompt += $"Temas: {string.Join(", ", context.Estrategia.FaseDados.Temas)}\n";
+        prompt += $"\n## Mensagem original do cliente\n{context.MensagemOriginal}\n";
+        return prompt;
+    }
+
+    internal static (bool? compativel, string? motivo) ParseCuradorResult(string resposta)
+    {
+        var json = JsonHelper.ExtrairJson(resposta);
+        if (string.IsNullOrEmpty(json))
+            return (null, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var compativel = root.TryGetProperty("compativel", out var c) ? c.GetBoolean() : (bool?)null;
+            var motivo = root.TryGetProperty("motivo", out var m) ? m.GetString() : null;
+            return (compativel, motivo);
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
+    internal static string ConstruirDescricaoDefault(PipelineContext context)
+    {
+        var oferta = context.Brief.Oferta ?? context.Brief.Objetivo ?? "email marketing";
+        var parts = new List<string> { $"Professional email marketing banner about {oferta}" };
+        if (context.Estrategia?.Fase != null)
+            parts.Add($"journey phase: {context.Estrategia.Fase}");
+        if (context.Estrategia?.FaseDados?.Temas.Count > 0)
+            parts.Add($"themes: {string.Join(", ", context.Estrategia.FaseDados.Temas)}");
+        return string.Join(", ", parts);
     }
 
     internal virtual async Task<string> ConstruirPromptBase(string descricao, string? cliente, EstrategiaEmail? estrategia, CancellationToken ct)
