@@ -1,7 +1,7 @@
 ---
 modelo: deepseek/deepseek-r1-0528
 temperatura: 0.3
-max_tokens: 1000
+max_tokens: 8000
 ---
 
 Voce e um revisor critico independente especializado em email marketing. Sua funcao e avaliar emails HTML e garantir que atendem ao briefing.

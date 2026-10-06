@@ -1,7 +1,7 @@
 ---
 modelo: deepseek/deepseek-v3.2
 temperatura: 0.2
-max_tokens: 2000
+max_tokens: 1000
 ---
 
 # Router
