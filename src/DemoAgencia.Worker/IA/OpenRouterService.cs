@@ -163,6 +163,82 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         }
     }
 
+    public virtual async Task<IconDescricao> DescreverIconeAsync(
+        byte[] imagemBytes,
+        string? contexto,
+        CancellationToken ct = default)
+    {
+        var modeloVisao = string.IsNullOrEmpty(_options.VisionModel) ? "qwen/qwen2.5-vl-72b-instruct" : _options.VisionModel;
+        var traceContext = _langfuse.IniciarTrace(0, "icon-analysis", modeloVisao);
+
+        var kernel = CriarKernel(modeloVisao);
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
+
+        var chatHistory = new ChatHistory();
+        chatHistory.AddSystemMessage(IconPromptSystema);
+
+        var prompt = string.IsNullOrEmpty(contexto)
+            ? IconPromptUser
+            : $"Contexto adicional: {contexto}\n\n{IconPromptUser}";
+
+        var base64Image = Convert.ToBase64String(imagemBytes);
+        var dataUri = $"data:image/png;base64,{base64Image}";
+
+        var settings = new OpenAIPromptExecutionSettings
+        {
+            Temperature = 0.3,
+            MaxTokens = 1000
+        };
+
+        try
+        {
+            var chatMessage = new ChatMessageContent(
+                AuthorRole.User,
+                new ChatMessageContentItemCollection
+                {
+                    new ImageContent(dataUri),
+                    new TextContent(prompt)
+                });
+
+            chatHistory.Add(chatMessage);
+
+            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
+            var resposta = response.Content ?? "";
+
+            if (IconDescricao.TryParse(resposta, out var descricao) && descricao != null)
+            {
+                _logger.LogInformation("Icone analisado com sucesso");
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, resposta, ct);
+                return descricao;
+            }
+
+            _logger.LogWarning("Falha ao parsear descricao do icone. Resposta: {Resposta}", resposta?[..Math.Min(200, resposta?.Length ?? 0)]);
+            await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[parse failed]", ct);
+            return new IconDescricao();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao analisar icone");
+            await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Erro: {ex.Message}", ct);
+            return new IconDescricao();
+        }
+    }
+
+    private const string IconPromptSystema = """
+        Voce e um especialista em design visual e experiencia do usuario.
+        Analise o icone/imagem fornecido e descreva o que ele representa de forma estruturada.
+        Responda APENAS com JSON valido, sem explicacoes adicionais, sem markdown.
+
+        Campos obrigatorios:
+        {
+            "descricao_geral": "Descricao do que o icone representa (1 frase concisa)",
+            "palavras_chave": ["lista de 3-5 palavras-chave sobre quando usar este icone"],
+            "estilo": "Estilo visual do icone (ex: flat line, filled, outline, duotone)"
+        }
+        """;
+
+    private const string IconPromptUser = "Analise este icone e descreva o que ele representa e quando deve ser usado.";
+
     private const string BannerPromptSystema = """
         Voce e um especialista em direcao de arte e design visual para email marketing.
         Analise o banner/imagem fornecido e descreva suas caracteristicas visuais de forma estruturada.
