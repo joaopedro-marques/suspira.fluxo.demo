@@ -364,6 +364,36 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task ObterEstrategia_WithTomVerbalVisual_ShouldReturnIdentidade()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var identidade = """
+        {
+          "Identidade verbal": "Não é sobre pessoas que mudam de endereço, é sobre pessoas que mudam de vida.",
+          "Identidade visual": "Sua casa é um mundo. Transformação começa em casa.",
+          "Tom de voz": "Mobiliza. Realiza. Valoriza.",
+          "Linguagem": "Vá além dos metros quadrados."
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_tom_verbal_visual.json"), identidade);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Identidade.Should().NotBeNull();
+        estrategia.Identidade!.IdentidadeVerbal.Should().Contain("mudam de vida");
+        estrategia.Identidade.IdentidadeVisual.Should().Contain("Transformação");
+        estrategia.Identidade.TomDeVoz.Should().Contain("Mobiliza");
+        estrategia.Identidade.Linguagem.Should().Contain("metros quadrados");
+    }
+
+    [Fact]
     public async Task ObterEstrategia_WithNoEstrategia_ShouldReturnNull()
     {
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");

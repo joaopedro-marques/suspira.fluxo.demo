@@ -259,6 +259,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             return "satisfacoes";
         if (lower.Contains("jornada_cliente") || lower.Contains("jornada"))
             return "jornada";
+        if (lower.Contains("tom_verbal") || lower.Contains("tom") || lower.Contains("verbal") || lower.Contains("visual") || lower.Contains("identidade"))
+            return "identidade";
         return "";
     }
 
@@ -281,7 +283,10 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         if (tipos.TryGetValue("satisfacoes", out var satJson))
             ProcessarSatisfacoes(estrategia, satJson);
 
-        return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0
+        if (tipos.TryGetValue("identidade", out var identidadeJson))
+            ProcessarIdentidade(estrategia, identidadeJson);
+
+        return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Identidade != null
             ? estrategia
             : null;
     }
@@ -446,6 +451,20 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         if (root.TryGetProperty("satisfacoes", out var satObj) && satObj.ValueKind == JsonValueKind.Object)
             estrategia.Satisfacoes = ExtrairCategorias(satObj);
+    }
+
+    private static void ProcessarIdentidade(EstrategiaCliente estrategia, string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        estrategia.Identidade = new IdentidadeVerbalVisual
+        {
+            IdentidadeVerbal = root.TryGetProperty("Identidade verbal", out var iv) ? iv.GetString() ?? "" : "",
+            IdentidadeVisual = root.TryGetProperty("Identidade visual", out var ivi) ? ivi.GetString() ?? "" : "",
+            TomDeVoz = root.TryGetProperty("Tom de voz", out var tv) ? tv.GetString() ?? "" : "",
+            Linguagem = root.TryGetProperty("Linguagem", out var l) ? l.GetString() ?? "" : ""
+        };
     }
 
     private static List<CategoriaSatisfacao> ExtrairCategorias(JsonElement obj)
