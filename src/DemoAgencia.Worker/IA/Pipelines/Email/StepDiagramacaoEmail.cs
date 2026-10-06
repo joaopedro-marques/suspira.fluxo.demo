@@ -1,0 +1,145 @@
+using System.Text.RegularExpressions;
+using DemoAgencia.Worker.Agentes;
+using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.Referencias;
+
+namespace DemoAgencia.Worker.IA.Pipelines.Email;
+
+public partial class StepDiagramacaoEmail : IPipelineStep
+{
+    public string Nome => "diagramacao";
+
+    private readonly AgenteDefinicao _agente;
+    private readonly IServicoChat _servicoChat;
+    private readonly IReferenciasCliente _referencias;
+
+    public StepDiagramacaoEmail(AgenteDefinicao agente, IServicoChat servicoChat, IReferenciasCliente referencias)
+    {
+        _agente = agente;
+        _servicoChat = servicoChat;
+        _referencias = referencias;
+    }
+
+    public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
+    {
+        if (context.Copy == null)
+            return context;
+
+        var prompt = MontarPrompt(context, _referencias);
+
+        var resposta = await _servicoChat.ChamarAgenteAsync(
+            context.ChatId,
+            _agente.Persona,
+            _agente.Modelo,
+            prompt,
+            "email_diagramacao",
+            temperature: _agente.Temperatura,
+            maxTokens: _agente.MaxTokens,
+            ct: ct);
+
+        if (string.IsNullOrEmpty(resposta))
+            return context;
+
+        var html = LimparResposta(resposta);
+
+        if (IsValidHtml(html))
+        {
+            context.Copy = new CopyEmailSlots(
+                context.Copy.Assunto,
+                context.Copy.Preheader,
+                context.Copy.Titulo,
+                context.Copy.Saudacao,
+                html,
+                context.Copy.CtaTexto,
+                context.Copy.CtaLink,
+                context.Copy.Rodape);
+        }
+
+        return context;
+    }
+
+    internal static string MontarPrompt(PipelineContext context, IReferenciasCliente referencias)
+    {
+        var copy = context.Copy!;
+        var prompt = $"## Copy do email\n";
+        prompt += $"Assunto: {copy.Assunto}\n";
+        prompt += $"Titulo: {copy.Titulo}\n";
+        prompt += $"Saudacao: {copy.Saudacao}\n";
+        prompt += $"Corpo original:\n{copy.Corpo}\n";
+        prompt += $"CTA: {copy.CtaTexto}\n";
+
+        if (context.Estrategia?.FaseDados != null)
+        {
+            prompt += $"\n## Estrategia\n";
+            prompt += $"Fase: {context.Estrategia.Fase}\n";
+            if (!string.IsNullOrEmpty(context.Estrategia.SubJornada))
+                prompt += $"Sub-jornada: {context.Estrategia.SubJornada}\n";
+            if (!string.IsNullOrEmpty(context.Estrategia.FaseDados.CorPrincipal))
+                prompt += $"Cor principal: {context.Estrategia.FaseDados.CorPrincipal}\n";
+            if (context.Estrategia.FaseDados.Temas.Count > 0)
+                prompt += $"Temas: {string.Join(", ", context.Estrategia.FaseDados.Temas)}\n";
+        }
+
+        if (!string.IsNullOrEmpty(context.Cliente))
+        {
+            var icons = referencias.ListarAssets(context.Cliente)
+                ?.Where(a => a.Tipo == TipoAsset.Icon)
+                ?.ToList() ?? new List<AssetVisual>();
+
+            if (icons.Count > 0)
+            {
+                prompt += $"\n## Icones disponiveis\n";
+                prompt += $"Referencie como assets/{{nome}}. Disponiveis: {string.Join(", ", icons.Select(i => i.Nome))}\n";
+            }
+        }
+
+        prompt += $"\n## Instrucao\n";
+        prompt += $"Crie secoes HTML diagramadas para o corpo do email. Use os padroes visuais do seu catalogo. Responda APENAS com o HTML das secoes, sem markdown.\n";
+
+        return prompt;
+    }
+
+    internal static bool IsValidHtml(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return false;
+
+        if (DivRegex().IsMatch(html))
+            return false;
+        if (StyleBlockRegex().IsMatch(html))
+            return false;
+        if (ScriptRegex().IsMatch(html))
+            return false;
+        if (!TableRegex().IsMatch(html))
+            return false;
+
+        return true;
+    }
+
+    private static string LimparResposta(string resposta)
+    {
+        var html = resposta.Trim();
+
+        if (html.StartsWith("```html", StringComparison.OrdinalIgnoreCase))
+            html = html.Substring(7);
+        else if (html.StartsWith("```", StringComparison.OrdinalIgnoreCase))
+            html = html.Substring(3);
+
+        if (html.EndsWith("```"))
+            html = html[..^3];
+
+        return html.Trim();
+    }
+
+    [GeneratedRegex(@"<\s*div[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex DivRegex();
+
+    [GeneratedRegex(@"<\s*style[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex StyleBlockRegex();
+
+    [GeneratedRegex(@"<\s*script[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex ScriptRegex();
+
+    [GeneratedRegex(@"<\s*table[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex TableRegex();
+}
