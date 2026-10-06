@@ -200,7 +200,8 @@ sequenceDiagram
 | `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
-| `StepImagemHero` | Retrieval + LLM + API | `qwen/qwen3.7-plus` | Seleciona banner de referência por afinidade com a etapa (skips IA); sem banner afim, gera prompt otimizado + chama API de imagem |
+| `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido |
+| `StepImagemHero` | Retrieval + LLM + API | `qwen/qwen3.7-plus` | Seleciona banner de referência por afinidade com a etapa (skips IA); sem banner afim, analisa banners com visão (BannerDescricaoCache) e gera prompt otimizado + chama API de imagem |
 | `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
 | `StepAssetsEmail` | Retrieval determinístico | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
@@ -214,7 +215,8 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 | `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
 | `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
 | `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
-| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) | Copy, outros steps |
+| `StepDiagramacaoEmail` | Copy + Estrategia (cores/temas) + ícones disponíveis | Outros steps, histórico |
+| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) + BannerDescricaoCache | Outros steps |
 | `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca | Brief, outros steps |
 | `StepAssetsEmail` | HTML final + banco de referências | Brief, outros steps |
 | `StepQaEmail` | Brief original + HTML final + Estrategia + Banner src | Few-shots, outros steps |
@@ -403,13 +405,15 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | `router` | Classificação + estruturação do brief | `deepseek/deepseek-v3.2` |
 | `router_retry` | Retry do router (JSON inválido) | `deepseek/deepseek-v3.2` |
 | `email_copy` | Geração de copy (assunto, corpo, CTA) | `qwen/qwen3.7-plus` |
+| `email_diagramacao` | Geração de seções HTML diagramadas para o corpo | `qwen/qwen3.7-plus` |
 | `email_hero_prompt` | Geração de prompt para imagem hero | `qwen/qwen3.7-plus` |
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
 | `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
+| `banner-analysis` | Análise estruturada de banner (BannerDescricao) | `qwen/qwen2.5-vl-72b-instruct` |
 | `image-generation` | Geração de imagem via API | `qwen/qwen-image-3-pro` |
 
-Steps determinísticos (estrategia, marca, template) não geram traces LLM, apenas logs Serilog.
+Steps determinísticos (estrategia, marca, template, assets) não geram traces LLM, apenas logs Serilog.
 
 ### Grafana Loki
 
@@ -463,16 +467,21 @@ src/DemoAgencia.Worker/
     │   │       ├── StepEstrategiaEmail.cs  # Retrieval de estratégia
     │   │       ├── StepMarcaEmail.cs       # Retrieval de marca
     │   │       ├── StepCopyEmail.cs        # LLM copy
+    │   │       ├── StepDiagramacaoEmail.cs # LLM diagramação HTML + guarda
     │   │       ├── StepImagemHero.cs       # LLM prompt + API imagem
     │   │       ├── StepTemplateEmail.cs    # Template HTML slots
+    │   │       ├── StepAssetsEmail.cs      # Resolução de assets referenced
     │   │       └── StepQaEmail.cs          # QA com branch explícito
-│   │
-│   ├── OpenRouterService.cs            # LLM + API imagem via OpenRouter
-│   ├── IServicoChat.cs                 # Interface para LLM
-│   ├── IGeradorImagem.cs               # Interface para geração de imagem
-│   ├── IAnalisadorImagem.cs            # Interface para análise de imagem
-│   ├── JsonHelper.cs                   # Utilitário para extração de JSON
-│   └── ResultadoPipeline.cs            # Resultado final (HTML + imagens + assets)
+    │   │
+    │   ├── BannerDescricao.cs              # Record estruturado para análise visual
+    │   ├── BannerDescricaoCache.cs         # Cache com sidecar JSON
+    │   ├── OpenRouterService.cs            # LLM + API imagem + visão via OpenRouter
+    │   ├── IServicoChat.cs                 # Interface para LLM
+    │   ├── IGeradorImagem.cs               # Interface para geração de imagem
+    │   ├── IAnalisadorImagem.cs            # Interface para análise de imagem
+    │   ├── IBannerDescricaoCache.cs        # Interface para cache de descrições
+    │   ├── JsonHelper.cs                   # Utilitário para extração de JSON
+    │   └── ResultadoPipeline.cs            # Resultado final (HTML + imagens + assets)
 │
 ├── Referencias/
 │   ├── IReferenciasCliente.cs          # Interface para referências

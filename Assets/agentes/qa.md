@@ -28,6 +28,7 @@ Se reprovado:
 - feedback: justificativa detalhada (se aprovado) ou instrucoes acionaveis (se reprovado)
 - step_alvo: (apenas se reprovado) qual step refazer:
   - "copy": se o problema e na copy (assunto, titulo, corpo, CTA texto, rodape)
+  - "diagramacao": se o problema e no layout/visual do corpo (estrutura HTML, padroes visuais, organizacao)
   - "hero": se o problema e na imagem hero (irrelevante, baixa qualidade, nao corresponde ao briefing)
 
 ## Regras

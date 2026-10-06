@@ -31,8 +31,10 @@ Mensagem → TelegramService:
               │     ├── StepEstrategiaEmail (retrieval: fase, paleta, temas, mapa, satisfações)
               │     ├── StepMarcaEmail (retrieval: logo, cores, tom)
               │     ├── StepCopyEmail (LLM: assunto, título, corpo, CTA)
-              │     ├── StepImagemHero (LLM + API: imagem opcional)
+              │     ├── StepDiagramacaoEmail (LLM: seções HTML visuais + guarda determinística)
+              │     ├── StepImagemHero (retrieval banner + LLM visão + API: imagem opcional)
               │     ├── StepTemplateEmail (HTML table-based com slots)
+              │     ├── StepAssetsEmail (resolução de assets referenciados)
               │     └── StepQaEmail (LLM: aprovado/reprovado, max 2 refações)
               └── fora_contexto (canal/cliente fora do escopo configurável)
   → Entrega: zip com HTML + assets + imagens
@@ -55,8 +57,11 @@ src/DemoAgencia.Worker/
   │   ├── Router/            # RouterService, RouterParser, Brief
   │   ├── PreFlight/         # ConversaPendenteStore, EstadoPreFlight
   │   └── Pipelines/         # PipelineRunner, IPipelineStep
-  │       └── Email/         # StepEstrategiaEmail, StepMarcaEmail, StepCopyEmail,
-   │                          # StepImagemHero, StepTemplateEmail, StepAssetsEmail, StepQaEmail
+  │   │       └── Email/         # StepEstrategiaEmail, StepMarcaEmail, StepCopyEmail,
+   │                          # StepDiagramacaoEmail, StepImagemHero, StepTemplateEmail,
+   │                          # StepAssetsEmail, StepQaEmail
+  │   ├── BannerDescricao.cs     # Record estruturado para análise visual de banners
+  │   ├── BannerDescricaoCache.cs # Cache com sidecar JSON para descrições
   ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
   ├── Referencias/           # IReferenciasCliente (texto + imagens + estratégia)
   ├── Configuracoes/         # Options pattern (PreFlightOptions, OpenRouterOptions, etc.)
@@ -65,7 +70,7 @@ src/DemoAgencia.Worker/
   └── Contracts/             # LangfuseTrace, LangfuseTraceContext
 
 Assets/
-  ├── agentes/               # Agentes em markdown (router.md, redator.md, hero.md, qa.md)
+  ├── agentes/               # Agentes em markdown (router.md, redator.md, diagramador.md, hero.md, qa.md)
   └── referencias/
       ├── estrategia/        # {cliente}_{tipo}.json (paleta, temas, jornada, mapa, satisfações)
       ├── templates/         # Modelos base de email (com slots)
