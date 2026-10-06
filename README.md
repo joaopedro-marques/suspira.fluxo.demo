@@ -43,10 +43,11 @@ Mensagem → TelegramService:
 - **Router**: Classifica mensagens (conversa/esclarecimento/produção/fora_contexto), estrutura brief com campos (objetivo, público, canal, oferta, etc.)
 - **PipelineEmail**: Steps ordenados deterministicamente, cada um recebe contexto mínimo
 - **Steps**: Retrieval (estratégia, marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
-- **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/hero), max 2 refações
+- **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/diagramacao/hero), max 2 refações. Entrega só ocorre após aprovação; caso contrário, feedback é enviado como mensagem
 - **Fallback de modelos em 429**: Polly re-tenta no mesmo modelo respeitando Retry-After; se 429 persiste, troca para próximo modelo da cadeia configurável com backoff exponencial
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
-- **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_marca, email_copy, email_hero_prompt, email_hero_imagem, email_template, email_qa)
+- **Descrições de ícones**: Ícones são descritos via visão (IconDescricaoCache com sidecar JSON) e injetados no prompt do diagramador para escolha semântica
+- **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_marca, email_copy, email_diagramacao, email_hero_prompt, email_hero_imagem, email_template, email_assets, email_qa)
 
 ## Estrutura
 
@@ -62,6 +63,8 @@ src/DemoAgencia.Worker/
    │                          # StepAssetsEmail, StepQaEmail
   │   ├── BannerDescricao.cs     # Record estruturado para análise visual de banners
   │   ├── BannerDescricaoCache.cs # Cache com sidecar JSON para descrições
+  │   ├── IconDescricao.cs        # Record estruturado para análise visual de ícones
+  │   ├── IconDescricaoCache.cs   # Cache com sidecar JSON para descrições de ícones
   ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
   ├── Referencias/           # IReferenciasCliente (texto + imagens + estratégia)
   ├── Configuracoes/         # Options pattern (PreFlightOptions, OpenRouterOptions, etc.)
