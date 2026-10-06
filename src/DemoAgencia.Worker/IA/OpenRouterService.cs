@@ -410,7 +410,18 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
             }
             catch (Exception ex) when (Eh429(ex))
             {
-                await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro 429 no modelo {modeloAtual}", ct);
+                _logger.LogWarning(
+                    "429 no modelo {Modelo} ({Etapa}). Tentativa {Tentativa}/{Total}",
+                    modeloAtual, etapaNome, tentativa + 1, cadeia.Length);
+
+                try
+                {
+                    await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro 429 no modelo {modeloAtual}", ct);
+                }
+                catch (Exception traceEx)
+                {
+                    _logger.LogDebug(traceEx, "Falha ao registrar trace de erro 429");
+                }
 
                 if (tentativa < cadeia.Length - 1)
                 {
@@ -428,8 +439,17 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
             }
             catch (Exception ex)
             {
-                await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro: {ex.Message}", ct);
                 _logger.LogError(ex, "Erro ao chamar agente ({Etapa}) com modelo {Modelo}", etapaNome, modeloAtual);
+
+                try
+                {
+                    await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro: {ex.Message}", ct);
+                }
+                catch (Exception traceEx)
+                {
+                    _logger.LogDebug(traceEx, "Falha ao registrar trace de erro na etapa {Etapa}", etapaNome);
+                }
+
                 throw;
             }
         }
