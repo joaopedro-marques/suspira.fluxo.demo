@@ -14,6 +14,7 @@ public class StepImagemHero : IPipelineStep
     private readonly IReferenciasCliente _referencias;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly ITemplateCatalogo _templateCatalogo;
+    private readonly IBannerDescricaoCache _bannerCache;
 
     public StepImagemHero(
         AgenteDefinicao agentePrompt,
@@ -21,7 +22,8 @@ public class StepImagemHero : IPipelineStep
         IGeradorImagem geradorImagem,
         IReferenciasCliente referencias,
         IAnalisadorImagem analisadorImagem,
-        ITemplateCatalogo templateCatalogo)
+        ITemplateCatalogo templateCatalogo,
+        IBannerDescricaoCache bannerCache)
     {
         _agentePrompt = agentePrompt;
         _servicoChat = servicoChat;
@@ -29,6 +31,7 @@ public class StepImagemHero : IPipelineStep
         _referencias = referencias;
         _analisadorImagem = analisadorImagem;
         _templateCatalogo = templateCatalogo;
+        _bannerCache = bannerCache;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -118,9 +121,7 @@ public class StepImagemHero : IPipelineStep
 
         var assets = _referencias.ListarAssets(cliente);
         var marcas = assets.Where(a => a.Tipo == TipoAsset.Logo || a.Tipo == TipoAsset.Icon).ToList();
-
-        if (marcas.Count == 0)
-            return prompt;
+        var banners = assets.Where(a => a.Tipo == TipoAsset.Banner).ToList();
 
         var descricoes = new List<string>();
         foreach (var asset in marcas)
@@ -133,6 +134,20 @@ public class StepImagemHero : IPipelineStep
                     var descricaoAsset = await _analisadorImagem.DescreverImagemAsync(bytes, null, ct);
                     if (!string.IsNullOrEmpty(descricaoAsset))
                         descricoes.Add($"{asset.Tipo}: {descricaoAsset}");
+                }
+            }
+            catch { }
+        }
+
+        foreach (var banner in banners)
+        {
+            try
+            {
+                if (File.Exists(banner.Caminho))
+                {
+                    var descricaoBanner = await _bannerCache.ObterDescricaoAsync(banner, ct);
+                    if (!string.IsNullOrEmpty(descricaoBanner.DescricaoGeral))
+                        descricoes.Add($"Banner ({banner.Nome}): {descricaoBanner.ToPromptSection()}");
                 }
             }
             catch { }

@@ -15,6 +15,7 @@ public class StepImagemHeroTests
     private readonly Mock<IReferenciasCliente> _refsMock;
     private readonly Mock<IAnalisadorImagem> _analisadorMock;
     private readonly Mock<ITemplateCatalogo> _catalogoMock;
+    private readonly Mock<IBannerDescricaoCache> _bannerCacheMock;
     private readonly StepImagemHero _step;
 
     public StepImagemHeroTests()
@@ -24,9 +25,10 @@ public class StepImagemHeroTests
         _refsMock = new Mock<IReferenciasCliente>();
         _analisadorMock = new Mock<IAnalisadorImagem>();
         _catalogoMock = new Mock<ITemplateCatalogo>();
+        _bannerCacheMock = new Mock<IBannerDescricaoCache>();
 
         var agente = new DemoAgencia.Worker.Agentes.AgenteDefinicao("hero", "test/model", 0.7, 1000, "persona");
-        _step = new StepImagemHero(agente, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object);
+        _step = new StepImagemHero(agente, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object, _bannerCacheMock.Object);
     }
 
     [Fact]
@@ -147,5 +149,29 @@ public class StepImagemHeroTests
         context.BannerSrc.Should().BeNull();
         context.HeroSrc.Should().NotBeNull();
         _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ConstruirPromptBase_WithBanners_ShouldIncludeBannerDescriptions()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50 });
+
+        var bannerAssets = new List<AssetVisual>
+        {
+            new() { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "visita_tecnica", Caminho = tempFile }
+        };
+
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(bannerAssets);
+
+        var bannerDesc = new BannerDescricao("Banner com casa", "Centralizado", new List<string> { "#006b40" }, "Flat", "Acolhedor", "Agende visita");
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bannerDesc);
+
+        var prompt = await _step.ConstruirPromptBase("A hero image", "mrv", null, CancellationToken.None);
+
+        prompt.Should().Contain("Visual identity references");
+        prompt.Should().Contain("Banner com casa");
+        prompt.Should().Contain("#006b40");
     }
 }
