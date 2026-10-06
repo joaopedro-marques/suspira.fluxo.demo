@@ -103,6 +103,15 @@ public class MeuServiceTests
 | `Telegram__BotToken` | Token do bot Telegram | Sim |
 | `OpenRouter__ApiKey` | Chave da API OpenRouter | Sim |
 | `OpenRouter__DataCollection` | Política de coleta de dados (deny/allow) | Não (default: deny) |
+| `OpenRouter__DefaultModel` | Modelo padrão para texto | Não (default: openai/gpt-4o-mini) |
+| `OpenRouter__ImageModel` | Modelo padrão para imagem | Não (default: qwen/qwen-image-3-pro) |
+| `OpenRouter__FallbackModels` | Cadeia de fallback para texto (vírgula) | Não (default: deepseek/deepseek-v3.2,qwen/qwen3.7-plus,openai/gpt-4o-mini) |
+| `OpenRouter__ImageFallbackModels` | Cadeia de fallback para imagem (vírgula) | Não (default: vazio) |
+| `OpenRouter__MaxRetriesHttp` | Tentativas do Polly por modelo | Não (default: 5) |
+| `OpenRouter__BackoffBaseSegundos` | Base do backoff exponencial Polly | Não (default: 5) |
+| `OpenRouter__BackoffMaxSegundos` | Teto do backoff Polly | Não (default: 60) |
+| `OpenRouter__Backoff429BaseSegundos` | Base do backoff entre trocas de modelo | Não (default: 2) |
+| `OpenRouter__Backoff429MaxSegundos` | Teto do backoff entre trocas de modelo | Não (default: 30) |
 | `Langfuse__PublicKey` | Public key Langfuse | Não |
 | `Langfuse__SecretKey` | Secret key Langfuse | Não |
 | `Langfuse__Host` | URL do Langfuse | Não (default: cloud) |
