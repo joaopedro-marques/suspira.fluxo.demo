@@ -20,6 +20,7 @@ public class StepImagemHero : IPipelineStep
     private readonly ITemplateCatalogo _templateCatalogo;
     private readonly IBannerDescricaoCache _bannerCache;
     private readonly IIconDescricaoCache _iconCache;
+    private readonly ILogger<StepImagemHero> _logger;
 
     public StepImagemHero(
         AgenteDefinicao agentePrompt,
@@ -30,7 +31,8 @@ public class StepImagemHero : IPipelineStep
         IAnalisadorImagem analisadorImagem,
         ITemplateCatalogo templateCatalogo,
         IBannerDescricaoCache bannerCache,
-        IIconDescricaoCache iconCache)
+        IIconDescricaoCache iconCache,
+        ILogger<StepImagemHero> logger)
     {
         _agentePrompt = agentePrompt;
         _agenteCurador = agenteCurador;
@@ -41,6 +43,7 @@ public class StepImagemHero : IPipelineStep
         _templateCatalogo = templateCatalogo;
         _bannerCache = bannerCache;
         _iconCache = iconCache;
+        _logger = logger;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -158,8 +161,9 @@ public class StepImagemHero : IPipelineStep
             var (compativel, _) = ParseCuradorResult(resposta);
             return compativel;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Falha ao validar compatibilidade do banner {Banner}. Seguindo sem validacao.", banner.Nome);
             return null;
         }
     }

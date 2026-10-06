@@ -5,6 +5,7 @@ using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
@@ -34,7 +35,8 @@ public class StepImagemHeroTests
 
         var agente = new AgenteDefinicao("hero", "test/model", 0.7, 1000, "persona");
         var curador = new AgenteDefinicao("curador", "test/model", 0.2, 1000, "curador persona");
-        _step = new StepImagemHero(agente, curador, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object, _bannerCacheMock.Object, _iconCacheMock.Object);
+        var loggerMock = new Mock<ILogger<StepImagemHero>>();
+        _step = new StepImagemHero(agente, curador, _chatMock.Object, _geradorMock.Object, _refsMock.Object, _analisadorMock.Object, _catalogoMock.Object, _bannerCacheMock.Object, _iconCacheMock.Object, loggerMock.Object);
     }
 
     [Fact]

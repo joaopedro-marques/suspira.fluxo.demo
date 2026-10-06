@@ -214,6 +214,7 @@ public class TelegramServiceTests
             Mock.Of<ITemplateCatalogo>(),
             Mock.Of<IBannerDescricaoCache>(),
             Mock.Of<IIconDescricaoCache>(),
+            Mock.Of<ILogger<StepImagemHero>>(),
             "<tr></tr>",
             "<tr></tr>");
 
@@ -358,6 +359,7 @@ public class TelegramServiceTests
             Mock.Of<ITemplateCatalogo>(),
             Mock.Of<IBannerDescricaoCache>(),
             Mock.Of<IIconDescricaoCache>(),
+            Mock.Of<ILogger<StepImagemHero>>(),
             "<tr></tr>",
             "<tr></tr>");
 
