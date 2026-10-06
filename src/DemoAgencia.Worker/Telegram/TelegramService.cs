@@ -148,8 +148,8 @@ public class TelegramService : BackgroundService
                 /start - Inicia o bot
                 /help - Mostra esta ajuda
 
-                Envie uma mensagem livre para criar um email marketing.
-                Exemplo: "Crie um email para a Acme sobre Black Friday com 50% de desconto"
+                Envie uma mensagem livre para criar um email marketing para o cliente MRV.
+                Exemplo: "Crie um email para a MRV sobre pos-compra"
                 """;
             await _gateway!.SendMessageAsync(message.Chat.Id, help, ct);
             return;
@@ -211,7 +211,16 @@ public class TelegramService : BackgroundService
         switch (resultado.Tipo)
         {
             case "fora_contexto":
-                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Esse assunto esta fora do meu escopo. Posso ajudar com marketing, combinado?", ct);
+                var msgFora = resultado.Motivo switch
+                {
+                    RouterResultado.Motivos.ClienteNaoPermitido =>
+                        "Atendo apenas pedidos de email marketing para o cliente MRV. Esse cliente esta fora do meu escopo.",
+                    RouterResultado.Motivos.CanalNaoPermitido =>
+                        "Atendo apenas email marketing. Esse canal ainda nao e suportado.",
+                    _ =>
+                        "Esse assunto esta fora do meu escopo. Atendo apenas pedidos de email marketing para o cliente MRV."
+                };
+                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, msgFora, ct);
                 return;
 
             case "conversa":
