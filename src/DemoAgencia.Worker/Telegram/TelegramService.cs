@@ -163,40 +163,40 @@ public class TelegramService : BackgroundService
     {
         var pendente = _pendencias.Obter(message.Chat.Id);
         RouterResultado? resultadoRouter;
-
-        if (pendente != null)
-        {
-            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Retomando com suas respostas...", ct);
-            resultadoRouter = await _router.ResumirAsync(message.Chat.Id, text, ct);
-            await ProcessarResultadoRouter(message.Chat.Id, resultadoRouter, msg.MessageId, text, ct);
-            return;
-        }
-
         int? mensagemProgressoId = null;
 
         try
         {
-            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
+            var textoInicial = pendente != null ? "🧠 Retomando com suas respostas..." : "🧠 Analisando seu pedido...";
+            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, textoInicial, ct);
             mensagemProgressoId = msg.MessageId;
 
-            resultadoRouter = await _router.IniciarAsync(message.Chat.Id, text, ct);
+            resultadoRouter = pendente != null
+                ? await _router.ResumirAsync(message.Chat.Id, text, ct)
+                : await _router.IniciarAsync(message.Chat.Id, text, ct);
+
             await ProcessarResultadoRouter(message.Chat.Id, resultadoRouter, mensagemProgressoId.Value, text, ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
+            await NotificarErroAsync(message.Chat.Id, mensagemProgressoId, ct);
+        }
+    }
 
-            if (mensagemProgressoId != null)
-            {
-                try
-                {
-                    await _gateway!.EditMessageTextAsync(message.Chat.Id, mensagemProgressoId.Value, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.", ct);
-                }
-                catch
-                {
-                    await _gateway!.SendMessageAsync(message.Chat.Id, "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.", ct);
-                }
-            }
+    private async Task NotificarErroAsync(long chatId, int? mensagemProgressoId, CancellationToken ct)
+    {
+        if (mensagemProgressoId == null)
+            return;
+
+        const string mensagemErro = "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.";
+        try
+        {
+            await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId.Value, mensagemErro, ct);
+        }
+        catch
+        {
+            await _gateway!.SendMessageAsync(chatId, mensagemErro, ct);
         }
     }
 
