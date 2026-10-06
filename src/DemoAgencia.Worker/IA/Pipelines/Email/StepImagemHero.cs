@@ -102,11 +102,7 @@ public class StepImagemHero : IPipelineStep
                         descricoes.Add($"{asset.Tipo}: {descricaoAsset}");
                 }
             }
-            catch
-            {
-                if (!string.IsNullOrEmpty(asset.Descricao))
-                    descricoes.Add($"{asset.Tipo}: {asset.Descricao}");
-            }
+            catch { }
         }
 
         if (descricoes.Count > 0)

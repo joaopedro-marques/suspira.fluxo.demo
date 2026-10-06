@@ -15,7 +15,6 @@ public class PipelineRunner
         PipelineContext ctx,
         IReadOnlyList<IPipelineStep> steps,
         int maxRefacoesQa,
-        Func<string, Task>? onProgresso,
         CancellationToken ct)
     {
         var stepIndices = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -30,7 +29,6 @@ public class PipelineRunner
             var step = steps[i];
             snapshots[i] = (ctx.Resultado.Imagens.Count, ctx.Resultado.AssetsAnexados.Count);
 
-            await NotificarProgresso(onProgresso, step.Nome);
             ctx.Resultado.EtapasExecutadas.Add(step.Nome);
             ctx = await step.ExecutarAsync(ctx, ct);
 
@@ -84,22 +82,5 @@ public class PipelineRunner
     {
         while (list.Count > maxCount)
             list.RemoveAt(list.Count - 1);
-    }
-
-    private static async Task NotificarProgresso(Func<string, Task>? onProgresso, string stepNome)
-    {
-        if (onProgresso != null)
-        {
-            var emoji = stepNome switch
-            {
-                "marca" => "🏷️",
-                "copy" => "✍️",
-                "hero" => "🖼️",
-                "template" => "🧩",
-                "qa" => "🔍",
-                _ => "⚙️"
-            };
-            await onProgresso($"{emoji} {stepNome}...");
-        }
     }
 }

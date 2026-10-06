@@ -29,7 +29,6 @@ public class EtapaEmocional
     public string Etapa { get; init; } = string.Empty;
     public string FatorDecisao { get; init; } = string.Empty;
     public List<string> Sentimentos { get; init; } = new();
-    public List<string> Resultado { get; init; } = new();
 }
 
 [ExcludeFromCodeCoverage]

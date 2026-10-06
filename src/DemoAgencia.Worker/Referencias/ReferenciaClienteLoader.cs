@@ -8,7 +8,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private readonly IConfiguration _configuration;
     private readonly string? _customPath;
     private readonly Dictionary<string, List<string>> _referenciasPorCliente = new();
-    private readonly Dictionary<string, List<string>> _imagensPorCliente = new();
     private readonly Dictionary<string, List<AssetVisual>> _assetsPorCliente = new();
     private readonly Dictionary<string, EstrategiaCliente> _estrategiaPorCliente = new();
     private readonly int _maxCharsPorArquivo;
@@ -65,7 +64,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         _logger.LogInformation("Carregando referencias de: {Path}", assetsPath);
 
-        foreach (var file in Directory.GetFiles(assetsPath))
+        foreach (var file in Directory.EnumerateFiles(assetsPath, "*", SearchOption.AllDirectories)
+            .Where(f => !Path.GetDirectoryName(f)?.Replace(Path.DirectorySeparatorChar, '/')
+                .Contains("/estrategia", StringComparison.OrdinalIgnoreCase) ?? true))
         {
             try
             {
@@ -84,10 +85,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
                 if (ExtencoesImagem.Contains(extensao))
                 {
-                    if (!_imagensPorCliente.ContainsKey(cliente))
-                        _imagensPorCliente[cliente] = new List<string>();
-                    _imagensPorCliente[cliente].Add(file);
-
                     var (tipo, nome) = ParseTipoENome(nomeSemExt);
                     var asset = new AssetVisual
                     {
@@ -120,10 +117,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         CarregarEstrategias(assetsPath);
 
-        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Imagens} imagens, {Assets} assets, {Estrategias} estrategias",
-            _referenciasPorCliente.Keys.Union(_imagensPorCliente.Keys).Union(_estrategiaPorCliente.Keys).Count(),
+        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Assets} assets, {Estrategias} estrategias",
+            _referenciasPorCliente.Keys.Union(_assetsPorCliente.Keys).Union(_estrategiaPorCliente.Keys).Count(),
             _referenciasPorCliente.Values.Sum(v => v.Count),
-            _imagensPorCliente.Values.Sum(v => v.Count),
             _assetsPorCliente.Values.Sum(v => v.Count),
             _estrategiaPorCliente.Count);
 
@@ -157,14 +153,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return string.Join("\n\n", blocos);
     }
 
-    public virtual IReadOnlyCollection<string> ListarImagens(string cliente)
-    {
-        if (!_imagensPorCliente.TryGetValue(cliente.ToLowerInvariant(), out var imagens))
-            return Array.Empty<string>().ToList().AsReadOnly();
-
-        return imagens.AsReadOnly();
-    }
-
     public virtual IReadOnlyCollection<AssetVisual> ListarAssets(string cliente)
     {
         if (!_assetsPorCliente.TryGetValue(cliente.ToLowerInvariant(), out var assets))
@@ -176,7 +164,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     public virtual IReadOnlyCollection<string> ListarClientes()
     {
         var todos = _referenciasPorCliente.Keys
-            .Union(_imagensPorCliente.Keys)
             .Union(_assetsPorCliente.Keys)
             .Union(_estrategiaPorCliente.Keys)
             .Select(c => c.ToLowerInvariant())
@@ -437,15 +424,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 {
                     var sv = s.GetString();
                     if (!string.IsNullOrEmpty(sv)) emocional.Sentimentos.Add(sv);
-                }
-            }
-
-            if (item.TryGetProperty("resultado", out var resArr) && resArr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var r in resArr.EnumerateArray())
-                {
-                    var rv = r.GetString();
-                    if (!string.IsNullOrEmpty(rv)) emocional.Resultado.Add(rv);
                 }
             }
 

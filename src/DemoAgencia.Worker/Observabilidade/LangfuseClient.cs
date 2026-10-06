@@ -68,12 +68,6 @@ public class LangfuseClient
                             model = trace.Model,
                             input = trace.Input,
                             output = trace.Output,
-                            usage = new
-                            {
-                                promptTokens = trace.PromptTokens,
-                                completionTokens = trace.CompletionTokens,
-                                totalTokens = trace.PromptTokens + trace.CompletionTokens
-                            },
                             metadata = trace.ObservationMetadata,
                             startTime = trace.StartTime.ToString("o"),
                             endTime = trace.EndTime.ToString("o")

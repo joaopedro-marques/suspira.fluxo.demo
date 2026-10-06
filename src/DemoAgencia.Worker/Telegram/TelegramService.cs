@@ -273,7 +273,7 @@ public class TelegramService : BackgroundService
             Cliente = resultado.Cliente
         };
 
-        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, onProgresso: null, ct);
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
     }
 
     private async Task HandlePhoto(Message message, CancellationToken ct)

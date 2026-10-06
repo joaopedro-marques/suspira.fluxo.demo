@@ -21,7 +21,6 @@ public class AssetVisual
     public TipoAsset Tipo { get; init; }
     public string Nome { get; init; } = string.Empty;
     public string Caminho { get; init; } = string.Empty;
-    public string? Descricao { get; set; }
 
     public static TipoAsset ParseTipo(string? texto)
     {

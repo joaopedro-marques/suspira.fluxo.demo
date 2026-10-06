@@ -6,8 +6,6 @@ public static class FaseJornada
     public const string PreChaves = "pre-chaves";
     public const string PosChaves = "pos-chaves";
 
-    public static readonly IReadOnlyList<string> Todas = new[] { PosCompra, PreChaves, PosChaves };
-
     public static string? Normalizar(string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
