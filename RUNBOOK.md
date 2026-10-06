@@ -871,6 +871,50 @@ docker compose config
 4. Reinicie a aplicação: `docker compose restart`
 5. Valide nos logs iniciais que não há mais `HTTP shipping (401)` nem eventos dropados.
 
+### 9.10 Erro 429 (Rate limit do OpenRouter)
+
+**Sintoma**: nos logs aparecem mensagens como:
+```
+429 no modelo deepseek/deepseek-v3.2 (email_copy). Fallback para qwen/qwen3.7-plus após 2s
+429 em todos os modelos (4) na etapa email_copy
+Erro ao chamar agente (email_copy) com modelo openai/gpt-4o-mini
+```
+O usuário recebe erro ao solicitar a pipeline, ou a imagem hero não é gerada (pipeline continua degradada).
+
+**Causa**: modelos free-tier ou de baixo custo no OpenRouter têm rate limits por modelo (requests por minuto). A pipeline faz múltiplas chamadas LLM em sequência (router, copy, hero prompt, QA), e refações do QA amplificam o volume.
+
+**Correção**:
+
+1. **Tuning via `.env`** — ajuste conforme o cenário:
+   ```env
+   # Reduzir retries no mesmo modelo para trocar mais rápido
+   OpenRouter__MaxRetriesHttp=2
+
+   # Aumentar backoff entre trocas de modelo se 2s é agressivo
+   OpenRouter__Backoff429BaseSegundos=3
+   OpenRouter__Backoff429MaxSegundos=30
+
+   # Cadeia de fallback — priorize modelos com rate limits maiores
+   OpenRouter__FallbackModels=deepseek/deepseek-v3.2,qwen/qwen3.7-plus,openai/gpt-4o-mini
+   ```
+
+2. **Verificar qual modelo está com 429** — nos logs, procure por `429 no modelo`. Se é sempre o mesmo, considere:
+   - Remover o modelo da cadeia de fallback
+   - Upgrade para plano pago no OpenRouter (rate limits maiores)
+   - Distribuir chamadas entre modelos com limites independentes
+
+3. **Restart**:
+   ```bash
+   docker compose restart
+   ```
+
+**Verificação**:
+```bash
+docker compose logs -f 2>&1 | grep "429"
+# Devem aparecer linhas de "Fallback para X" seguidas de sucesso
+# Se "429 em todos os modelos" aparece frequentemente, a cadeia está inadequada
+```
+
 ---
 
 ## 10. Segurança
