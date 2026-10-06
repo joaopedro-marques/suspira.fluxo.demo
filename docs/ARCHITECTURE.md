@@ -35,7 +35,7 @@ graph TB
     end
     
     subgraph "Armazenamento"
-        TPL[Templates/*.html]
+        TPL[referencias/templates/*.html]
         REF[Referencias {cliente}_*]
         EST[Referencias/estrategia/*.json]
         LOG[Logs]
@@ -209,7 +209,7 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 
 ## Template HTML
 
-O template HTML (`Assets/templates/email.html`) é table-based para compatibilidade com clientes de email (Outlook, Gmail, etc.):
+O template HTML base (`Assets/referencias/templates/email.html`) é table-based para compatibilidade com clientes de email (Outlook, Gmail, etc.):
 
 ```html
 <!-- Estrutura principal -->
@@ -319,10 +319,13 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | Etapa | Descrição | Modelo |
 |-------|-----------|--------|
 | `router` | Classificação + estruturação do brief | `deepseek/deepseek-v3.2` |
+| `router_retry` | Retry do router (JSON inválido) | `deepseek/deepseek-v3.2` |
 | `email_copy` | Geração de copy (assunto, corpo, CTA) | `qwen/qwen3.7-plus` |
 | `email_hero_prompt` | Geração de prompt para imagem hero | `qwen/qwen3.7-plus` |
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
+| `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
+| `image-generation` | Geração de imagem via API | `qwen/qwen-image-3-pro` |
 
 Steps determinísticos (estrategia, marca, template) não geram traces LLM, apenas logs Serilog.
 
@@ -356,7 +359,7 @@ src/DemoAgencia.Worker/
 ├── Telegram/
 │   ├── TelegramService.cs              # Long polling + handlers
 │   ├── ITelegramGateway.cs             # Interface para Telegram Bot
-│   ├── TelegramGatewayFactory.cs       # Factory para gateway
+│   ├── TelegramBotGateway.cs           # Implementacao real + TelegramGatewayFactory
 │   ├── TelegramMessageSplitter.cs      # Divisão de mensagens longas
 │   └── TelegramTextFormatter.cs        # Formatação de texto
 │
@@ -408,11 +411,11 @@ src/DemoAgencia.Worker/
 │
 ├── Observabilidade/
 │   ├── LangfuseInterceptor.cs          # Interceptor para Langfuse
-│   ├── LangfuseClient.cs               # HTTP client para Langfuse
-│   └── LangfuseTrace.cs                # Modelo de trace
+│   └── LangfuseClient.cs               # HTTP client para Langfuse
 │
-└── Contracts/
-    └── LangfuseTraceContext.cs          # Contexto de trace
+├── Contracts/
+│   ├── LangfuseTrace.cs                # Modelo de trace
+│   └── LangfuseTraceContext.cs         # Contexto de trace
 ```
 
 ## Modelo de Dados

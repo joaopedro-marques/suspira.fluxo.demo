@@ -86,8 +86,8 @@ O projeto já possui um workflow configurado em `.github/workflows/ci.yml` com 5
 
 | Job | Descrição | Gatilho |
 |-----|-----------|---------|
-| **build-and-test** | Build .NET 10 + 103 testes unitários com coverage | Push/PR |
-| **docker-build** | Build da imagem Docker ARM64 | Após build-and-test |
+| **build-and-test** | Build .NET 10 + 162 testes unitários com coverage | Push/PR |
+| **docker-build** | Build da imagem Docker | Após build-and-test |
 | **validate-structure** | Valida arquivos obrigatórios e .env.example | Após build-and-test |
 | **security-scan** | Verifica secrets e pacotes vulneráveis | Após build-and-test |
 | **summary** | Resumo do pipeline com status | Após todos |
@@ -390,10 +390,10 @@ Deploy automático: push na `main` → CI valida → GitHub Actions faz SSH na V
 # Acessar a VM via SSH
 ssh -i ~/.ssh/oracle_key.pem ubuntu@SEU_IP_PUBLICO
 
-# Executar script de setup
-# (copie scripts/setup-vm.sh para a VM ou cole o conteúdo)
-chmod +x setup-vm.sh
-./setup-vm.sh
+# Instalar Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
 
 # Logout e login para aplicar permissões
 exit
@@ -431,13 +431,14 @@ cat ~/.ssh/github_deploy_key
 | `SSH_USER` | `ubuntu` | Usuário SSH |
 | `SSH_KEY` | *(conteúdo de `~/.ssh/github_deploy_key`)* | Chave privada SSH (copiar tudo, incluindo `-----BEGIN` e `-----END`) |
 | `SSH_PORT` | `22` | Porta SSH (opcional, default 22) |
-| `TELEGRAM_BOT_TOKEN` | `.` | Token do BotFather |
+| `TELEGRAM_BOT_TOKEN` | `` | Token do BotFather |
 | `OPENROUTER_API_KEY` | `` | Chave da OpenRouter |
 | `LANGFUSE_PUBLIC_KEY` | `` | Public key do Langfuse |
 | `LANGFUSE_SECRET_KEY` | `` | Secret key do Langfuse |
-| `GRAFANA_LOKI_ENDPOINT` | `` | Endpoint do Grafana Loki (opcional) |
-| `GRAFANA_LOKI_LOGIN_ID` | `` | Login ID do Grafana Loki (opcional) |
-| `GRAFANA_LOKI_PASSWORD` | `` | API key do Grafana Loki (opcional) |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Host do Langfuse |
+| `GRAFANALOKI_ENDPOINT` | `` | Endpoint do Grafana Loki (opcional) |
+| `GRAFANALOKI_LOGINID` | `` | Login ID do Grafana Loki (opcional) |
+| `GRAFANALOKI_PASSWORD` | `` | API key do Grafana Loki (opcional) |
 
 ### 5.4 Como Funciona o Deploy Automático
 
@@ -565,17 +566,7 @@ docker inspect --format='{{.State.Health.Status}}' demoagencia
 | Comando | Teste |
 |---------|-------|
 | `/help` | Lista de comandos |
-| `/agentes` | Lista agentes disponíveis |
-| `/redator` | Seleciona agente redator |
-| `/redator Escreva um slogan` | Testa streaming |
-| `/dev` | Seleciona agente dev |
-| `/estrategista` | Seleciona agente estrategista |
-| `/prompt-imagem` | Seleciona agente Prompt para Imagens |
-| `/prompt-imagem um gato azul` | Gera prompt otimizado para imagem |
-| Mensagem livre com intenção de imagem | Pipeline gera imagem via ferramenta |
-| `/limpar` | Limpa histórico |
-| `/reset` | Deseleciona agente |
-| Mensagem livre | Testa pipeline completo |
+| Mensagem livre com intenção de email | Pipeline de email completa |
 | Enviar foto | Testa análise multimodal |
 
 ### 7.2 Verificar Langfuse
@@ -880,21 +871,6 @@ docker compose config
 4. Reinicie a aplicação: `docker compose restart`
 5. Valide nos logs iniciais que não há mais `HTTP shipping (401)` nem eventos dropados.
 
-### 9.10 Montador retorna texto vazio (0 chars)
-
-**Sintoma**: no log aparece `Agente chamado (preflight_montador_retry) com <modelo>: 0 chars` seguido de `Retry do Montador tambem falhou (texto vazio)`. O pipeline preflight falha.
-
-**Causa**: modelos de raciocinio hibrido (ex: `qwen/qwen3.7-plus`) consomem tokens de `max_tokens` com raciocinio interno (thinking). Quando o prompt e grande (contexto do cliente + catalogo de assets), o modelo queima todo o orcamento em raciocinio e devolve HTTP 200 com `content: ""` e `finish_reason: "length"`. O retry com prompt corretivo nao ajuda pois o modelo nao produziu texto algum.
-
-**Correção aplicada**:
-
-1. Agentes preflight (`montador-briefing.md`, `refinador.md`) usam modelos nao-reasoning (`deepseek/deepseek-v3.2`) com `max_tokens: 4000`.
-2. O `OpenRouterService` injeta `"reasoning": {"enabled": false}` no body para todas as chamadas com etapa `preflight_*` (via `ReasoningDisablingHandler` no pipeline do HttpClient).
-3. O retry no `PipelinePreFlightService` agora e inteligente: se a resposta for vazia, dobra o `max_tokens` (cap 8000) em vez de usar o prompt corretivo.
-4. Respostas vazias agora geram log `WRN` com `FinishReason` para diagnostico.
-
-**Diagnostico**: verificar nos logs se `FinishReason` e `length` (orcamento exaurido) ou `stop` (modelo decidiu nao responder). Se persistir, aumentar `max_tokens` no frontmatter do agente.
-
 ---
 
 ## 10. Segurança
@@ -1021,11 +997,10 @@ Após deploy bem-sucedido:
 2. **Consulte a seção de Troubleshooting**
 3. **Verifique o CHECKLIST.md** para testes E2E
 4. **Consulte a documentação**:
-   - [README.md](README.md) - Visão geral
-   - [CHECKLIST.md](CHECKLIST.md) - Checklist de aceite
-   - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitetura
-   - [docs/API.md](docs/API.md) - API Reference
-   - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - Desenvolvimento
+    - [README.md](README.md) - Visão geral
+    - [CHECKLIST.md](CHECKLIST.md) - Checklist de aceite
+    - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Arquitetura
+    - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) - Desenvolvimento
 
 ---
 

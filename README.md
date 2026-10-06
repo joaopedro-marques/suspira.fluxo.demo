@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-135-green)
+![Tests](https://img.shields.io/badge/tests-162-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Prova de Conceito (PoC) para validação de automação de marketing via Telegram com pipeline de email marketing gerada por IA.
@@ -28,6 +28,7 @@ Mensagem → TelegramService:
         ├── fora_contexto → recusa
         └── produção:
               ├── email → PipelineEmail
+              │     ├── StepEstrategiaEmail (retrieval: fase, paleta, temas, mapa, satisfações)
               │     ├── StepMarcaEmail (retrieval: logo, cores, tom)
               │     ├── StepCopyEmail (LLM: assunto, título, corpo, CTA)
               │     ├── StepImagemHero (LLM + API: imagem opcional)
@@ -39,10 +40,10 @@ Mensagem → TelegramService:
 
 - **Router**: Classifica mensagens (conversa/esclarecimento/produção/fora_contexto), estrutura brief com campos (objetivo, público, canal, oferta, etc.)
 - **PipelineEmail**: Steps ordenados deterministicamente, cada um recebe contexto mínimo
-- **Steps**: Retrieval (marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
+- **Steps**: Retrieval (estratégia, marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
 - **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/hero), max 2 refações
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
-- **Observabilidade**: Langfuse traces por step (router, email_marca, email_copy, email_hero_prompt, email_hero_imagem, email_template, email_qa)
+- **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_marca, email_copy, email_hero_prompt, email_hero_imagem, email_template, email_qa)
 
 ## Estrutura
 
@@ -51,17 +52,23 @@ src/DemoAgencia.Worker/
   ├── Telegram/              # Cliente Telegram (ITelegramGateway) e handlers
   ├── IA/                    # Router + Pipelines + OpenRouterService
   │   ├── Router/            # RouterService, RouterParser, Brief
+  │   ├── PreFlight/         # ConversaPendenteStore, EstadoPreFlight
   │   └── Pipelines/         # PipelineRunner, IPipelineStep
-  │       └── Email/         # StepMarcaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail, StepQaEmail
-  ├── Referencias/           # IReferenciasCliente (texto + imagens)
+  │       └── Email/         # StepEstrategiaEmail, StepMarcaEmail, StepCopyEmail,
+  │                          # StepImagemHero, StepTemplateEmail, StepQaEmail
+  ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
+  ├── Referencias/           # IReferenciasCliente (texto + imagens + estratégia)
   ├── Configuracoes/         # Options pattern (PreFlightOptions, OpenRouterOptions, etc.)
   ├── Seguranca/             # AnonimizadorService, RateLimiterService
   ├── Observabilidade/       # Serilog e Langfuse
   └── Contracts/             # LangfuseTrace, LangfuseTraceContext
 
-/Assets/
-  ├── templates/             # HTML templates (email.html)
-  └── referencias/           # {cliente}_{nome}.ext (json, html, png, jpg)
+Assets/
+  ├── agentes/               # Agentes em markdown (router.md, redator.md, hero.md, qa.md)
+  └── referencias/
+      ├── estrategia/        # {cliente}_{tipo}.json (paleta, temas, jornada, mapa, satisfações)
+      ├── templates/         # Modelos base de email (com slots)
+      └── imagens/           # {cliente}_{tipo}_{nome}.ext (logos, icons, banners)
 ```
 
 ## Execução Local
@@ -115,6 +122,8 @@ chmod +x validate.sh
 - **[RUNBOOK.md](RUNBOOK.md)** - Guia completo de deploy e manutenção
 - **[CHECKLIST.md](CHECKLIST.md)** - Checklist de aceite E2E
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Arquitetura detalhada
+- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Guia de desenvolvimento
+- **[FERRAMENTAS.md](docs/FERRAMENTAS.md)** - Ferramentas e serviços
 
 ## Docker
 
@@ -141,7 +150,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**135 testes** cobrindo: RouterParser, RouterService, StepTemplateEmail (11 testes TDD), OpenRouterService, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter.
+**162 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader.
 
 ## CI/CD
 

@@ -23,6 +23,8 @@
 - [ ] `/start` - Bot responde com mensagem de boas-vindas
 - [ ] `/help` - Lista comandos disponíveis (/start, /help)
 - [ ] `/comando_inexistente` - Bot responde com erro amigável
+- [ ] Mensagem livre com intenção de email marketing - Pipeline de email executada
+- [ ] Enviar foto com legenda - Bot analisa a imagem com contexto
 
 ### Router - Classificação de Mensagens
 
@@ -33,24 +35,24 @@
 #### Esclarecimento (perguntas)
 - [ ] Mensagem "Quero criar um email" (sem detalhes) - Router pede esclarecimentos (máx 2 rodadas)
 - [ ] Responder às perguntas - Pipeline continua com informações fornecidas
-- [ ] Não responder - Timeout após 5 minutos (configurável)
+- [ ] Não responder - Timeout após 15 minutos (configurável em PreFlight__TimeoutMinutosPendencia)
 
 #### Fora de Contexto
 - [ ] Mensagem "Qual a previsão do tempo?" - Router classifica como `fora_contexto`, mensagem fixa
 
 #### Produção (pipeline)
-- [ ] Mensagem "Crie um email marketing para a Acme sobre Black Friday" - Pipeline email executada
-- [ ] Pipeline mostra progresso: 🧠 Router → 🏷️ Marca → ✍️ Copy → 🖼️ Hero → 🧩 Template → 🔍 QA
+- [ ] Mensagem "Crie um email sobre Black Friday" - Pipeline email executada
 - [ ] Mensagem "Crie um post para Instagram" - Router classifica canal=instagram, retorna "canal não suportado"
 
 ### Pipeline de Email
 
 #### Estruturação do Brief
-- [ ] Mensagem "Email para Acme sobre Black Friday com 50% off" - Router extrai: cliente=Acme, canal=email, objetivo=vender, oferta=Black Friday
+- [ ] Mensagem "Email sobre Black Friday com 50% off" - Router extrai: canal=email, objetivo=vender, oferta=Black Friday
 - [ ] Mensagem "Email urgente sobre lançamento" - Router extrai: tom=urgente, objetivo=informar
 - [ ] Mensagem "Email para jovens sobre app" - Router extrai: público=jovens
 
 #### Steps da Pipeline
+- [ ] StepEstrategiaEmail - Carrega fase, paleta, temas, sub-jornada, mapa emocional e satisfações
 - [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
 - [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
 - [ ] StepImagemHero - Gera prompt + imagem hero (se brief.imagens tem hero)
@@ -139,7 +141,6 @@
 - [ ] Arquivo `.env` não está no repositório
 - [ ] Credenciais não aparecem nos logs (AnonimizadorService)
 - [ ] VM com firewall configurado (apenas SSH liberado)
-- [ ] Docker rodando como usuário não-root
 - [ ] Rate limiting funcionando (max mensagens por minuto)
 
 ## Documentação
