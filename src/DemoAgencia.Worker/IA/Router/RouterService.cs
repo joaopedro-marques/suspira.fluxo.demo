@@ -82,9 +82,9 @@ public class RouterService
         var resultado = RouterParser.TentarExtrair(resposta);
         if (resultado != null)
         {
-            if (!TratarResultado(estado, resultado))
-                return null;
-            return resultado;
+            var tratado = TratarResultado(estado, resultado);
+            if (tratado == null) return null;
+            return tratado;
         }
 
         _logger.LogWarning("Router retornou JSON invalido. Tentando retry. Resposta: {Resposta}",
@@ -104,9 +104,9 @@ public class RouterService
         resultado = RouterParser.TentarExtrair(retryResposta);
         if (resultado != null)
         {
-            if (!TratarResultado(estado, resultado))
-                return null;
-            return resultado;
+            var tratado = TratarResultado(estado, resultado);
+            if (tratado == null) return null;
+            return tratado;
         }
 
         _logger.LogWarning("Router retornou JSON invalido 2x. Desistindo.");
@@ -114,7 +114,7 @@ public class RouterService
         return null;
     }
 
-    private bool TratarResultado(EstadoPreFlight estado, RouterResultado resultado)
+    private RouterResultado? TratarResultado(EstadoPreFlight estado, RouterResultado resultado)
     {
         if (resultado.Tipo == "esclarecimento")
         {
@@ -123,16 +123,49 @@ public class RouterService
                 _logger.LogWarning("MaxRodadasPerguntas ({Max}) excedido para chat {ChatId}",
                     _options.MaxRodadasPerguntas, estado.ChatId);
                 _store.Remover(estado.ChatId);
-                return false;
+                return null;
             }
 
             estado.PerguntasAtuais = resultado.Perguntas.ToList();
             _store.Guardar(estado.ChatId, estado);
-            return true;
+            return resultado;
+        }
+
+        if (resultado.Tipo == "producao" && resultado.Brief != null)
+        {
+            if (!_options.CanaisPermitidos.Contains(resultado.Brief.Canal, StringComparer.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Guarda: canal {Canal} fora do escopo permitido para chat {ChatId}",
+                    resultado.Brief.Canal, estado.ChatId);
+                _store.Remover(estado.ChatId);
+                return resultado with
+                {
+                    Tipo = "fora_contexto",
+                    Resposta = null,
+                    Brief = null,
+                    Motivo = RouterResultado.Motivos.CanalNaoPermitido
+                };
+            }
+
+            var cliente = resultado.Cliente ?? "";
+            if (string.IsNullOrEmpty(cliente) ||
+                !_options.ClientesPermitidos.Contains(cliente, StringComparer.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Guarda: cliente {Cliente} fora do escopo permitido para chat {ChatId}",
+                    cliente, estado.ChatId);
+                _store.Remover(estado.ChatId);
+                return resultado with
+                {
+                    Tipo = "fora_contexto",
+                    Resposta = null,
+                    Brief = null,
+                    Motivo = RouterResultado.Motivos.ClienteNaoPermitido
+                };
+            }
         }
 
         _store.Remover(estado.ChatId);
-        return true;
+        return resultado;
     }
 
     private string DetectarCliente(string mensagem)
@@ -154,14 +187,19 @@ public class RouterService
     {
         var prompt = $"## Mensagem do usuario\n{estado.MensagemOriginal}";
 
-        var clientes = _referencias.ListarClientes();
-        if (clientes is { Count: > 0 })
-            prompt += $"\n\n## Clientes cadastrados\n{string.Join(", ", clientes)}";
+        var clientesPermitidos = _referencias.ListarClientes()
+            .Where(c => _options.ClientesPermitidos.Contains(c.ToLowerInvariant()))
+            .ToList();
+        if (clientesPermitidos.Count > 0)
+            prompt += $"\n\n## Clientes atendidos\n{string.Join(", ", clientesPermitidos)}";
+
+        prompt += $"\n\n## Canais atendidos\n{string.Join(", ", _options.CanaisPermitidos)}";
 
         if (!string.IsNullOrEmpty(estado.Cliente))
             prompt += $"\n\n## Cliente detectado: {estado.Cliente}";
 
-        if (!string.IsNullOrEmpty(estado.Cliente))
+        if (!string.IsNullOrEmpty(estado.Cliente) &&
+            _options.ClientesPermitidos.Contains(estado.Cliente.ToLowerInvariant()))
         {
             var estrategia = _referencias.ObterEstrategia(estado.Cliente);
             if (estrategia != null)
