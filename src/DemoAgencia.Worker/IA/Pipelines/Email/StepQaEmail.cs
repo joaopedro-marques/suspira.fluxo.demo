@@ -109,7 +109,7 @@ public class StepQaEmail : IPipelineStep
         return prompt;
     }
 
-    private static (bool aprovado, string? feedback, string? stepAlvo) ParseQaResult(string resposta)
+    internal static (bool aprovado, string? feedback, string? stepAlvo) ParseQaResult(string resposta)
     {
         var json = JsonHelper.ExtrairJson(resposta);
         if (string.IsNullOrEmpty(json))
@@ -124,6 +124,8 @@ public class StepQaEmail : IPipelineStep
             var feedback = root.TryGetProperty("feedback", out var fbEl) ? fbEl.GetString() : null;
             var stepAlvo = root.TryGetProperty("step_alvo", out var stEl) ? stEl.GetString() : "copy";
 
+            stepAlvo = NormalizarStepAlvo(stepAlvo);
+
             if (!aprovado && string.IsNullOrEmpty(stepAlvo))
                 stepAlvo = "copy";
 
@@ -133,5 +135,22 @@ public class StepQaEmail : IPipelineStep
         {
             return (false, "QA: falha no parse JSON", "copy");
         }
+    }
+
+    private static string NormalizarStepAlvo(string? stepAlvo)
+    {
+        if (string.IsNullOrWhiteSpace(stepAlvo))
+            return "copy";
+
+        var normalized = stepAlvo.Trim().ToLowerInvariant();
+
+        if (normalized.Contains("hero") || normalized.Contains("imagem"))
+            return "hero";
+        if (normalized.Contains("diagramacao") || normalized.Contains("diagram"))
+            return "diagramacao";
+        if (normalized.Contains("copy") || normalized.Contains("texto"))
+            return "copy";
+
+        return "copy";
     }
 }

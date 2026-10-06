@@ -101,4 +101,42 @@ public class StepQaEmailPromptTests
 
         prompt.Should().NotContain("Estrategia de jornada");
     }
+
+    [Theory]
+    [InlineData("Hero", "hero")]
+    [InlineData("  copy  ", "copy")]
+    [InlineData("imagem", "hero")]
+    [InlineData("imagem_hero", "hero")]
+    [InlineData("diagramacao", "diagramacao")]
+    [InlineData("Diagramacao", "diagramacao")]
+    [InlineData("copy", "copy")]
+    public void ParseQaResult_ShouldNormalizeStepAlvo(string input, string expected)
+    {
+        var json = $"{{\"aprovado\": false, \"feedback\": \"fix\", \"step_alvo\": \"{input}\"}}";
+
+        var (aprovado, feedback, stepAlvo) = StepQaEmail.ParseQaResult(json);
+
+        aprovado.Should().BeFalse();
+        stepAlvo.Should().Be(expected);
+    }
+
+    [Fact]
+    public void ParseQaResult_WithNullStepAlvo_ShouldDefaultToCopy()
+    {
+        var json = "{\"aprovado\": false, \"feedback\": \"fix\"}";
+
+        var (_, _, stepAlvo) = StepQaEmail.ParseQaResult(json);
+
+        stepAlvo.Should().Be("copy");
+    }
+
+    [Fact]
+    public void ParseQaResult_WithUnknownStepAlvo_ShouldDefaultToCopy()
+    {
+        var json = "{\"aprovado\": false, \"feedback\": \"fix\", \"step_alvo\": \"unknown_step\"}";
+
+        var (_, _, stepAlvo) = StepQaEmail.ParseQaResult(json);
+
+        stepAlvo.Should().Be("copy");
+    }
 }
