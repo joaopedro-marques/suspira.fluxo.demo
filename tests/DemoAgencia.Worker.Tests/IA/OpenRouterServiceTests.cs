@@ -7,6 +7,7 @@ using DemoAgencia.Worker.Observabilidade;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA;
@@ -232,6 +233,118 @@ public class OpenRouterServiceTests
         root.TryGetProperty("reasoning", out _).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task ChamarAgenteAsync_On429_ShouldFallbackToNextModel()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                ChatCompletionResponse("fallback ok"),
+                Encoding.UTF8, "application/json")
+        });
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.FallbackModels = ["fallback/model-a", "fallback/model-b"];
+        options.Backoff429BaseSegundos = 0;
+        var service = CreateService(httpClientFactory, options);
+
+        var result = await service.ChamarAgenteAsync(1, "persona", "primary/model", "instrucoes", "email_copy");
+
+        result.Should().Be("fallback ok");
+        handler.CapturedBodies.Should().HaveCount(2);
+        using var doc = JsonDocument.Parse(handler.CapturedBodies[1]!);
+        doc.RootElement.GetProperty("model").GetString().Should().Be("fallback/model-a");
+    }
+
+    [Fact]
+    public async Task ChamarAgenteAsync_On429AllModels_ShouldThrow()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.FallbackModels = ["fallback/model-a"];
+        options.Backoff429BaseSegundos = 0;
+        var service = CreateService(httpClientFactory, options);
+
+        var act = () => service.ChamarAgenteAsync(1, "persona", "primary/model", "instrucoes", "email_copy");
+
+        await act.Should().ThrowAsync<HttpOperationException>();
+        handler.CapturedBodies.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ChamarAgenteAsync_OnNon429Error_ShouldNotFallback()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.FallbackModels = ["fallback/model-a"];
+        var service = CreateService(httpClientFactory, options);
+
+        var act = () => service.ChamarAgenteAsync(1, "persona", "primary/model", "instrucoes", "email_copy");
+
+        await act.Should().ThrowAsync<HttpOperationException>();
+        handler.CapturedBodies.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task GerarImagemAsync_On429_ShouldFallbackToNextImageModel()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "{\"data\":[{\"b64_json\":\"AQID\"}]}",
+                Encoding.UTF8, "application/json")
+        });
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.ImageModel = "primary/image-model";
+        options.ImageFallbackModels = ["fallback/image-model"];
+        options.Backoff429BaseSegundos = 0;
+        var service = CreateService(httpClientFactory, options);
+
+        var result = await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
+
+        result.Sucesso.Should().BeTrue();
+        result.Bytes.Should().BeEquivalentTo(new byte[] { 1, 2, 3 });
+        handler.CapturedBodies.Should().HaveCount(2);
+        using var doc = JsonDocument.Parse(handler.CapturedBodies[1]!);
+        doc.RootElement.GetProperty("model").GetString().Should().Be("fallback/image-model");
+    }
+
+    [Fact]
+    public async Task GerarImagemAsync_On429AllModels_ShouldReturnError()
+    {
+        var handler = new CapturingTestHandler();
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+        handler.Responses.Enqueue(new HttpResponseMessage(HttpStatusCode.TooManyRequests));
+
+        var httpClientFactory = CreateHttpClientFactory(handler);
+        var options = CreateOptions();
+        options.ImageModel = "primary/image-model";
+        options.ImageFallbackModels = ["fallback/image-model"];
+        options.Backoff429BaseSegundos = 0;
+        var service = CreateService(httpClientFactory, options);
+
+        var result = await service.GerarImagemAsync(1, "um gato", CancellationToken.None);
+
+        result.Sucesso.Should().BeFalse();
+        result.Erro.Should().Contain("429");
+        handler.CapturedBodies.Should().HaveCount(2);
+    }
+
     private static string ChatCompletionResponse(string content)
     {
         return $"{{\"id\":\"chatcmpl-123\",\"object\":\"chat.completion\",\"created\":1234567890,\"model\":\"test-model\",\"choices\":[{{\"index\":0,\"message\":{{\"role\":\"assistant\",\"content\":\"{content}\"}},\"finish_reason\":\"stop\"}}],\"usage\":{{\"prompt_tokens\":10,\"completion_tokens\":10,\"total_tokens\":20}}}}";
@@ -302,14 +415,20 @@ public class OpenRouterServiceTests
         public HttpContent? CapturedContent { get; private set; }
         public string? CapturedBody { get; private set; }
         public HttpResponseMessage Response { get; set; } = new(HttpStatusCode.OK);
+        public Queue<HttpResponseMessage> Responses { get; } = new();
+        public List<string?> CapturedBodies { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             CapturedUri = request.RequestUri;
             CapturedContent = request.Content;
             if (request.Content != null)
-                CapturedBody = await request.Content.ReadAsStringAsync(cancellationToken);
-            return Response;
+            {
+                var body = await request.Content.ReadAsStringAsync(cancellationToken);
+                CapturedBody = body;
+                CapturedBodies.Add(body);
+            }
+            return Responses.Count > 0 ? Responses.Dequeue() : Response;
         }
     }
 }
