@@ -14,4 +14,8 @@ public class OpenRouterOptions
     public int MaxRetriesHttp { get; set; } = 5;
     public int BackoffBaseSegundos { get; set; } = 5;
     public int BackoffMaxSegundos { get; set; } = 60;
+    public string[] FallbackModels { get; set; } = ["deepseek/deepseek-v3.2", "qwen/qwen3.7-plus", "openai/gpt-4o-mini"];
+    public string[] ImageFallbackModels { get; set; } = [];
+    public int Backoff429BaseSegundos { get; set; } = 2;
+    public int Backoff429MaxSegundos { get; set; } = 30;
 }
