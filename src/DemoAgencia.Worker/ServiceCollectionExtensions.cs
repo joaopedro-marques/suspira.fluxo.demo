@@ -78,13 +78,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
 
-        var templateEmailPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Assets", "referencias", "templates", "email.html");
-        if (!File.Exists(templateEmailPath))
-        {
-            templateEmailPath = Path.Combine(AppContext.BaseDirectory, "Assets", "referencias", "templates", "email.html");
-        }
-        var templateEmail = File.Exists(templateEmailPath) ? File.ReadAllText(templateEmailPath) : "";
-
         var heroSectionTemplate = """
         <tr>
           <td style="padding: 0; text-align: center;">
@@ -100,7 +93,6 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IAnalisadorImagem>(),
             sp.GetRequiredService<IAgentesCatalogo>(),
             sp.GetRequiredService<ITemplateCatalogo>(),
-            templateEmail,
             heroSectionTemplate));
 
         services.AddSingleton<ITelegramGatewayFactory, TelegramGatewayFactory>();

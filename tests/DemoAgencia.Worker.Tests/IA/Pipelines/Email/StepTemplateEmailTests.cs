@@ -2,7 +2,9 @@ using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
+using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
 
@@ -112,8 +114,12 @@ public class StepTemplateEmailTests
 
     private static StepTemplateEmail CriarStep(string? templateOverride = null)
     {
+        var catalogo = new Mock<ITemplateCatalogo>();
+        var template = templateOverride ?? Template;
+        catalogo.Setup(c => c.Obter(It.IsAny<string>())).Returns(template);
+        catalogo.Setup(c => c.Default).Returns(template);
         return new StepTemplateEmail(
-            templateOverride ?? Template,
+            catalogo.Object,
             HeroTr);
     }
 

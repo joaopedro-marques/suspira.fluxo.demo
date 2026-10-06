@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
@@ -7,12 +8,12 @@ public class StepTemplateEmail : IPipelineStep
 {
     public string Nome => "template";
 
-    private readonly string _template;
+    private readonly ITemplateCatalogo _catalogo;
     private readonly string _heroSectionTemplate;
 
-    public StepTemplateEmail(string templateContent, string heroSectionTemplate)
+    public StepTemplateEmail(ITemplateCatalogo catalogo, string heroSectionTemplate)
     {
-        _template = templateContent;
+        _catalogo = catalogo;
         _heroSectionTemplate = heroSectionTemplate;
     }
 
@@ -20,7 +21,14 @@ public class StepTemplateEmail : IPipelineStep
     {
         var copy = context.Copy ?? throw new InvalidOperationException("Step copy nao executado antes do template.");
 
-        var html = _template;
+        var templateContent = !string.IsNullOrEmpty(context.TemplateId)
+            ? _catalogo.Obter(context.TemplateId)
+            : null;
+
+        var html = templateContent ?? _catalogo.Default;
+
+        if (string.IsNullOrEmpty(html))
+            throw new InvalidOperationException("Template de email nao encontrado. Verifique se ha templates em Assets/referencias/templates/.");
 
         html = html.Replace("{{assunto}}", HtmlEncode(copy.Assunto));
         html = html.Replace("{{preheader}}", HtmlEncode(copy.Preheader));
