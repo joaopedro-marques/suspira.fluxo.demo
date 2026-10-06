@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-162-green)
+![Tests](https://img.shields.io/badge/tests-182-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Prova de Conceito (PoC) para validação de automação de marketing via Telegram com pipeline de email marketing gerada por IA.
@@ -34,7 +34,7 @@ Mensagem → TelegramService:
               │     ├── StepImagemHero (LLM + API: imagem opcional)
               │     ├── StepTemplateEmail (HTML table-based com slots)
               │     └── StepQaEmail (LLM: aprovado/reprovado, max 2 refações)
-              └── instagram/landing → "canal não suportado"
+              └── fora_contexto (canal/cliente fora do escopo configurável)
   → Entrega: zip com HTML + assets + imagens
 ```
 
@@ -150,7 +150,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**174 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD).
+**182 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD).
 
 ## CI/CD
 

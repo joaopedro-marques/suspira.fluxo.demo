@@ -38,11 +38,14 @@
 - [ ] Não responder - Timeout após 15 minutos (configurável em PreFlight__TimeoutMinutosPendencia)
 
 #### Fora de Contexto
-- [ ] Mensagem "Qual a previsão do tempo?" - Router classifica como `fora_contexto`, mensagem fixa
+- [ ] Mensagem "Qual a previsão do tempo?" - Router classifica como `fora_contexto`, mensagem específica (assunto_fora_escopo)
+- [ ] Mensagem "Crie um email para Acme" (cliente não permitido) - Router classifica como `fora_contexto` (cliente_nao_permitido)
+- [ ] Mensagem "Crie um post para Instagram para MRV" (canal não permitido) - Router classifica como `fora_contexto` (canal_nao_permitido)
+- [ ] Mensagem "Crie um email de boas-vindas" (sem cliente) - Router pede esclarecimento sobre qual cliente
 
 #### Produção (pipeline)
 - [ ] Mensagem "Crie um email sobre Black Friday" - Pipeline email executada
-- [ ] Mensagem "Crie um post para Instagram" - Router classifica canal=instagram, retorna "canal não suportado"
+- [ ] Mensagem "Crie um post para Instagram" - Router classifica como `fora_contexto` (canal_nao_permitido)
 
 ### Pipeline de Email
 

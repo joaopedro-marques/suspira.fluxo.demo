@@ -88,7 +88,7 @@ sequenceDiagram
         R->>R: Re-processar com respostas acumuladas
         R-->>T: RouterResultado (producao)
     else tipo = fora_contexto
-        T-->>U: Mensagem fixa (fora do escopo)
+        T-->>U: Mensagem específica por motivo (cliente/canal/assunto)
     else tipo = producao
         T->>T: Dispatch por canal
     end
@@ -123,7 +123,17 @@ sequenceDiagram
 | `instagram` | PipelineInstagram | Planejado |
 | `landing` | PipelineLanding | Planejado |
 
-Canais não implementados retornam mensagem "canal não suportado".
+Canais não implementados são rejeitados pela guarda determinística do router como `fora_contexto` (motivo: `canal_nao_permitido`).
+
+### Escopo Configurável
+
+O router opera com escopo configurável via `PreFlightOptions`:
+- `ClientesPermitidos` (default: `["mrv"]`)
+- `CanaisPermitidos` (default: `["email"]`)
+
+**Guarda determinística**: após a classificação do LLM, o RouterService valida se `cliente ∈ ClientesPermitidos` e `canal ∈ CanaisPermitidos`. Se não, coage o resultado para `fora_contexto` com motivo (`cliente_nao_permitido`, `canal_nao_permitido`). Isso é defense-in-depth: mesmo que o LLM ignore as regras do prompt, a guarda impede que a pipeline execute para clientes/canais não autorizados.
+
+O prompt injetado pelo `MontarPrompt` lista apenas clientes/canais permitidos (não todos os registrados), e a estratégia do cliente só é injetada quando o cliente detectado é permitido.
 
 ## Pipeline de Email
 
