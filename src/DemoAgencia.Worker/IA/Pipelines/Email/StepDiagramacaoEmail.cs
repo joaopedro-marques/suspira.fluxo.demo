@@ -55,11 +55,9 @@ public partial class StepDiagramacaoEmail : IPipelineStep
                 context.Copy.Assunto,
                 context.Copy.Preheader,
                 context.Copy.Titulo,
-                context.Copy.Saudacao,
                 html,
                 context.Copy.CtaTexto,
-                context.Copy.CtaLink,
-                context.Copy.Rodape);
+                context.Copy.CtaLink);
         }
         else
         {

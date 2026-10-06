@@ -35,12 +35,10 @@ public class StepTemplateEmail : IPipelineStep
         html = html.Replace("{{assunto}}", HtmlEncode(copy.Assunto));
         html = html.Replace("{{preheader}}", HtmlEncode(copy.Preheader));
         html = html.Replace("{{titulo}}", HtmlEncode(copy.Titulo));
-        html = html.Replace("{{saudacao}}", HtmlEncode(copy.Saudacao));
         html = html.Replace("{{corpo}}", copy.Corpo);
         html = html.Replace("{{cta_link}}", HtmlEncode(copy.CtaLink));
         html = html.Replace("{{cta_texto}}", HtmlEncode(copy.CtaTexto));
         html = html.Replace("{{logo_src}}", HtmlEncode(context.LogoSrc ?? ""));
-        html = html.Replace("{{rodape}}", HtmlEncode(copy.Rodape));
 
         if (!string.IsNullOrEmpty(context.HeroSrc))
         {

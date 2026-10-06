@@ -42,7 +42,6 @@ public class StepTemplateEmailTests
         <tr>
         <td style="padding: 10px 30px 10px 30px;">
         <h1 style="margin: 0 0 15px 0; font-family: Arial, Helvetica, sans-serif; font-size: 24px; line-height: 1.3; color: #333333;">{{titulo}}</h1>
-        <p style="margin: 0 0 10px 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.5; color: #555555;">{{saudacao}}</p>
         </td>
         </tr>
         <tr>
@@ -65,7 +64,7 @@ public class StepTemplateEmailTests
         </tr>
         <tr>
         <td style="padding: 20px 30px 30px 30px; text-align: center; border-top: 1px solid #eeeeee;">
-        <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #999999;">{{rodape}}</p>
+        <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #999999;">Rodape fixo do template.</p>
         </td>
         </tr>
         </table>
@@ -105,11 +104,9 @@ public class StepTemplateEmailTests
             "Assunto teste",
             "Preheader teste",
             "Titulo teste",
-            "Ola, mundo!",
             "<p>Corpo do email com <strong>destaque</strong>.</p>",
             "Clique aqui",
-            "https://exemplo.com",
-            "Rodape teste. Descadastre-se.");
+            "https://exemplo.com");
 
         return new PipelineContext
         {
@@ -147,11 +144,9 @@ public class StepTemplateEmailTests
         ctx.Html.Should().NotContain("{{assunto}}");
         ctx.Html.Should().NotContain("{{preheader}}");
         ctx.Html.Should().NotContain("{{titulo}}");
-        ctx.Html.Should().NotContain("{{saudacao}}");
         ctx.Html.Should().NotContain("{{corpo}}");
         ctx.Html.Should().NotContain("{{cta_link}}");
         ctx.Html.Should().NotContain("{{cta_texto}}");
-        ctx.Html.Should().NotContain("{{rodape}}");
         ctx.Html.Should().NotContain("{{logo_src}}");
         ctx.Html.Should().NotContain("{{hero_section}}");
         ctx.Html.Should().NotContain("{{hero_src}}");
@@ -303,11 +298,9 @@ public class StepTemplateEmailTests
             "Assunto <especial> & \"citado\"",
             "Preheader",
             "Titulo",
-            "Saudacao",
             "<p>Corpo</p>",
             "CTA",
-            "https://ex.com?a=1&b=2",
-            "Rodape");
+            "https://ex.com?a=1&b=2");
 
         var step = CriarStep();
         var ctx = CriarContexto(copy: copy, logoSrc: "assets/logo.png");

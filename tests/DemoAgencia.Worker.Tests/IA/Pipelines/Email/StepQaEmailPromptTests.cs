@@ -17,7 +17,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "email pos-compra",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "link", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "link"),
             Html = "<html></html>",
             Estrategia = new EstrategiaEmail
             {
@@ -54,7 +54,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "email pos-compra",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "link", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "link"),
             Html = "<html></html>",
             BannerSrc = "assets/agendar_vistoria.png"
         };
@@ -74,7 +74,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "email",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "link", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "link"),
             Html = "<html></html>"
         };
 
@@ -93,7 +93,7 @@ public class StepQaEmailPromptTests
             Cliente = "acme",
             MensagemOriginal = "email",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), null, null),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "link", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "link"),
             Html = "<html></html>"
         };
 
@@ -149,7 +149,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "assembleia",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "Confirmar presenca", "%%LINKASSEMBLEIA%%", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "Confirmar presenca", "%%LINKASSEMBLEIA%%"),
             Html = "<p>Assembleia em %%DATA%% as %%HORARIO%% no %%LOCAL%%</p><a href=\"%%LINKASSEMBLEIA%%\">CTA</a>"
         };
 
@@ -172,7 +172,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "email",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "https://link.com", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "https://link.com"),
             Html = "<p>Sem placeholders aqui</p>"
         };
 
@@ -208,7 +208,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "confirmar presenca na assembleia",
             Brief = new Brief("email", null, null, null, null, "%%LINKASSEMBLEIA%%", new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "Confirmar", "%%CONFIRM_LINK%%", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "Confirmar", "%%CONFIRM_LINK%%"),
             Html = "<a href=\"%%CONFIRM_LINK%%\">CTA</a>"
         };
 
@@ -229,7 +229,7 @@ public class StepQaEmailPromptTests
             Cliente = "mrv",
             MensagemOriginal = "email pos-compra",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "https://link.com", "rodape"),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "https://link.com"),
             Html = "<p>Sem tokens no briefing</p>"
         };
 

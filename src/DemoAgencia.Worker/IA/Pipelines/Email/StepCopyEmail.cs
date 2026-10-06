@@ -124,7 +124,6 @@ public class StepCopyEmail : IPipelineStep
                 prompt += $"Assunto: {context.Copy.Assunto}\n";
                 prompt += $"Titulo: {context.Copy.Titulo}\n";
                 prompt += $"CTA: {context.Copy.CtaTexto}\n";
-                prompt += $"\nIMPORTANTE: Mantenha o mesmo rodape, a menos que o feedback acima solicite alteracao no rodape.\n";
             }
         }
 
@@ -145,11 +144,9 @@ public class StepCopyEmail : IPipelineStep
             var assunto = root.TryGetProperty("assunto", out var a) ? a.GetString() : null;
             var preheader = root.TryGetProperty("preheader", out var p) ? p.GetString() : null;
             var titulo = root.TryGetProperty("titulo", out var t) ? t.GetString() : null;
-            var saudacao = root.TryGetProperty("saudacao", out var s) ? s.GetString() : null;
             var corpo = root.TryGetProperty("corpo", out var c) ? c.GetString() : null;
             var ctaTexto = root.TryGetProperty("cta_texto", out var ct) ? ct.GetString() : null;
             var ctaLink = root.TryGetProperty("cta_link", out var cl) ? cl.GetString() : null;
-            var rodape = root.TryGetProperty("rodape", out var r) ? r.GetString() : null;
 
             if (string.IsNullOrEmpty(assunto) || string.IsNullOrEmpty(corpo))
                 return null;
@@ -158,11 +155,9 @@ public class StepCopyEmail : IPipelineStep
                 assunto ?? "",
                 preheader ?? "",
                 titulo ?? "",
-                saudacao ?? "",
                 corpo,
                 ctaTexto ?? "",
-                ctaLink ?? "",
-                rodape ?? "");
+                ctaLink ?? "");
         }
         catch
         {

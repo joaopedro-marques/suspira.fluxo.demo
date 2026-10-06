@@ -38,7 +38,7 @@ public class StepDiagramacaoEmailTests
             Cliente = "mrv",
             MensagemOriginal = "teste",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "Saudacao", corpo, "CTA", "https://link", "Rodape"),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", corpo, "CTA", "https://link"),
             Estrategia = new EstrategiaEmail
             {
                 Fase = "pos-chaves",

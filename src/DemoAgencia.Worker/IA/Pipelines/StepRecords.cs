@@ -12,8 +12,6 @@ public record CopyEmailSlots(
     string Assunto,
     string Preheader,
     string Titulo,
-    string Saudacao,
     string Corpo,
     string CtaTexto,
-    string CtaLink,
-    string Rodape);
+    string CtaLink);
