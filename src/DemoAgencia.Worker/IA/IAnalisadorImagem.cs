@@ -6,4 +6,9 @@ public interface IAnalisadorImagem
         byte[] imagemBytes,
         string? contexto,
         CancellationToken ct = default);
+
+    Task<BannerDescricao> DescreverBannerAsync(
+        byte[] imagemBytes,
+        string? contexto,
+        CancellationToken ct = default);
 }

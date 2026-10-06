@@ -102,6 +102,85 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         }
     }
 
+    public virtual async Task<BannerDescricao> DescreverBannerAsync(
+        byte[] imagemBytes,
+        string? contexto,
+        CancellationToken ct = default)
+    {
+        var modeloVisao = string.IsNullOrEmpty(_options.VisionModel) ? "qwen/qwen2.5-vl-72b-instruct" : _options.VisionModel;
+        var traceContext = _langfuse.IniciarTrace(0, "banner-analysis", modeloVisao);
+
+        var kernel = CriarKernel(modeloVisao);
+        var chatService = kernel.GetRequiredService<IChatCompletionService>();
+
+        var chatHistory = new ChatHistory();
+        chatHistory.AddSystemMessage(BannerPromptSystema);
+
+        var prompt = string.IsNullOrEmpty(contexto)
+            ? BannerPromptUser
+            : $"Contexto adicional: {contexto}\n\n{BannerPromptUser}";
+
+        var base64Image = Convert.ToBase64String(imagemBytes);
+        var dataUri = $"data:image/png;base64,{base64Image}";
+
+        var settings = new OpenAIPromptExecutionSettings
+        {
+            Temperature = 0.4,
+            MaxTokens = 1500
+        };
+
+        try
+        {
+            var chatMessage = new ChatMessageContent(
+                AuthorRole.User,
+                new ChatMessageContentItemCollection
+                {
+                    new ImageContent(dataUri),
+                    new TextContent(prompt)
+                });
+
+            chatHistory.Add(chatMessage);
+
+            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
+            var resposta = response.Content ?? "";
+
+            if (BannerDescricao.TryParse(resposta, out var descricao) && descricao != null)
+            {
+                _logger.LogInformation("Banner analisado com sucesso");
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, resposta, ct);
+                return descricao;
+            }
+
+            _logger.LogWarning("Falha ao parsear descricao do banner. Resposta: {Resposta}", resposta?[..Math.Min(200, resposta?.Length ?? 0)]);
+            await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[parse failed]", ct);
+            return new BannerDescricao();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao analisar banner");
+            await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Erro: {ex.Message}", ct);
+            return new BannerDescricao();
+        }
+    }
+
+    private const string BannerPromptSystema = """
+        Voce e um especialista em direcao de arte e design visual para email marketing.
+        Analise o banner/imagem fornecido e descreva suas caracteristicas visuais de forma estruturada.
+        Responda APENAS com JSON valido, sem explicacoes adicionais, sem markdown.
+
+        Campos obrigatorios:
+        {
+            "descricao_geral": "Descricao geral do que a imagem representa (1-2 frases)",
+            "composicao": "Como os elementos estao organizados (layout, alinhamento, espaco)",
+            "paleta_dominante": ["lista de cores dominantes em hex, ex: #006b40"],
+            "estilo": "Estilo visual (ex: flat, fotográfico, ilustração, 3D, minimalista)",
+            "mood": "Sensacao/ambiente que a imagem transmite (ex: profissional, acolhedor, urgente)",
+            "texto_presente": "Texto visivel na imagem, se houver (ou string vazia)"
+        }
+        """;
+
+    private const string BannerPromptUser = "Analise este banner e descreva suas caracteristicas visuais.";
+
     public virtual async Task<ResultadoImagem> GerarImagemAsync(
         long chatId,
         string prompt,
