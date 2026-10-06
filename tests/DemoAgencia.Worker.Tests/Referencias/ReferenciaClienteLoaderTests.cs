@@ -591,6 +591,90 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task SelecionarBannersRanked_ShouldReturnMultipleByScore()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_vistoria_info.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_financiamento_banco.png"), new byte[] { 3 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked("mrv", "pre-chaves", "vistoria", new List<string> { "vistoria" }, "vistoria", 5);
+
+        ranked.Should().HaveCountGreaterThanOrEqualTo(2);
+        ranked.First().Nome.Should().Be("agendar_vistoria");
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_ShouldRespectMax()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_vistoria_info.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_financiamento_banco.png"), new byte[] { 3 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked("mrv", "pre-chaves", "vistoria", null, "vistoria info", 1);
+
+        ranked.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_ShouldOnlyIncludeScoreAboveZero()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_financiamento_banco.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked("mrv", "pos-chaves", null, null, "pintura da fachada", 5);
+
+        ranked.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_WithUnknownClient_ShouldReturnEmpty()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked("unknown", null, null, null, "texto", 3);
+
+        ranked.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_WithMaxZero_ShouldReturnEmpty()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked("mrv", null, null, null, "vistoria", 0);
+
+        ranked.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task StartAsync_ShouldIgnoreDescJsonSidecars()
     {
         var bannersDir = Path.Combine(_tempDir, "imagens", "banners");

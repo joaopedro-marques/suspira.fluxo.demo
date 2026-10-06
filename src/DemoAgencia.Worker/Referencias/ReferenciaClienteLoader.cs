@@ -509,12 +509,21 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
     public virtual AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto)
     {
+        var ranked = SelecionarBannersRanked(cliente, fase, subJornada, templateSubJornadas, texto, 1);
+        return ranked.Count > 0 ? ranked[0] : null;
+    }
+
+    public virtual IReadOnlyList<AssetVisual> SelecionarBannersRanked(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, int max)
+    {
+        if (max <= 0)
+            return Array.Empty<AssetVisual>();
+
         if (!_assetsPorCliente.TryGetValue(cliente.ToLowerInvariant(), out var assets))
-            return null;
+            return Array.Empty<AssetVisual>();
 
         var banners = assets.Where(a => a.Tipo == TipoAsset.Banner).ToList();
         if (banners.Count == 0)
-            return null;
+            return Array.Empty<AssetVisual>();
 
         var textoLower = texto?.ToLowerInvariant() ?? "";
         var subJornadaLower = subJornada?.ToLowerInvariant() ?? "";
@@ -571,12 +580,12 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             return (banner: b, score);
         });
 
-        var best = scored
+        return scored
             .Where(x => x.score > 0)
             .OrderByDescending(x => x.score)
             .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-
-        return best.banner;
+            .Take(max)
+            .Select(x => x.banner)
+            .ToList();
     }
 }
