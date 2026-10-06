@@ -11,6 +11,7 @@ public class PipelineEmail
     private readonly IReferenciasCliente _referencias;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly IAgentesCatalogo _catalogo;
+    private readonly ITemplateCatalogo _templateCatalogo;
     private readonly string _templateEmail;
     private readonly string _heroSectionTemplate;
 
@@ -20,6 +21,7 @@ public class PipelineEmail
         IReferenciasCliente referencias,
         IAnalisadorImagem analisadorImagem,
         IAgentesCatalogo catalogo,
+        ITemplateCatalogo templateCatalogo,
         string templateEmail,
         string heroSectionTemplate)
     {
@@ -28,6 +30,7 @@ public class PipelineEmail
         _referencias = referencias;
         _analisadorImagem = analisadorImagem;
         _catalogo = catalogo;
+        _templateCatalogo = templateCatalogo;
         _templateEmail = templateEmail;
         _heroSectionTemplate = heroSectionTemplate;
     }
@@ -36,7 +39,7 @@ public class PipelineEmail
     {
         var steps = new List<IPipelineStep>
         {
-            new StepEstrategiaEmail(_referencias),
+            new StepEstrategiaEmail(_referencias, _templateCatalogo),
             new StepMarcaEmail(_referencias),
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat),
             new StepImagemHero(_catalogo.Obter("hero"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem),

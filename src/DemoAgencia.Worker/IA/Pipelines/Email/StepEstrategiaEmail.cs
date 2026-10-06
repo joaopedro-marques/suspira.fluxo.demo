@@ -7,16 +7,24 @@ public class StepEstrategiaEmail : IPipelineStep
     public string Nome => "estrategia";
 
     private readonly IReferenciasCliente _referencias;
+    private readonly ITemplateCatalogo _catalogo;
 
-    public StepEstrategiaEmail(IReferenciasCliente referencias)
+    public StepEstrategiaEmail(IReferenciasCliente referencias, ITemplateCatalogo catalogo)
     {
         _referencias = referencias;
+        _catalogo = catalogo;
     }
 
     public virtual Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
         var cliente = context.Cliente;
         var etapa = context.Brief.EtapaJornada;
+
+        context.TemplateId = _catalogo.Selecionar(
+            cliente,
+            etapa,
+            context.Brief.SubJornada,
+            context.MensagemOriginal);
 
         if (string.IsNullOrEmpty(cliente) || string.IsNullOrEmpty(etapa))
         {

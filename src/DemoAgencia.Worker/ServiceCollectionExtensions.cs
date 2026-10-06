@@ -71,6 +71,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentesCatalogo>(sp => sp.GetRequiredService<AgentesLoader>());
         services.AddHostedService(sp => sp.GetRequiredService<AgentesLoader>());
 
+        services.AddSingleton<TemplateCatalogo>();
+        services.AddSingleton<ITemplateCatalogo>(sp => sp.GetRequiredService<TemplateCatalogo>());
+        services.AddHostedService(sp => sp.GetRequiredService<TemplateCatalogo>());
+
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
 
@@ -95,6 +99,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IReferenciasCliente>(),
             sp.GetRequiredService<IAnalisadorImagem>(),
             sp.GetRequiredService<IAgentesCatalogo>(),
+            sp.GetRequiredService<ITemplateCatalogo>(),
             templateEmail,
             heroSectionTemplate));
 

@@ -10,12 +10,16 @@ namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
 public class StepEstrategiaEmailTests
 {
     private readonly Mock<IReferenciasCliente> _refsMock;
+    private readonly Mock<ITemplateCatalogo> _catalogoMock;
     private readonly StepEstrategiaEmail _step;
 
     public StepEstrategiaEmailTests()
     {
         _refsMock = new Mock<IReferenciasCliente>();
-        _step = new StepEstrategiaEmail(_refsMock.Object);
+        _catalogoMock = new Mock<ITemplateCatalogo>();
+        _catalogoMock.Setup(c => c.Selecionar(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>()))
+            .Returns("MRV_html_vistoria");
+        _step = new StepEstrategiaEmail(_refsMock.Object, _catalogoMock.Object);
     }
 
     [Fact]
@@ -137,5 +141,49 @@ public class StepEstrategiaEmailTests
         var result = await _step.ExecutarAsync(context, CancellationToken.None);
 
         result.Estrategia.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ShouldCallCatalogoSelecionar()
+    {
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-chaves"] = new FaseEstrategia { Fase = "pos-chaves" };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+        _catalogoMock.Setup(c => c.Selecionar("mrv", "pos-chaves", "vistoria", "quero agendar"))
+            .Returns("MRV_html_vistoria");
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "quero agendar",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-chaves", "vistoria")
+        };
+
+        var result = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        _catalogoMock.Verify(c => c.Selecionar("mrv", "pos-chaves", "vistoria", "quero agendar"), Times.Once);
+        result.TemplateId.Should().Be("MRV_html_vistoria");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutStrategy_ShouldStillSelectTemplate()
+    {
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns((EstrategiaCliente?)null);
+        _catalogoMock.Setup(c => c.Selecionar("mrv", "pos-chaves", null, "teste"))
+            .Returns("MRV_html_default");
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-chaves", null)
+        };
+
+        var result = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        result.Estrategia.Should().BeNull();
+        result.TemplateId.Should().Be("MRV_html_default");
     }
 }

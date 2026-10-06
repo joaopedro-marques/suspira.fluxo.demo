@@ -12,6 +12,7 @@ public class PipelineContext
     public string? LogoSrc { get; set; }
     public CopyEmailSlots? Copy { get; set; }
     public string? HeroSrc { get; set; }
+    public string? TemplateId { get; set; }
     public string? Html { get; set; }
     public string? QaFeedback { get; set; }
     public string? QaStepAlvo { get; set; }
