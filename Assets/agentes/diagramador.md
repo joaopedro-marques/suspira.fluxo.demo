@@ -83,7 +83,7 @@ Use estes padroes para criar layout inovadores dentro das restricoes:
 - Contraste adequado: texto escuro em fundo claro ou vice-versa
 - Hierarquia visual clara: titulos maiores, corpo legivel (14-16px)
 - Cores da marca devem ser aplicadas em destaques, badges e divisores
-- Icones disponiveis serao informados no contexto — referencie-os por `assets/{nome}`
+- Icones disponiveis serao informados no contexto com suas descricoes — referencie-os por `assets/{nome}.png` (use a extensao completa)
 - Priorize blocos visuais ao inves de texto corrido longo
 
 ## Formato de Resposta
