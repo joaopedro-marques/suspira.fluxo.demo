@@ -42,6 +42,7 @@ Mensagem → TelegramService:
 - **PipelineEmail**: Steps ordenados deterministicamente, cada um recebe contexto mínimo
 - **Steps**: Retrieval (estratégia, marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
 - **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/hero), max 2 refações
+- **Fallback de modelos em 429**: Polly re-tenta no mesmo modelo respeitando Retry-After; se 429 persiste, troca para próximo modelo da cadeia configurável com backoff exponencial
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
 - **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_marca, email_copy, email_hero_prompt, email_hero_imagem, email_template, email_qa)
 

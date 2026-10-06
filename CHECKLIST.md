@@ -123,6 +123,12 @@
 - [ ] Verificar se bot reconecta automaticamente
 - [ ] Verificar backoff exponencial nos logs
 
+### Fallback de Modelos (429)
+- [ ] 429 do OpenRouter - Sistema faz fallback para próximo modelo (verificar logs com "Fallback para")
+- [ ] 429 em todos os modelos - Pipeline retorna erro amigável ao usuário
+- [ ] 429 na geração de imagem - Pipeline continua sem imagem hero (degradado)
+- [ ] Trace Langfuse registra modelo efetivamente usado após fallback
+
 ### Mensagens Inválidas
 - [ ] Enviar comando inexistente - Bot responde com erro amigável
 - [ ] Enviar foto muito grande - Bot trata erro graciosamente
