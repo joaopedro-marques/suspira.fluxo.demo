@@ -35,4 +35,5 @@ Se reprovado:
 - Ao reprovar, o feedback deve ser acionavel: diga exatamente o que precisa ser corrigido
 - NUNCA aprove um email que nao atenda ao briefing original
 - Problemas de estrutura HTML (table-based, CSS inline, etc.) sao responsabilidade do template, nao reprove por isso
+- Placeholders %%...%% (ex: %%NOME%%, %%Protocolo%%) no HTML final sao ESPERADOS — sao dados do cliente que serao preenchidos pelo ESP. Nao reprove por "placeholders nao substituidos"
 - Responda SEMPRE em JSON valido
