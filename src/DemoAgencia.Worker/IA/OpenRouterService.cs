@@ -44,7 +44,7 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         string? contexto,
         CancellationToken ct = default)
     {
-        var modeloVisao = "qwen/qwen2.5-vl-72b-instruct";
+        var modeloVisao = string.IsNullOrEmpty(_options.VisionModel) ? "qwen/qwen2.5-vl-72b-instruct" : _options.VisionModel;
         var traceContext = _langfuse.IniciarTrace(0, "image-analysis", modeloVisao);
 
         var kernel = CriarKernel(modeloVisao);

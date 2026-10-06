@@ -14,6 +14,13 @@ namespace DemoAgencia.Worker.Tests.IA;
 
 public class OpenRouterServiceTests
 {
+    [Fact]
+    public void OpenRouterOptions_VisionModel_ShouldHaveDefault()
+    {
+        var options = new OpenRouterOptions();
+        options.VisionModel.Should().Be("qwen/qwen2.5-vl-72b-instruct");
+    }
+
     [Theory]
     [InlineData("{\"acao\": \"pipeline\"}", "{\"acao\": \"pipeline\"}")]
     [InlineData("Aqui esta o JSON: {\"acao\": \"direta\"} ok", "{\"acao\": \"direta\"}")]
