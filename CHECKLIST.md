@@ -58,8 +58,9 @@
 - [ ] StepEstrategiaEmail - Carrega fase, paleta, temas, sub-jornada, mapa emocional e satisfações
 - [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
 - [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
-- [ ] StepImagemHero - Gera prompt + imagem hero (se brief.imagens tem hero)
-- [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px
+- [ ] StepImagemHero - Seleciona banner por afinidade (etapa/sub-jornada/mensagem); se banner afim, pula IA; senão gera prompt + imagem hero
+- [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px, {{banner_section}} e {{hero_section}} condicionais
+- [ ] StepAssetsEmail - Resolve referências assets/ no HTML e empacota assets correspondentes
 - [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 2 refações)
 
 #### QA com Retry
@@ -70,8 +71,10 @@
 #### Entrega
 - [ ] Pipeline completa - Zip enviado com HTML + imagens + assets
 - [ ] Zip contém `entregavel.html` com template table-based
-- [ ] Zip contém `imagens/gerada_1.png` (se hero gerado)
+- [ ] Zip contém `imagens/gerada_1.png` (se hero gerado via IA)
+- [ ] Zip contém `assets/banner_{nome}.png` (se banner afim à etapa selecionado)
 - [ ] Zip contém `assets/logo.png` (se cliente tem logo)
+- [ ] Zip contém `assets/logoMRVCO.png`, ícones sociais (se referenciados no template)
 
 ### Multimodal (Análise de Fotos)
 - [ ] Enviar foto sem legenda - Bot descreve a imagem
@@ -114,7 +117,8 @@
 
 ### Pipeline
 - [ ] StepCopyEmail falha - Pipeline aborta, mensagem de erro retornada
-- [ ] StepImagemHero falha - Pipeline continua sem imagem hero (opcional)
+- [ ] StepImagemHero falha com banner selecionado - Pipeline continua com banner (sem IA)
+- [ ] StepImagemHero falha sem banner - Pipeline continua sem imagem hero (degradado)
 - [ ] StepTemplateEmail falha - Pipeline aborta, mensagem de erro retornada
 - [ ] StepQaEmail falha - Pipeline retorna HTML sem QA (degradado)
 

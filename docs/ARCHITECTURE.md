@@ -200,8 +200,9 @@ sequenceDiagram
 | `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
-| `StepImagemHero` | LLM + API | `qwen/qwen3.7-plus` | Gera prompt otimizado + chama API de imagem |
+| `StepImagemHero` | Retrieval + LLM + API | `qwen/qwen3.7-plus` | Seleciona banner de referência por afinidade com a etapa (skips IA); sem banner afim, gera prompt otimizado + chama API de imagem |
 | `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
+| `StepAssetsEmail` | Retrieval determinístico | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
 ### Contexto por Step
@@ -213,9 +214,10 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 | `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
 | `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
 | `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
-| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) | Copy, outros steps |
-| `StepTemplateEmail` | Copy slots + Hero src + Marca | Brief, outros steps |
-| `StepQaEmail` | Brief original + HTML final + Estrategia | Few-shots, outros steps |
+| `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) | Copy, outros steps |
+| `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca | Brief, outros steps |
+| `StepAssetsEmail` | HTML final + banco de referências | Brief, outros steps |
+| `StepQaEmail` | Brief original + HTML final + Estrategia + Banner src | Few-shots, outros steps |
 
 ## Template HTML
 
@@ -228,8 +230,8 @@ Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) co
 ```html
 <!-- Estrutura principal -->
 <table width="600">
-  <tr><td><!-- Banner fixo --></td></tr>
-  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA -->
+  <tr><td>{{banner_section}}</td></tr>  <!-- Condicional: banner de referência da etapa ou vazio -->
+  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA (quando sem banner) -->
   <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
   <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
   <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
@@ -261,7 +263,7 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 
 ### Placeholders
 
-- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{hero_section}}`, `{{hero_src}}`
+- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`
 - **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
 
 ### Características do Template
@@ -273,6 +275,8 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 - **Max-width 600px**: Padrão de email marketing
 - **CTA bulletproof**: Botão como tabela, não `<a>` com background
 - **Hero section**: Condicional (`{{hero_section}}` preenchido ou vazio)
+- **Banner section**: Condicional (`{{banner_section}}` preenchido com banner da etapa ou vazio; quando presente, hero é suprimido)
+- **Empacotamento de assets**: `StepAssetsEmail` resolve referências `assets/...` no HTML contra o banco de referências e as inclui no zip final
 - **HTML escaping**: Slots de texto escapados via `WebUtility.HtmlEncode`
 
 ### Testes HTML (TDD)

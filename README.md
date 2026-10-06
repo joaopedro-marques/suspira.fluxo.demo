@@ -56,7 +56,7 @@ src/DemoAgencia.Worker/
   │   ├── PreFlight/         # ConversaPendenteStore, EstadoPreFlight
   │   └── Pipelines/         # PipelineRunner, IPipelineStep
   │       └── Email/         # StepEstrategiaEmail, StepMarcaEmail, StepCopyEmail,
-  │                          # StepImagemHero, StepTemplateEmail, StepQaEmail
+   │                          # StepImagemHero, StepTemplateEmail, StepAssetsEmail, StepQaEmail
   ├── Agentes/               # IAgentesCatalogo + loader de agentes .md
   ├── Referencias/           # IReferenciasCliente (texto + imagens + estratégia)
   ├── Configuracoes/         # Options pattern (PreFlightOptions, OpenRouterOptions, etc.)
@@ -69,7 +69,9 @@ Assets/
   └── referencias/
       ├── estrategia/        # {cliente}_{tipo}.json (paleta, temas, jornada, mapa, satisfações)
       ├── templates/         # Modelos base de email (com slots)
-      └── imagens/           # {cliente}_{tipo}_{nome}.ext (logos, icons, banners)
+      └── imagens/           # {cliente}_{tipo}_{nome}.ext (logos/, icons/, banners/)
+                             # Banners: classificados pelo diretório banners/, nome descritivo
+                             # da etapa da jornada para seleção por afinidade
 ```
 
 ## Execução Local
