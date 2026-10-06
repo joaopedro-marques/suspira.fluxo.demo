@@ -165,4 +165,39 @@ public class TemplateCatalogoTests : IDisposable
 
         catalogo.Obter("ACME_orfao").Should().BeNull();
     }
+
+    [Fact]
+    public async Task ObterSubJornadas_WithValidId_ReturnsSubJornadas()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "ACME_visita.html"), "<html>visita</html>");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "ACME_visita.json"), """{"cliente":"acme","fase":"pos-chaves","sub_jornadas":["assistencia","visita-tecnica"]}""");
+
+        var catalogo = new TemplateCatalogo(_loggerMock.Object, _tempDir);
+        await catalogo.StartAsync(CancellationToken.None);
+
+        var subs = catalogo.ObterSubJornadas("ACME_visita");
+
+        subs.Should().BeEquivalentTo(new[] { "assistencia", "visita-tecnica" });
+    }
+
+    [Fact]
+    public async Task ObterSubJornadas_WithInvalidId_ReturnsEmpty()
+    {
+        var catalogo = new TemplateCatalogo(_loggerMock.Object, _tempDir);
+        await catalogo.StartAsync(CancellationToken.None);
+
+        catalogo.ObterSubJornadas("nao-existe").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ObterSubJornadas_WithoutSubJornadasInSidecar_ReturnsEmpty()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "ACME_visita.html"), "<html>visita</html>");
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "ACME_visita.json"), """{"cliente":"acme","fase":"pos-chaves"}""");
+
+        var catalogo = new TemplateCatalogo(_loggerMock.Object, _tempDir);
+        await catalogo.StartAsync(CancellationToken.None);
+
+        catalogo.ObterSubJornadas("ACME_visita").Should().BeEmpty();
+    }
 }

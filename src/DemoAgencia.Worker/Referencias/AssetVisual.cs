@@ -10,6 +10,7 @@ public enum TipoAsset
     Logo,
     Foto,
     Post,
+    Banner,
     Outro
 }
 
@@ -35,6 +36,7 @@ public class AssetVisual
             "logo" => TipoAsset.Logo,
             "foto" => TipoAsset.Foto,
             "post" => TipoAsset.Post,
+            "banner" => TipoAsset.Banner,
             _ => TipoAsset.Outro
         };
     }

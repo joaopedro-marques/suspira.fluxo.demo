@@ -452,4 +452,141 @@ public class ReferenciaClienteLoaderTests : IDisposable
         estrategia.Fases["pre-chaves"].SubJornadas.Should().ContainKey("Jornada-pre-chaves");
         estrategia.Fases["pre-chaves"].SubJornadas["Jornada-pre-chaves"].Should().HaveCount(2);
     }
+
+    [Fact]
+    public async Task ListarAssets_WithBannerDirectory_ShouldClassifyAsBanner()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_entrega_de_chaves.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "MRV_logo.png"), new byte[] { 3 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("mrv");
+
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Banner && a.Nome == "agendar_vistoria");
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Banner && a.Nome == "entrega_de_chaves");
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Logo);
+    }
+
+    [Fact]
+    public async Task ListarAssets_WithBannerNameSegment_ShouldClassifyAsBanner()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_banner_financiamento_banco.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var assets = loader.ListarAssets("mrv");
+
+        assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Banner && a.Nome == "financiamento_banco");
+    }
+
+    [Fact]
+    public async Task SelecionarBanner_WithTemplateAffinity_ShouldMatchStrongest()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        var jornada = """
+        { "Acompanhar": { "Jornada-pre-chaves": { "1": "Vistoria Antecipada", "2": "Entrega das chaves" } } }
+        """;
+        var paleta = """
+        { "paleta_de_cores": [{ "cor_principal": "Rosa", "etapa": "jornada pre-chaves", "descricao": "", "cores_hex_aproximadas": [] }] }
+        """;
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_jornada_cliente.json"), jornada);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paleta);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_entrega_de_chaves.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var banner = loader.SelecionarBanner("mrv", "pre-chaves", "vistoria", new List<string> { "vistoria", "entrega-chaves" }, "quero agendar a vistoria");
+
+        banner.Should().NotBeNull();
+        banner!.Nome.Should().Be("agendar_vistoria");
+    }
+
+    [Fact]
+    public async Task SelecionarBanner_WithTextoDisambiguation_ShouldPickCorrectVariant()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        var jornada = """
+        { "Acompanhar": { "Jornada-pre-chaves": { "1": "Vistoria Antecipada" } } }
+        """;
+        var paleta = """
+        { "paleta_de_cores": [{ "cor_principal": "Rosa", "etapa": "jornada pre-chaves", "descricao": "", "cores_hex_aproximadas": [] }] }
+        """;
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_jornada_cliente.json"), jornada);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paleta);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_vistoria_info.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var banner = loader.SelecionarBanner("mrv", "pre-chaves", "vistoria", new List<string> { "vistoria" }, "informacoes sobre a vistoria");
+
+        banner.Should().NotBeNull();
+        banner!.Nome.Should().Be("vistoria_info");
+    }
+
+    [Fact]
+    public async Task SelecionarBanner_WithNoMatch_ShouldReturnNull()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_financiamento_banco.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var banner = loader.SelecionarBanner("mrv", "pos-chaves", null, new List<string> { "assistencia" }, "pintura da fachada");
+
+        banner.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SelecionarBanner_WithNoBanners_ShouldReturnNull()
+    {
+        await File.WriteAllBytesAsync(Path.Combine(_tempDir, "MRV_logo.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var banner = loader.SelecionarBanner("mrv", "pre-chaves", null, null, "vistoria");
+
+        banner.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SelecionarBanner_WithUnknownClient_ShouldReturnNull()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 1 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var banner = loader.SelecionarBanner("unknown", null, null, null, "texto");
+
+        banner.Should().BeNull();
+    }
 }

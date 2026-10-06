@@ -6,4 +6,5 @@ public interface IReferenciasCliente
     IReadOnlyCollection<AssetVisual> ListarAssets(string cliente);
     IReadOnlyCollection<string> ListarClientes();
     EstrategiaCliente? ObterEstrategia(string cliente);
+    AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto);
 }

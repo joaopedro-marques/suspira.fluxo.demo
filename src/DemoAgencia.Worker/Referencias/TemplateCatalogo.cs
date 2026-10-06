@@ -68,6 +68,13 @@ public class TemplateCatalogo : IHostedService, ITemplateCatalogo
         return _templates.TryGetValue(id, out var t) ? t.Content : null;
     }
 
+    public IReadOnlyList<string> ObterSubJornadas(string id)
+    {
+        if (_templates.TryGetValue(id, out var t))
+            return t.SubJornadas;
+        return Array.Empty<string>();
+    }
+
     public string? Default
     {
         get

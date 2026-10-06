@@ -24,7 +24,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
     private static readonly HashSet<string> TiposConhecidos = new(StringComparer.OrdinalIgnoreCase)
     {
-        "header", "footer", "icon", "logo", "foto", "post"
+        "header", "footer", "icon", "logo", "foto", "post", "banner"
     };
 
     private static int _assetIdCounter;
@@ -86,6 +86,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 if (ExtencoesImagem.Contains(extensao))
                 {
                     var (tipo, nome) = ParseTipoENome(nomeSemExt);
+                    if (tipo == TipoAsset.Outro && PathInSubdir(file, assetsPath, "banners"))
+                        tipo = TipoAsset.Banner;
                     var asset = new AssetVisual
                     {
                         Id = $"asset_{Interlocked.Increment(ref _assetIdCounter)}",
@@ -493,5 +495,85 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
 
         return (TipoAsset.Outro, nomeSemExt);
+    }
+
+    private static bool PathInSubdir(string file, string basePath, string subdir)
+    {
+        var relative = Path.GetRelativePath(basePath, file).Replace('\\', '/');
+        return relative.StartsWith(subdir + "/", StringComparison.OrdinalIgnoreCase)
+            || relative.Contains("/" + subdir + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public virtual AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto)
+    {
+        if (!_assetsPorCliente.TryGetValue(cliente.ToLowerInvariant(), out var assets))
+            return null;
+
+        var banners = assets.Where(a => a.Tipo == TipoAsset.Banner).ToList();
+        if (banners.Count == 0)
+            return null;
+
+        var textoLower = texto?.ToLowerInvariant() ?? "";
+        var subJornadaLower = subJornada?.ToLowerInvariant() ?? "";
+
+        var faseStageNames = new List<string>();
+        var estrategia = ObterEstrategia(cliente);
+        if (estrategia != null && !string.IsNullOrEmpty(fase)
+            && estrategia.Fases.TryGetValue(fase, out var faseDados))
+        {
+            foreach (var stageList in faseDados.SubJornadas.Values)
+                faseStageNames.AddRange(stageList);
+        }
+
+        var scored = banners.Select(b =>
+        {
+            var nomeNorm = b.Nome.Replace('_', '-').ToLowerInvariant();
+            var score = 0;
+
+            if (templateSubJornadas != null)
+            {
+                foreach (var sub in templateSubJornadas)
+                {
+                    var subNorm = sub.ToLowerInvariant();
+                    if (nomeNorm.Contains(subNorm))
+                        score += 5;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(subJornadaLower) && nomeNorm.Contains(subJornadaLower))
+                score += 5;
+
+            foreach (var stageName in faseStageNames)
+            {
+                var stageNorm = FaseJornada.Normalizar(stageName) ?? "";
+                if (string.IsNullOrEmpty(stageNorm)) continue;
+                var keywords = stageNorm.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var kw in keywords)
+                {
+                    if (kw.Length > 2 && nomeNorm.Contains(kw))
+                    {
+                        score += 3;
+                        break;
+                    }
+                }
+            }
+
+            var bannerWords = nomeNorm.Split(new[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var word in bannerWords)
+            {
+                if (word.Length > 2 && textoLower.Contains(word))
+                    score += 1;
+            }
+
+            return (banner: b, score);
+        });
+
+        var best = scored
+            .Where(x => x.score > 0)
+            .OrderByDescending(x => x.score)
+            .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return best.banner;
     }
 }
