@@ -86,7 +86,7 @@ O projeto já possui um workflow configurado em `.github/workflows/ci.yml` com 5
 
 | Job | Descrição | Gatilho |
 |-----|-----------|---------|
-| **build-and-test** | Build .NET 10 + 162 testes unitários com coverage | Push/PR |
+| **build-and-test** | Build .NET 10 + 174 testes unitários com coverage | Push/PR |
 | **docker-build** | Build da imagem Docker | Após build-and-test |
 | **validate-structure** | Valida arquivos obrigatórios e .env.example | Após build-and-test |
 | **security-scan** | Verifica secrets e pacotes vulneráveis | Após build-and-test |

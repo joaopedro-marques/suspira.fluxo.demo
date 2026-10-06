@@ -187,11 +187,11 @@ sequenceDiagram
 
 | Step | Tipo | Modelo | Descrição |
 |------|------|--------|-----------|
-| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações |
+| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
 | `StepImagemHero` | LLM + API | `qwen/qwen3.7-plus` | Gera prompt otimizado + chama API de imagem |
-| `StepTemplateEmail` | Template + slots | N/A | Preenche HTML table-based com slots |
+| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
 ### Contexto por Step
@@ -200,7 +200,7 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 
 | Step | Recebe | Não recebe |
 |------|--------|------------|
-| `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias | Brief restante, outros steps |
+| `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
 | `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
 | `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
 | `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) | Copy, outros steps |
@@ -209,40 +209,50 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 
 ## Template HTML
 
-O template HTML base (`Assets/referencias/templates/email.html`) é table-based para compatibilidade com clientes de email (Outlook, Gmail, etc.):
+Os templates HTML são table-based para compatibilidade com clientes de email (Outlook, Gmail, etc.). Múltiplos templates podem coexistir em `Assets/referencias/templates/`, cada um com um sidecar JSON de afinidade (cliente, fase, sub-jornadas, palavras-chave). O `StepEstrategiaEmail` seleciona o template mais afim ao pedido do cliente via `ITemplateCatalogo`.
+
+### Estrutura de um Template
+
+Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) com placeholders `{{...}}` para conteúdo dinâmico:
 
 ```html
 <!-- Estrutura principal -->
-<table role="presentation" width="100%" style="max-width: 600px;">
-  <tr>
-    <td>
-      <img src="{{logo_src}}" alt="Logo" border="0" style="display: block;">
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <h1>{{titulo}}</h1>
-      <p>{{saudacao}}</p>
-      {{corpo}}
-    </td>
-  </tr>
-  {{hero_section}}
-  <tr>
-    <td>
-      <table role="presentation">
-        <tr>
-          <td style="background-color: #0070f3;">
-            <a href="{{cta_link}}">{{cta_texto}}</a>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <td>{{rodape}}</td>
-  </tr>
+<table width="600">
+  <tr><td><!-- Banner fixo --></td></tr>
+  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA -->
+  <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
+  <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
+  <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
+  <tr><td><!-- Despedida fixa --></td></tr>
+  <tr><td><!-- Rodapé fixo --></td></tr>
 </table>
 ```
+
+### Sidecar JSON de Afinidade
+
+Cada template `MRV_html_exemplo.html` pode ter um `MRV_html_exemplo.json`:
+
+```json
+{
+  "cliente": "mrv",
+  "fase": "pos-chaves",
+  "sub_jornadas": ["assistencia", "visita-tecnica"],
+  "palavras_chave": ["visita tecnica", "reparo"],
+  "padrao": false
+}
+```
+
+### Seleção de Template
+
+O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é determinística:
+1. Filtra por cliente (fallback: templates sem restrição ou default)
+2. Score: fase (+10), sub-jornada (+5), palavras-chave (+1 por match)
+3. Fallback: `padrao: true` ou primeiro alfabético
+
+### Placeholders
+
+- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{hero_section}}`, `{{hero_src}}`
+- **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
 
 ### Características do Template
 

@@ -150,7 +150,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**162 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader.
+**174 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD).
 
 ## CI/CD
 

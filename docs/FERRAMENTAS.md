@@ -129,7 +129,7 @@ flowchart LR
 | Aspecto | Detalhe |
 |---------|---------|
 | Tipo | Plataforma de cobertura de codigo |
-| Uso no projeto | Analise de cobertura dos 162 testes unitarios |
+| Uso no projeto | Analise de cobertura dos 174 testes unitarios |
 | Integracao | Upload via GitHub Actions apos `dotnet test --collect:"XPlat Code Coverage"` |
 | Plano | Free para repositorios publicos |
 
