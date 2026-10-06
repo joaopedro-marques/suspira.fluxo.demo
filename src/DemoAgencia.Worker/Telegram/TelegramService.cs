@@ -268,6 +268,22 @@ public class TelegramService : BackgroundService
 
                 var resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
 
+                if (!resultadoPipeline.QaAprovado)
+                {
+                    var feedbackMsg = $"⚠️ QA nao aprovou o email apos refacoes.";
+                    if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
+                        feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
+                    try
+                    {
+                        await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, feedbackMsg, ct);
+                    }
+                    catch
+                    {
+                        await _gateway!.SendMessageAsync(chatId, feedbackMsg, ct);
+                    }
+                    return;
+                }
+
                 await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
                 return;
         }

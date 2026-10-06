@@ -298,4 +298,88 @@ public class TelegramServiceTests
             "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.",
             It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_QaReproved_ShouldNotSendZipAndShowFeedback()
+    {
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(_telegramOptions.BotToken)).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var message = new Message
+        {
+            Id = 1,
+            Chat = new Chat { Id = 123, Type = ChatType.Private },
+            Text = "pedido"
+        };
+        var update = new Update { Id = 42, Message = message };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { update });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Message { Id = 99 });
+
+        var editCalls = new List<string>();
+        gatewayMock.Setup(g => g.EditMessageTextAsync(123, 99, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<long, int, string, CancellationToken>((_, _, text, _) => editCalls.Add(text))
+            .Returns(Task.CompletedTask);
+
+        var brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>());
+        var resultado = new RouterResultado("producao", null, new(), "mrv", brief);
+        _routerMock.Setup(r => r.IniciarAsync(123, "pedido", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultado);
+
+        var resultadoPipeline = new ResultadoPipeline
+        {
+            RespostaFinal = "<html>email</html>",
+            QaAprovado = false,
+            QaFeedbackFinal = "QA nao aprovou"
+        };
+        var runnerMock = new Mock<PipelineRunner>(Mock.Of<ILogger<PipelineRunner>>());
+        runnerMock.Setup(r => r.ExecutarAsync(It.IsAny<PipelineContext>(), It.IsAny<IReadOnlyList<IPipelineStep>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultadoPipeline);
+
+        var pipelineEmail = new PipelineEmail(
+            Mock.Of<IServicoChat>(),
+            Mock.Of<IGeradorImagem>(),
+            Mock.Of<IReferenciasCliente>(),
+            Mock.Of<IAnalisadorImagem>(),
+            Mock.Of<IAgentesCatalogo>(),
+            Mock.Of<ITemplateCatalogo>(),
+            Mock.Of<IBannerDescricaoCache>(),
+            Mock.Of<IIconDescricaoCache>(),
+            "<tr></tr>",
+            "<tr></tr>");
+
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
+
+        var service = new TelegramService(
+            _loggerMock.Object,
+            TestOptions.Create(_telegramOptions),
+            _analisadorImagemMock.Object,
+            _rateLimiterMock.Object,
+            _gatewayFactoryMock.Object,
+            _routerMock.Object,
+            _pendencias,
+            _serviceProviderMock.Object);
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(500);
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
+
+        gatewayMock.Verify(g => g.SendDocumentAsync(It.IsAny<long>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        editCalls.Should().Contain(m => m.Contains("QA nao aprovou"));
+    }
 }
