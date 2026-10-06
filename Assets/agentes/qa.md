@@ -36,5 +36,6 @@ Se reprovado:
 - Ao reprovar, o feedback deve ser acionavel: diga exatamente o que precisa ser corrigido
 - NUNCA aprove um email que nao atenda ao briefing original
 - Problemas de estrutura HTML (table-based, CSS inline, etc.) sao responsabilidade do template, nao reprove por isso
-- Placeholders %%...%% (ex: %%NOME%%, %%Protocolo%%) no HTML final sao ESPERADOS — sao dados do cliente que serao preenchidos pelo ESP. Nao reprove por "placeholders nao substituidos"
+- **Placeholders %%...%% sao PLANEJAMENTO, nao defeito**: TODOS os tokens `%%...%%` no HTML final (%%NOME%%, %%Protocolo%%, %%Imovel%%, %%Pedido%%, %%tempo%%, %%LINKASSEMBLEIA%%, %%DATA%%, %%HORARIO%%, %%LOCAL%% etc.) sao variaveis do ESP que serao preenchidas automaticamente no envio. Nao reprove por "link de CTA nao funcional" quando o link e um placeholder `%%...%%`. Nao exija dados concretos (data, horario, local, links) quando esses dados serao injetados pelo ESP — avalie se a copy REFERENCIA a informacao (ex: menciona que havera uma assembleia), nao se o valor literal esta presente
+- Se a copy nao referencia informacoes essenciais que o briefing pede (ex: menciona "proximo passo" sem especificar qual), reprove por vaguidao — mas NAO reprove por falta de valor concreto de dados que serao preenchidos por placeholders
 - Responda SEMPRE em JSON valido

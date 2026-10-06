@@ -139,4 +139,63 @@ public class StepQaEmailPromptTests
 
         stepAlvo.Should().Be("copy");
     }
+
+    [Fact]
+    public void MontarPromptQa_WithPlaceholders_ShouldIncludeEspSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "assembleia",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "Confirmar presenca", "%%LINKASSEMBLEIA%%", "rodape"),
+            Html = "<p>Assembleia em %%DATA%% as %%HORARIO%% no %%LOCAL%%</p><a href=\"%%LINKASSEMBLEIA%%\">CTA</a>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().Contain("Placeholders do ESP");
+        prompt.Should().Contain("%%LINKASSEMBLEIA%%");
+        prompt.Should().Contain("%%DATA%%");
+        prompt.Should().Contain("%%HORARIO%%");
+        prompt.Should().Contain("%%LOCAL%%");
+        prompt.Should().Contain("nao sao defeitos");
+    }
+
+    [Fact]
+    public void MontarPromptQa_WithoutPlaceholders_ShouldNotIncludeEspSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "ola", "corpo", "cta", "https://link.com", "rodape"),
+            Html = "<p>Sem placeholders aqui</p>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().NotContain("Placeholders do ESP");
+    }
+
+    [Fact]
+    public void ExtrairPlaceholders_ShouldReturnUniqueSorted()
+    {
+        var html = "<p>%%NOME%% %%DATA%% %%nome%% %%LINK%%</p>";
+
+        var placeholders = StepQaEmail.ExtrairPlaceholders(html);
+
+        placeholders.Should().BeEquivalentTo(new[] { "DATA", "LINK", "NOME" });
+    }
+
+    [Fact]
+    public void ExtrairPlaceholders_EmptyHtml_ShouldReturnEmpty()
+    {
+        var placeholders = StepQaEmail.ExtrairPlaceholders("");
+
+        placeholders.Should().BeEmpty();
+    }
 }

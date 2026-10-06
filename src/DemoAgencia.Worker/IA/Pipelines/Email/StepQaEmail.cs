@@ -1,10 +1,11 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.IA;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
-public class StepQaEmail : IPipelineStep
+public partial class StepQaEmail : IPipelineStep
 {
     public string Nome => "qa";
 
@@ -89,6 +90,18 @@ public class StepQaEmail : IPipelineStep
         else
             prompt += $"Ausente (nenhum banner afim a etapa)\n";
 
+        if (!string.IsNullOrEmpty(html))
+        {
+            var placeholders = ExtrairPlaceholders(html);
+            if (placeholders.Count > 0)
+            {
+                prompt += $"\n## Placeholders do ESP (ESPERADOS - nao sao defeitos)\n";
+                prompt += $"Os seguintes tokens %%...%% no HTML sao variaveis preenchidas pelo ESP (Email Service Provider) no momento do envio:\n";
+                prompt += $"{string.Join(", ", placeholders.Select(p => $"%%{p}%%"))}\n";
+                prompt += $"Nao reprove por link de CTA nao funcional ou dados concretos ausentes quando representados por esses placeholders.\n";
+            }
+        }
+
         if (estrategia?.FaseDados != null)
         {
             prompt += $"\n## Estrategia de jornada\n";
@@ -153,4 +166,20 @@ public class StepQaEmail : IPipelineStep
 
         return "copy";
     }
+
+    internal static IReadOnlyList<string> ExtrairPlaceholders(string html)
+    {
+        if (string.IsNullOrEmpty(html))
+            return Array.Empty<string>();
+
+        return PlaceholderRegex()
+            .Matches(html)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    [GeneratedRegex(@"%%([A-Za-z0-9_]+)%%")]
+    private static partial Regex PlaceholderRegex();
 }
