@@ -330,6 +330,64 @@ graph TD
     H -->|Não| J[Retornar com feedback]
 ```
 
+## Resiliência HTTP e Tratamento de 429
+
+O sistema implementa retry em camadas para erros HTTP, com tratamento específico para 429 (Too Many Requests / rate limit):
+
+### Camadas de Retry
+
+| Camada | Mecanismo | Escopo | Comportamento |
+|--------|-----------|--------|---------------|
+| **1 — HTTP (Polly)** | `Microsoft.Extensions.Http.Resilience` | Cliente "OpenRouter" | Retenta 408/429/5xx + erros transitórios; backoff exponencial 5s→60s; respeita header `Retry-After` |
+| **2 — Fallback de modelo** | Loop em `OpenRouterService` | `ChamarAgenteAsync`, `GerarImagemAsync` | 429 persistente após Polly: troca para próximo modelo da cadeia com backoff 2s→30s |
+| **3 — Semântico** | `RouterService` | Router (JSON inválido) | 1 retry automático com prompt reforçado |
+| **4 — Negócio** | `PipelineRunner` | QA | Max 2 refações no step alvo (copy/hero) |
+| **5 — Reconexão** | `TelegramService` | Polling loop | Backoff exponencial 1s→30s em perda de conexão |
+
+### Fluxo 429
+
+```mermaid
+sequenceDiagram
+    participant OR as OpenRouterService
+    participant P as Polly (HTTP Retry)
+    participant API as OpenRouter API
+
+    OR->>P: POST /chat/completions (modelo primário)
+    P->>API: Request
+    API-->>P: 429 TooManyRequests
+    P->>P: Backoff (5s→10s→20s→40s→60s, Retry-After)
+    P->>API: Retry (mesmo modelo, até 5x)
+    API-->>P: 429 (persiste)
+    P-->>OR: HttpOperationException (429)
+    OR->>OR: LogWarning + FinalizarTrace (429 no modelo X)
+    OR->>OR: Task.Delay (2s, 4s, 8s... max 30s)
+    OR->>P: POST /chat/completions (modelo fallback 1)
+    P->>API: Request
+    API-->>P: 200 OK
+    P-->>OR: Resposta
+    OR-->>OR: Retornar resultado (modelo usado: fallback 1)
+```
+
+### Configuração
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `OpenRouter__MaxRetriesHttp` | `5` | Tentativas do Polly por modelo |
+| `OpenRouter__BackoffBaseSegundos` | `5` | Base do backoff exponencial do Polly |
+| `OpenRouter__BackoffMaxSegundos` | `60` | Teto do backoff do Polly |
+| `OpenRouter__FallbackModels` | `deepseek/deepseek-v3.2,qwen/qwen3.7-plus,openai/gpt-4o-mini` | Cadeia de fallback para chamadas de texto (vírgula-separada) |
+| `OpenRouter__ImageFallbackModels` | _(vazio)_ | Cadeia de fallback para geração de imagem |
+| `OpenRouter__Backoff429BaseSegundos` | `2` | Base do backoff entre trocas de modelo |
+| `OpenRouter__Backoff429MaxSegundos` | `30` | Teto do backoff entre trocas de modelo |
+
+### Observabilidade
+
+Cada tentativa gera um trace no Langfuse com o modelo efetivamente usado. Falhas 429 registram o erro no trace antes da troca de modelo. Isso permite rastrear no Langfuse quantas trocas ocorreram e qual modelo foi usado no resultado final.
+
+### Recomendação de Tuning
+
+Com Polly re-tryando 429 (até 5×, ~135s no pior caso) **e** fallback depois (até 3 modelos adicionais), o tempo total pode ser longo. Para reduzir latência máxima, configure `OpenRouter__MaxRetriesHttp=2` quando fallback de modelos está ativo. Isso troca latência por cobertura: menos retries no mesmo modelo, mais modelos tentados.
+
 ## Observabilidade
 
 ### Langfuse Traces
@@ -507,6 +565,7 @@ public class PipelineContext
 | QA com branch explícito (ao invés de loop de conversa) | Retry determinístico ao step alvo, max refações | QA conversando com outros agentes |
 | Contexto mínimo por step | Cada step recebe só o necessário (marca, brief, step anterior) | Contexto compartilhado gigante (todos os steps) |
 | Single Router (ao invés de Refinador + Montador) | Uma única LLM call classifica + estrutura brief | Duas LLM calls (refinador + montador) |
+| Polly + fallback de modelos (ao invés de retry infinito no mesmo modelo) | 429 persistente troca de modelo; Polly honra Retry-After | Retry infinito no mesmo modelo rate-limited |
 
 ## Trade-offs
 
