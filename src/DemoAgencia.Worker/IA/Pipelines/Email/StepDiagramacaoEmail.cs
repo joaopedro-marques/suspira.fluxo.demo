@@ -12,12 +12,14 @@ public partial class StepDiagramacaoEmail : IPipelineStep
     private readonly AgenteDefinicao _agente;
     private readonly IServicoChat _servicoChat;
     private readonly IReferenciasCliente _referencias;
+    private readonly IIconDescricaoCache _iconCache;
 
-    public StepDiagramacaoEmail(AgenteDefinicao agente, IServicoChat servicoChat, IReferenciasCliente referencias)
+    public StepDiagramacaoEmail(AgenteDefinicao agente, IServicoChat servicoChat, IReferenciasCliente referencias, IIconDescricaoCache iconCache)
     {
         _agente = agente;
         _servicoChat = servicoChat;
         _referencias = referencias;
+        _iconCache = iconCache;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -25,7 +27,7 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         if (context.Copy == null)
             return context;
 
-        var prompt = MontarPrompt(context, _referencias);
+        var prompt = await MontarPromptAsync(context, _referencias, _iconCache, ct);
 
         var resposta = await _servicoChat.ChamarAgenteAsync(
             context.ChatId,
@@ -58,7 +60,7 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         return context;
     }
 
-    internal static string MontarPrompt(PipelineContext context, IReferenciasCliente referencias)
+    internal static async Task<string> MontarPromptAsync(PipelineContext context, IReferenciasCliente referencias, IIconDescricaoCache iconCache, CancellationToken ct = default)
     {
         var copy = context.Copy!;
         var prompt = $"## Copy do email\n";
@@ -89,7 +91,14 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             if (icons.Count > 0)
             {
                 prompt += $"\n## Icones disponiveis\n";
-                prompt += $"Referencie como assets/{{nome}}. Disponiveis: {string.Join(", ", icons.Select(i => i.Nome))}\n";
+                prompt += $"Referencie cada icone como assets/{{nome}}.png. Selecione o icone mais adequado pelo significado:\n";
+                foreach (var icon in icons)
+                {
+                    var desc = await iconCache.ObterDescricaoAsync(icon, ct);
+                    var ext = Path.GetExtension(icon.Caminho);
+                    var nomeComExt = $"{icon.Nome}{ext}";
+                    prompt += $"- assets/{nomeComExt} — {desc.ToPromptSection()}\n";
+                }
             }
         }
 

@@ -13,6 +13,7 @@ public class StepDiagramacaoEmailTests
 {
     private readonly Mock<IServicoChat> _chatMock;
     private readonly Mock<IReferenciasCliente> _refsMock;
+    private readonly Mock<IIconDescricaoCache> _iconCacheMock;
     private readonly StepDiagramacaoEmail _step;
     private readonly AgenteDefinicao _agente;
 
@@ -20,9 +21,12 @@ public class StepDiagramacaoEmailTests
     {
         _chatMock = new Mock<IServicoChat>();
         _refsMock = new Mock<IReferenciasCliente>();
+        _iconCacheMock = new Mock<IIconDescricaoCache>();
+        _iconCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IconDescricao("Icone teste", new List<string> { "teste" }, "Flat"));
 
         _agente = new AgenteDefinicao("diagramador", "test/model", 0.6, 8000, "persona");
-        _step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object);
+        _step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, _iconCacheMock.Object);
     }
 
     private static PipelineContext CriarContexto(string corpo = "<p>Corpo original</p>")
@@ -126,7 +130,7 @@ public class StepDiagramacaoEmailTests
     }
 
     [Fact]
-    public async Task MontarPrompt_ShouldIncludeStrategyAndIcons()
+    public async Task MontarPromptAsync_ShouldIncludeStrategyAndIcons()
     {
         _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>
         {
@@ -135,7 +139,7 @@ public class StepDiagramacaoEmailTests
         });
 
         var context = CriarContexto();
-        var prompt = StepDiagramacaoEmail.MontarPrompt(context, _refsMock.Object);
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
 
         prompt.Should().Contain("#006b40");
         prompt.Should().Contain("pos-chaves");
@@ -172,5 +176,28 @@ public class StepDiagramacaoEmailTests
     public void IsValidHtml_WithValidTableHtml_ShouldReturnTrue()
     {
         StepDiagramacaoEmail.IsValidHtml("""<table width="600" border="0"><tr><td style="padding: 20px;"><p>OK</p></td></tr></table>""").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task MontarPrompt_ShouldIncludeIconDescriptionsAndExtensions()
+    {
+        var iconCacheMock = new Mock<IIconDescricaoCache>();
+        iconCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new IconDescricao("Icone de casa", new List<string> { "moradia", "imovel" }, "Flat line"));
+
+        var step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, iconCacheMock.Object);
+
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>
+        {
+            new() { Cliente = "mrv", Tipo = TipoAsset.Icon, Nome = "casa", Caminho = "path/MRV_casa.png" }
+        });
+
+        var context = CriarContexto();
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, iconCacheMock.Object);
+
+        prompt.Should().Contain("assets/casa.png");
+        prompt.Should().Contain("Icone de casa");
+        prompt.Should().Contain("moradia");
+        prompt.Should().NotContain("Referencie como assets/{nome}");
     }
 }

@@ -213,6 +213,7 @@ public class TelegramServiceTests
             Mock.Of<IAgentesCatalogo>(),
             Mock.Of<ITemplateCatalogo>(),
             Mock.Of<IBannerDescricaoCache>(),
+            Mock.Of<IIconDescricaoCache>(),
             "<tr></tr>",
             "<tr></tr>");
 
