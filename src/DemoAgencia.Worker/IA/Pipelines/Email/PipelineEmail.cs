@@ -44,6 +44,7 @@ public class PipelineEmail
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat),
             new StepImagemHero(_catalogo.Obter("hero"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem, _templateCatalogo),
             new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate, _bannerSectionTemplate),
+            new StepAssetsEmail(_referencias),
             new StepQaEmail(_catalogo.Obter("qa"), _servicoChat)
         };
 
