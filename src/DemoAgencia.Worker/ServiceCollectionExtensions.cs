@@ -74,10 +74,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
 
-        var templateEmailPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Assets", "templates", "email.html");
+        var templateEmailPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Assets", "referencias", "templates", "email.html");
         if (!File.Exists(templateEmailPath))
         {
-            templateEmailPath = Path.Combine(AppContext.BaseDirectory, "Assets", "templates", "email.html");
+            templateEmailPath = Path.Combine(AppContext.BaseDirectory, "Assets", "referencias", "templates", "email.html");
         }
         var templateEmail = File.Exists(templateEmailPath) ? File.ReadAllText(templateEmailPath) : "";
 
