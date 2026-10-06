@@ -35,14 +35,18 @@ public class PipelineRunner
             if (step.Nome.Equals("qa", StringComparison.OrdinalIgnoreCase))
             {
                 if (ctx.QaAprovado)
+                {
+                    ctx.Resultado.QaAprovado = true;
                     return ctx.Resultado;
+                }
 
                 ctx.Refacoes++;
                 if (ctx.Refacoes > maxRefacoesQa)
                 {
                     _logger.LogWarning("QA reprovou apos {Refacoes} refacoes. Feedback: {Feedback}",
                         ctx.Refacoes, ctx.QaFeedback);
-                    ctx.Resultado.RespostaFinal = ctx.QaFeedback ?? "QA reprovou apos maximo de refacoes.";
+                    ctx.Resultado.QaAprovado = false;
+                    ctx.Resultado.QaFeedbackFinal = ctx.QaFeedback;
                     return ctx.Resultado;
                 }
 
@@ -68,7 +72,8 @@ public class PipelineRunner
                     continue;
                 }
 
-                ctx.Resultado.RespostaFinal = ctx.QaFeedback ?? "QA reprovou.";
+                ctx.Resultado.QaAprovado = false;
+                ctx.Resultado.QaFeedbackFinal = ctx.QaFeedback ?? "QA reprovou.";
                 return ctx.Resultado;
             }
 

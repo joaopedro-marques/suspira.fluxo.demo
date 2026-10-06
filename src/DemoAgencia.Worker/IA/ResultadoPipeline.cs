@@ -18,4 +18,6 @@ public class ResultadoPipeline
     public List<ImagemGerada> Imagens { get; set; } = new();
     public List<ImagemGerada> AssetsAnexados { get; set; } = new();
     public List<string> EtapasExecutadas { get; set; } = new();
+    public bool QaAprovado { get; set; }
+    public string? QaFeedbackFinal { get; set; }
 }
