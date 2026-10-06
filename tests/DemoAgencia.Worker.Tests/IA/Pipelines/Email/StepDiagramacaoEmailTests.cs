@@ -5,6 +5,7 @@ using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
@@ -26,7 +27,7 @@ public class StepDiagramacaoEmailTests
             .ReturnsAsync(new IconDescricao("Icone teste", new List<string> { "teste" }, "Flat"));
 
         _agente = new AgenteDefinicao("diagramador", "test/model", 0.6, 8000, "persona");
-        _step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, _iconCacheMock.Object);
+        _step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, _iconCacheMock.Object, Mock.Of<ILogger<StepDiagramacaoEmail>>());
     }
 
     private static PipelineContext CriarContexto(string corpo = "<p>Corpo original</p>")
@@ -185,7 +186,7 @@ public class StepDiagramacaoEmailTests
         iconCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new IconDescricao("Icone de casa", new List<string> { "moradia", "imovel" }, "Flat line"));
 
-        var step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, iconCacheMock.Object);
+        var step = new StepDiagramacaoEmail(_agente, _chatMock.Object, _refsMock.Object, iconCacheMock.Object, Mock.Of<ILogger<StepDiagramacaoEmail>>());
 
         _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>
         {

@@ -15,6 +15,7 @@ public class PipelineEmail
     private readonly IBannerDescricaoCache _bannerCache;
     private readonly IIconDescricaoCache _iconCache;
     private readonly ILogger<StepImagemHero> _heroLogger;
+    private readonly ILogger<StepDiagramacaoEmail> _diagramacaoLogger;
     private readonly string _heroSectionTemplate;
     private readonly string _bannerSectionTemplate;
 
@@ -28,6 +29,7 @@ public class PipelineEmail
         IBannerDescricaoCache bannerCache,
         IIconDescricaoCache iconCache,
         ILogger<StepImagemHero> heroLogger,
+        ILogger<StepDiagramacaoEmail> diagramacaoLogger,
         string heroSectionTemplate,
         string bannerSectionTemplate)
     {
@@ -40,6 +42,7 @@ public class PipelineEmail
         _bannerCache = bannerCache;
         _iconCache = iconCache;
         _heroLogger = heroLogger;
+        _diagramacaoLogger = diagramacaoLogger;
         _heroSectionTemplate = heroSectionTemplate;
         _bannerSectionTemplate = bannerSectionTemplate;
     }
@@ -51,7 +54,7 @@ public class PipelineEmail
             new StepEstrategiaEmail(_referencias, _templateCatalogo),
             new StepMarcaEmail(_referencias),
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat),
-            new StepDiagramacaoEmail(_catalogo.Obter("diagramador"), _servicoChat, _referencias, _iconCache),
+            new StepDiagramacaoEmail(_catalogo.Obter("diagramador"), _servicoChat, _referencias, _iconCache, _diagramacaoLogger),
             new StepImagemHero(_catalogo.Obter("hero"), _catalogo.Obter("curador"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem, _templateCatalogo, _bannerCache, _iconCache, _heroLogger),
             new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate, _bannerSectionTemplate),
             new StepAssetsEmail(_referencias),

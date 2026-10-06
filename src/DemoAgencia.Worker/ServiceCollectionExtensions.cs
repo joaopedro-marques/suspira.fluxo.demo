@@ -106,6 +106,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<IBannerDescricaoCache>(),
             sp.GetRequiredService<IIconDescricaoCache>(),
             sp.GetRequiredService<ILogger<StepImagemHero>>(),
+            sp.GetRequiredService<ILogger<StepDiagramacaoEmail>>(),
             heroSectionTemplate,
             bannerSectionTemplate));
 

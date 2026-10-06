@@ -13,13 +13,15 @@ public partial class StepDiagramacaoEmail : IPipelineStep
     private readonly IServicoChat _servicoChat;
     private readonly IReferenciasCliente _referencias;
     private readonly IIconDescricaoCache _iconCache;
+    private readonly ILogger<StepDiagramacaoEmail> _logger;
 
-    public StepDiagramacaoEmail(AgenteDefinicao agente, IServicoChat servicoChat, IReferenciasCliente referencias, IIconDescricaoCache iconCache)
+    public StepDiagramacaoEmail(AgenteDefinicao agente, IServicoChat servicoChat, IReferenciasCliente referencias, IIconDescricaoCache iconCache, ILogger<StepDiagramacaoEmail> logger)
     {
         _agente = agente;
         _servicoChat = servicoChat;
         _referencias = referencias;
         _iconCache = iconCache;
+        _logger = logger;
     }
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -40,7 +42,10 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             ct: ct);
 
         if (string.IsNullOrEmpty(resposta))
+        {
+            _logger.LogWarning("Step diagramacao retornou resposta vazia. Mantendo copy anterior.");
             return context;
+        }
 
         var html = LimparResposta(resposta);
 
@@ -55,6 +60,11 @@ public partial class StepDiagramacaoEmail : IPipelineStep
                 context.Copy.CtaTexto,
                 context.Copy.CtaLink,
                 context.Copy.Rodape);
+        }
+        else
+        {
+            _logger.LogWarning("HTML da diagramacao invalido. Mantendo copy anterior. Resposta: {Resposta}",
+                resposta[..Math.Min(200, resposta.Length)]);
         }
 
         return context;
