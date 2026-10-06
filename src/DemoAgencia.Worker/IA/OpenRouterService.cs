@@ -1,3 +1,4 @@
+using System.Net;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.Observabilidade;
 using Microsoft.Extensions.Options;
@@ -106,66 +107,93 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         string prompt,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", _options.ImageModel);
-
         _logger.LogInformation("Gerando imagem ({Length} chars)", prompt.Length);
 
-        var httpClient = _httpClientFactory.CreateClient("OpenRouter");
-        httpClient.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
+        var cadeia = MontarCadeiaModelos(_options.ImageModel, _options.ImageFallbackModels);
 
-        var request = new
+        for (var tentativa = 0; tentativa < cadeia.Length; tentativa++)
         {
-            model = _options.ImageModel,
-            prompt = prompt,
-            n = 1
-        };
+            var modeloAtual = cadeia[tentativa];
+            var traceContext = _langfuse.IniciarTrace(chatId, "image-generation", modeloAtual);
 
-        var json = System.Text.Json.JsonSerializer.Serialize(request);
-        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            var httpClient = _httpClientFactory.CreateClient("OpenRouter");
+            httpClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.ApiKey);
 
-        try
-        {
-            var response = await httpClient.PostAsync($"{_options.BaseUrl}/images", content, ct);
-            var responseJson = await response.Content.ReadAsStringAsync(ct);
-
-            if (!response.IsSuccessStatusCode)
+            var request = new
             {
-                var erro = $"HTTP {(int)response.StatusCode} {response.StatusCode}";
-                _logger.LogError("Erro ao gerar imagem: {Erro}", erro);
-                await _langfuse.FinalizarTraceAsync(traceContext, prompt, erro, ct);
-                return new ResultadoImagem(null, erro);
-            }
+                model = modeloAtual,
+                prompt,
+                n = 1
+            };
 
-            using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
-            var data = doc.RootElement.GetProperty("data");
-            if (data.GetArrayLength() == 0)
+            var json = System.Text.Json.JsonSerializer.Serialize(request);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            try
             {
-                _logger.LogError("Resposta sem imagens");
-                await _langfuse.FinalizarTraceAsync(traceContext, prompt, "Resposta sem imagens", ct);
-                return new ResultadoImagem(null, "Resposta sem imagens");
-            }
+                var response = await httpClient.PostAsync($"{_options.BaseUrl}/images", content, ct);
+                var responseJson = await response.Content.ReadAsStringAsync(ct);
 
-            var b64 = data[0].GetProperty("b64_json").GetString();
-            if (string.IsNullOrEmpty(b64))
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Erro 429 no modelo {modeloAtual}", ct);
+
+                    if (tentativa < cadeia.Length - 1)
+                    {
+                        var delay = CalcularBackoff(tentativa);
+                        _logger.LogWarning(
+                            "429 na geracao de imagem com {Modelo}. Fallback para {Proximo} apos {Delay}s",
+                            modeloAtual, cadeia[tentativa + 1], delay.TotalSeconds);
+                        await Task.Delay(delay, ct);
+                        continue;
+                    }
+
+                    var erro429 = "HTTP 429 TooManyRequests";
+                    _logger.LogError("429 em todos os modelos ({Total}) na geracao de imagem", cadeia.Length);
+                    return new ResultadoImagem(null, erro429);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var erro = $"HTTP {(int)response.StatusCode} {response.StatusCode}";
+                    _logger.LogError("Erro ao gerar imagem: {Erro}", erro);
+                    await _langfuse.FinalizarTraceAsync(traceContext, prompt, erro, ct);
+                    return new ResultadoImagem(null, erro);
+                }
+
+                using var doc = System.Text.Json.JsonDocument.Parse(responseJson);
+                var data = doc.RootElement.GetProperty("data");
+                if (data.GetArrayLength() == 0)
+                {
+                    _logger.LogError("Resposta sem imagens");
+                    await _langfuse.FinalizarTraceAsync(traceContext, prompt, "Resposta sem imagens", ct);
+                    return new ResultadoImagem(null, "Resposta sem imagens");
+                }
+
+                var b64 = data[0].GetProperty("b64_json").GetString();
+                if (string.IsNullOrEmpty(b64))
+                {
+                    _logger.LogError("b64_json vazio");
+                    await _langfuse.FinalizarTraceAsync(traceContext, prompt, "b64_json vazio", ct);
+                    return new ResultadoImagem(null, "b64_json vazio");
+                }
+
+                _logger.LogInformation("Imagem gerada com sucesso ({Modelo})", modeloAtual);
+
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[imagem gerada]", ct);
+
+                return new ResultadoImagem(Convert.FromBase64String(b64), null);
+            }
+            catch (Exception ex)
             {
-                _logger.LogError("b64_json vazio");
-                await _langfuse.FinalizarTraceAsync(traceContext, prompt, "b64_json vazio", ct);
-                return new ResultadoImagem(null, "b64_json vazio");
+                _logger.LogError(ex, "Erro ao gerar imagem ({Modelo})", modeloAtual);
+                await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Excecao: {ex.Message}", ct);
+                return new ResultadoImagem(null, $"Excecao: {ex.Message}");
             }
-
-            _logger.LogInformation("Imagem gerada com sucesso");
-
-            await _langfuse.FinalizarTraceAsync(traceContext, prompt, "[imagem gerada]", ct);
-
-            return new ResultadoImagem(Convert.FromBase64String(b64), null);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Erro ao gerar imagem");
-            await _langfuse.FinalizarTraceAsync(traceContext, prompt, $"Excecao: {ex.Message}", ct);
-            return new ResultadoImagem(null, $"Excecao: {ex.Message}");
-        }
+
+        return new ResultadoImagem(null, "Cadeia de modelos vazia");
     }
 
     public virtual async Task<string> ChamarAgenteAsync(
@@ -178,53 +206,110 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         int maxTokens = 2000,
         CancellationToken ct = default)
     {
-        var traceContext = _langfuse.IniciarTrace(chatId, etapaNome, modelo);
+        var cadeia = MontarCadeiaModelos(modelo, _options.FallbackModels);
 
-        try
+        for (var tentativa = 0; tentativa < cadeia.Length; tentativa++)
         {
-            var desativarRaciocinio = etapaNome.StartsWith("router", StringComparison.OrdinalIgnoreCase);
-            ReasoningDisablingHandler.IsActive = desativarRaciocinio;
-            var kernel = CriarKernel(modelo);
-            var chatService = kernel.GetRequiredService<IChatCompletionService>();
+            var modeloAtual = cadeia[tentativa];
+            var traceContext = _langfuse.IniciarTrace(chatId, etapaNome, modeloAtual);
 
-            var chatHistory = new ChatHistory();
-
-            if (!string.IsNullOrEmpty(persona))
+            try
             {
-                chatHistory.AddSystemMessage(persona);
+                var desativarRaciocinio = etapaNome.StartsWith("router", StringComparison.OrdinalIgnoreCase);
+                ReasoningDisablingHandler.IsActive = desativarRaciocinio;
+                var kernel = CriarKernel(modeloAtual);
+                var chatService = kernel.GetRequiredService<IChatCompletionService>();
+
+                var chatHistory = new ChatHistory();
+
+                if (!string.IsNullOrEmpty(persona))
+                {
+                    chatHistory.AddSystemMessage(persona);
+                }
+
+                chatHistory.AddUserMessage(instrucoes);
+
+                var settings = new OpenAIPromptExecutionSettings
+                {
+                    Temperature = temperature,
+                    MaxTokens = maxTokens
+                };
+
+                var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
+                var resposta = response.Content ?? "";
+
+                if (string.IsNullOrEmpty(resposta))
+                {
+                    var finishReason = response.Metadata?.TryGetValue("FinishReason", out var fr) == true ? fr?.ToString() : "unknown";
+                    _logger.LogWarning("Agente ({Etapa}) com {Modelo} retornou resposta vazia. FinishReason: {FinishReason}",
+                        etapaNome, modeloAtual, finishReason);
+                }
+                else
+                {
+                    _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modeloAtual, resposta.Length);
+                }
+
+                await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, resposta, ct);
+
+                return resposta;
             }
-
-            chatHistory.AddUserMessage(instrucoes);
-
-            var settings = new OpenAIPromptExecutionSettings
+            catch (Exception ex) when (Eh429(ex))
             {
-                Temperature = temperature,
-                MaxTokens = maxTokens
-            };
+                await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro 429 no modelo {modeloAtual}", ct);
 
-            var response = await chatService.GetChatMessageContentAsync(chatHistory, settings, kernel, ct);
-            var resposta = response.Content ?? "";
-
-            if (string.IsNullOrEmpty(resposta))
-            {
-                var finishReason = response.Metadata?.TryGetValue("FinishReason", out var fr) == true ? fr?.ToString() : "unknown";
-                _logger.LogWarning("Agente ({Etapa}) com {Modelo} retornou resposta vazia. FinishReason: {FinishReason}",
-                    etapaNome, modelo, finishReason);
+                if (tentativa < cadeia.Length - 1)
+                {
+                    var delay = CalcularBackoff(tentativa);
+                    _logger.LogWarning(
+                        "429 no modelo {Modelo} ({Etapa}). Fallback para {Proximo} apos {Delay}s",
+                        modeloAtual, etapaNome, cadeia[tentativa + 1], delay.TotalSeconds);
+                    await Task.Delay(delay, ct);
+                }
+                else
+                {
+                    _logger.LogError(ex, "429 em todos os modelos ({Total}) na etapa {Etapa}", cadeia.Length, etapaNome);
+                    throw;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogInformation("Agente chamado ({Etapa}) com {Modelo}: {Length} chars", etapaNome, modelo, resposta.Length);
+                await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, $"Erro: {ex.Message}", ct);
+                _logger.LogError(ex, "Erro ao chamar agente ({Etapa}) com modelo {Modelo}", etapaNome, modeloAtual);
+                throw;
             }
-
-            await _langfuse.FinalizarTraceAsync(traceContext, instrucoes, resposta, ct);
-
-            return resposta;
         }
-        catch (Exception ex)
+
+        throw new InvalidOperationException("Cadeia de modelos vazia");
+    }
+
+    private static bool Eh429(Exception ex)
+    {
+        if (ex is HttpOperationException httpEx)
+            return httpEx.StatusCode == HttpStatusCode.TooManyRequests;
+
+        if (ex.InnerException is HttpOperationException innerHttpEx)
+            return innerHttpEx.StatusCode == HttpStatusCode.TooManyRequests;
+
+        return false;
+    }
+
+    private static string[] MontarCadeiaModelos(string principal, string[] fallbacks)
+    {
+        var cadeia = new List<string> { principal };
+        foreach (var m in fallbacks)
         {
-            _logger.LogError(ex, "Erro ao chamar agente ({Etapa}) com modelo {Modelo}", etapaNome, modelo);
-            throw;
+            if (!string.IsNullOrWhiteSpace(m) && !cadeia.Contains(m))
+                cadeia.Add(m);
         }
+        return cadeia.ToArray();
+    }
+
+    private TimeSpan CalcularBackoff(int tentativa)
+    {
+        var baseSegundos = Math.Max(1, _options.Backoff429BaseSegundos);
+        var delay = baseSegundos * Math.Pow(2, tentativa);
+        var cap = Math.Max(1, _options.Backoff429MaxSegundos);
+        return TimeSpan.FromSeconds(Math.Min(delay, cap));
     }
 }
 
