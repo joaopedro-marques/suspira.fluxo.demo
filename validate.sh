@@ -35,14 +35,17 @@ check "OpenRouter__ApiKey configurado"
 
 echo ""
 echo "4. Verificando arquivos..."
+docker-compose exec demoagencia ls /app/Assets/agentes/router.md > /dev/null 2>&1
+check "Agente router.md existe"
+
 docker-compose exec demoagencia ls /app/Assets/agentes/redator.md > /dev/null 2>&1
 check "Agente redator.md existe"
 
-docker-compose exec demoagencia ls /app/Assets/agentes/dev.md > /dev/null 2>&1
-check "Agente dev.md existe"
+docker-compose exec demoagencia ls /app/Assets/agentes/hero.md > /dev/null 2>&1
+check "Agente hero.md existe"
 
-docker-compose exec demoagencia ls /app/Assets/agentes/estrategista.md > /dev/null 2>&1
-check "Agente estrategista.md existe"
+docker-compose exec demoagencia ls /app/Assets/agentes/qa.md > /dev/null 2>&1
+check "Agente qa.md existe"
 
 echo ""
 echo "5. Verificando logs da aplicação..."
@@ -69,9 +72,9 @@ if [ $FAIL -eq 0 ]; then
     echo "✓ Todos os checks passaram!"
     echo ""
     echo "Próximos passos:"
-    echo "  1. Teste o bot no Telegram: /start, /help, /agentes"
-    echo "  2. Teste uma mensagem de texto"
-    echo "  3. Teste /prompt-imagem <prompt> ou mensagem com intencao de imagem"
+    echo "  1. Teste o bot no Telegram: /start, /help"
+    echo "  2. Teste uma mensagem de texto livre para gerar email marketing"
+    echo "  3. Teste envio de foto para análise multimodal"
     echo "  4. Verifique os traces no Langfuse"
     exit 0
 else

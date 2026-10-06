@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl procps && 
 
 COPY --from=build /app/publish .
 
-RUN mkdir -p /app/logs /app/Assets/agentes /app/Assets/imagens
+RUN mkdir -p /app/logs /app/Assets/agentes
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_PRINT_TELEMETRY_MESSAGE=false
