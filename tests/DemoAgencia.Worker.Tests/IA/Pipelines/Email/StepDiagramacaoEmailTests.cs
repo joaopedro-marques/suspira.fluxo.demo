@@ -225,4 +225,40 @@ public class StepDiagramacaoEmailTests
 
         prompt.Should().NotContain("REVISAO NECESSARIA");
     }
+
+    [Fact]
+    public async Task MontarPrompt_ShouldNotIncludeSaudacao()
+    {
+        var context = CriarContexto();
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().NotContain("Saudacao:");
+    }
+
+    [Theory]
+    [InlineData("<p>Ola, %%NOME%%!</p><table><tr><td>rest</td></tr></table>", "<table><tr><td>rest</td></tr></table>")]
+    [InlineData("<p style=\"color:red;\">Ol&aacute;, %%NOME%%!</p><table><tr><td>ok</td></tr></table>", "<table><tr><td>ok</td></tr></table>")]
+    [InlineData("<table><tr><td>sem saudacao</td></tr></table>", "<table><tr><td>sem saudacao</td></tr></table>")]
+    public void StripPrimeiraSaudacao_ShouldRemoveOnlyFirstGreeting(string input, string expected)
+    {
+        StepDiagramacaoEmail.StripPrimeiraSaudacao(input).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithSaudacaoInHtml_ShouldStripIt()
+    {
+        var diagrammed = """<p>Ola, %%NOME%%!</p><table width="600" border="0"><tr><td style="padding: 20px;"><p style="font-size: 14px;">Conteudo</p></td></tr></table>""";
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(diagrammed);
+
+        var context = CriarContexto();
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().NotContain("%%NOME%%");
+        context.Copy.Corpo.Should().Contain("Conteudo");
+    }
 }

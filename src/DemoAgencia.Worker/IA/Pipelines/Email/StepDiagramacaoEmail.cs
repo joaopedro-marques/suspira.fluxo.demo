@@ -47,7 +47,7 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             return context;
         }
 
-        var html = LimparResposta(resposta);
+        var html = StripPrimeiraSaudacao(LimparResposta(resposta));
 
         if (IsValidHtml(html))
         {
@@ -76,7 +76,6 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         var prompt = $"## Copy do email\n";
         prompt += $"Assunto: {copy.Assunto}\n";
         prompt += $"Titulo: {copy.Titulo}\n";
-        prompt += $"Saudacao: {copy.Saudacao}\n";
         prompt += $"Corpo original:\n{copy.Corpo}\n";
         prompt += $"CTA: {copy.CtaTexto}\n";
 
@@ -156,6 +155,17 @@ public partial class StepDiagramacaoEmail : IPipelineStep
 
         return html.Trim();
     }
+
+    internal static string StripPrimeiraSaudacao(string html)
+    {
+        var match = SaudacaoRegex().Match(html);
+        if (match.Success)
+            return html.Remove(match.Index, match.Length);
+        return html;
+    }
+
+    [GeneratedRegex(@"<p\b[^>]*>\s*(?:Ola|Ol&aacute;|Oi|Bem-vindo)[^<]*%%NOME%%[^<]*</p>", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace, matchTimeoutMilliseconds: 200)]
+    private static partial Regex SaudacaoRegex();
 
     [GeneratedRegex(@"<\s*div[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DivRegex();
