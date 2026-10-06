@@ -194,8 +194,9 @@ public class TelegramService : BackgroundService
         {
             await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId.Value, mensagemErro, ct);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Falha ao editar mensagem de erro (chat {ChatId}), enviando como nova mensagem", chatId);
             await _gateway!.SendMessageAsync(chatId, mensagemErro, ct);
         }
     }
@@ -234,8 +235,9 @@ public class TelegramService : BackgroundService
                 {
                     await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, resposta, ct);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogWarning(ex, "Falha ao editar resposta da conversa (chat {ChatId}), enviando como nova mensagem", chatId);
                     await EnviarMensagemLongaAsync(chatId, resposta, ct);
                 }
                 return;
@@ -277,8 +279,9 @@ public class TelegramService : BackgroundService
                     {
                         await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, feedbackMsg, ct);
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        _logger.LogWarning(ex, "Falha ao editar feedback QA (chat {ChatId}), enviando como nova mensagem", chatId);
                         await _gateway!.SendMessageAsync(chatId, feedbackMsg, ct);
                     }
                     return;
