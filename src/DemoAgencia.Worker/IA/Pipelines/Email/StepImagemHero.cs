@@ -42,6 +42,15 @@ public class StepImagemHero : IPipelineStep
         }
 
         var promptBase = await ConstruirPromptBase(heroBrief.Descricao, cliente, context.Estrategia, ct);
+        
+        if (context.Refacoes > 0 && !string.IsNullOrEmpty(context.QaFeedback) && 
+            context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            promptBase += $"\n\n⚠️ REVISION REQUIRED (retry {context.Refacoes})\n";
+            promptBase += $"QA rejected the previous version. Fix the following issues:\n";
+            promptBase += $"{context.QaFeedback}\n";
+        }
+        
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);
 
         var resultado = await _geradorImagem.GerarImagemAsync(context.ChatId, promptFinal, ct);

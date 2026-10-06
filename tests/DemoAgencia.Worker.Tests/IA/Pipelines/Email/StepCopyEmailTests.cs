@@ -113,4 +113,41 @@ public class StepCopyEmailTests
 
         prompt.Should().NotContain("Estrategia de jornada");
     }
+
+    [Fact]
+    public void MontarPrompt_WithQaFeedback_ShouldIncludeRevisionSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), null, null),
+            Refacoes = 2,
+            QaFeedback = "Hero image nao tem relacao com o conteudo. Corrigir para algo mais relevante."
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("REVISAO NECESSARIA");
+        prompt.Should().Contain("refacao 2");
+        prompt.Should().Contain("Hero image nao tem relacao");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithoutQaFeedback_ShouldNotIncludeRevisionSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), null, null),
+            Refacoes = 0
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().NotContain("REVISAO NECESSARIA");
+    }
 }

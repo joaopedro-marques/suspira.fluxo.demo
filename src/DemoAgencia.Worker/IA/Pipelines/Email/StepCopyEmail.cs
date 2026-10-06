@@ -103,6 +103,13 @@ public class StepCopyEmail : IPipelineStep
             }
         }
 
+        if (context.Refacoes > 0 && !string.IsNullOrEmpty(context.QaFeedback))
+        {
+            prompt += $"\n## ⚠️ REVISAO NECESSARIA (refacao {context.Refacoes})\n";
+            prompt += $"O QA reprovou a versao anterior. Corrija os seguintes problemas:\n";
+            prompt += $"{context.QaFeedback}\n";
+        }
+
         return prompt;
     }
 
