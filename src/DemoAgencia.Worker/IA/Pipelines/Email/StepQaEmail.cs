@@ -20,6 +20,27 @@ public partial class StepQaEmail : IPipelineStep
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
+        if (!string.IsNullOrEmpty(context.Html))
+        {
+            var saudacoes = ContarSaudacoes(context.Html);
+            if (saudacoes > 1)
+            {
+                context.QaAprovado = false;
+                context.QaFeedback = $"Duplicacao de saudacao detectada: {saudacoes} ocorrencias de saudacao com %%NOME%% no HTML. O template ja renderiza a saudacao — o corpo (secoes diagramadas) nao deve conter saudacao. Remova a saudacao do corpo.";
+                context.QaStepAlvo = "diagramacao";
+                return context;
+            }
+
+            var ctas = ContarCtas(context.Html, context.Copy?.CtaTexto ?? "");
+            if (ctas > 1)
+            {
+                context.QaAprovado = false;
+                context.QaFeedback = $"Duplicacao de CTA detectada: {ctas} ocorrencias do botao '{context.Copy?.CtaTexto}' no HTML. O template ja renderiza o botao oficial — o corpo nao deve conter botao de CTA. Remova o botao do corpo.";
+                context.QaStepAlvo = "diagramacao";
+                return context;
+            }
+        }
+
         var prompt = MontarPromptQa(context);
 
         var resposta = await _servicoChat.ChamarAgenteAsync(
@@ -130,6 +151,16 @@ public partial class StepQaEmail : IPipelineStep
             prompt += "Avalie se a copy e a imagem estao alinhadas com a fase, temas e sentimentos da jornada.\n";
         }
 
+        if (!string.IsNullOrEmpty(html))
+        {
+            var saudacoes = ContarSaudacoes(html);
+            var ctas = ContarCtas(html, copy?.CtaTexto ?? "");
+            prompt += $"\n## Verificacao deterministica de duplicacao\n";
+            prompt += $"- Saudacao (Ola/Olá/... + %%NOME%%): {saudacoes} ocorrencia(s) no HTML. 1 ocorrencia e o esperado (template). Mais de 1 indica duplicacao no corpo — nesse caso, reprove com step_alvo 'diagramacao'.\n";
+            if (!string.IsNullOrWhiteSpace(copy?.CtaTexto))
+                prompt += $"- Botao de CTA '{copy!.CtaTexto}': {ctas} ocorrencia(s). 1 ocorrencia e o esperado (botao oficial do template). Mais de 1 indica duplicacao no corpo.\n";
+        }
+
         return prompt;
     }
 
@@ -191,6 +222,40 @@ public partial class StepQaEmail : IPipelineStep
             .ToList();
     }
 
+    internal static int ContarSaudacoes(string html)
+    {
+        if (string.IsNullOrEmpty(html))
+            return 0;
+        return SaudacaoCountRegex().Matches(html).Count;
+    }
+
+    internal static int ContarCtas(string html, string ctaTexto)
+    {
+        if (string.IsNullOrEmpty(html) || string.IsNullOrWhiteSpace(ctaTexto))
+            return 0;
+        var alvo = ctaTexto.Trim();
+        var count = 0;
+        foreach (Match m in AnchorTextRegex().Matches(html))
+        {
+            var raw = m.Groups[1].Value;
+            var stripped = HtmlTagRegex().Replace(raw, "");
+            var normalized = string.Join(" ", stripped.Split(default(char[]), StringSplitOptions.RemoveEmptyEntries)).Trim();
+            var decoded = System.Net.WebUtility.HtmlDecode(normalized);
+            if (decoded.Equals(alvo, StringComparison.OrdinalIgnoreCase))
+                count++;
+        }
+        return count;
+    }
+
     [GeneratedRegex(@"%%([A-Za-z0-9_]+)%%")]
     private static partial Regex PlaceholderRegex();
+
+    [GeneratedRegex(@"(?:Ola|Olá|Ol&aacute;|Oi|Prezado|Caro|Querido|Estimado|Bem-vindo)(?!\w).*?%%NOME%%", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
+    private static partial Regex SaudacaoCountRegex();
+
+    [GeneratedRegex(@"<a\b[^>]*>(.*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
+    private static partial Regex AnchorTextRegex();
+
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.Compiled, matchTimeoutMilliseconds: 200)]
+    private static partial Regex HtmlTagRegex();
 }

@@ -237,4 +237,45 @@ public class StepQaEmailPromptTests
 
         prompt.Should().NotContain("Placeholders do briefing");
     }
+
+    [Theory]
+    [InlineData("<p>Ola, %%NOME%%!</p>", 1)]
+    [InlineData("<p>Ola, %%NOME%%!</p><p>Ola, %%NOME%%!</p>", 2)]
+    [InlineData("<p>Sem saudacao</p>", 0)]
+    [InlineData("<p>Olá, %%NOME%%!</p>", 1)]
+    public void ContarSaudacoes_ShouldReturnCorrectCount(string html, int expected)
+    {
+        StepQaEmail.ContarSaudacoes(html).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("<a href=\"x\">CTA</a>", "CTA", 1)]
+    [InlineData("<a href=\"x\">CTA</a><a href=\"y\">CTA</a>", "CTA", 2)]
+    [InlineData("<a href=\"x\">CTA</a><a href=\"y\">Outro</a>", "CTA", 1)]
+    [InlineData("<a href=\"x\">Confirmar presença</a>", "Confirmar presença", 1)]
+    [InlineData("<a href=\"x\">Confirmar &amp; participar</a>", "Confirmar & participar", 1)]
+    public void ContarCtas_ShouldReturnCorrectCount(string html, string ctaTexto, int expected)
+    {
+        StepQaEmail.ContarCtas(html, ctaTexto).Should().Be(expected);
+    }
+
+    [Fact]
+    public void MontarPromptQa_WithOneSaudacao_ShouldIncludeFactualSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "CTA", "link"),
+            Html = "<p>Ola, %%NOME%%!</p><a href=\"x\">CTA</a>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().Contain("Verificacao deterministica");
+        prompt.Should().Contain("1 ocorrencia(s) no HTML");
+        prompt.Should().Contain("esperado (template)");
+    }
 }
