@@ -43,8 +43,8 @@ public class PipelineRunner
                 ctx.Refacoes++;
                 if (ctx.Refacoes > maxRefacoesQa)
                 {
-                    _logger.LogWarning("QA reprovou apos {Refacoes} refacoes. Feedback: {Feedback}",
-                        ctx.Refacoes, ctx.QaFeedback);
+                    _logger.LogWarning("QA reprovou; limite de {Max} refacoes atingido. Feedback: {Feedback}",
+                        maxRefacoesQa, ctx.QaFeedback);
                     ctx.Resultado.QaAprovado = false;
                     ctx.Resultado.QaFeedbackFinal = ctx.QaFeedback;
                     return ctx.Resultado;
