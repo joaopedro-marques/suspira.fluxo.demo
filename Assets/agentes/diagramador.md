@@ -85,6 +85,7 @@ Use estes padroes para criar layout inovadores dentro das restricoes:
 - Cores da marca devem ser aplicadas em destaques, badges e divisores
 - Icones disponiveis serao informados no contexto com suas descricoes — referencie-os por `assets/{nome}.png` (use a extensao completa)
 - Priorize blocos visuais ao inves de texto corrido longo
+- NUNCA inclua botao/link de CTA no corpo — o template renderiza o botao oficial de CTA abaixo do corpo
 
 ## Formato de Resposta
 Responda APENAS com o HTML das secoes diagramadas, sem explicacoes adicionais, sem aspas, sem markdown code blocks. O HTML sera injetado diretamente no corpo do template.

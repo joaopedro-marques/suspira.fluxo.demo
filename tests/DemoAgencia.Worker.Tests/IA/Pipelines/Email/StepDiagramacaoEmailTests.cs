@@ -236,6 +236,51 @@ public class StepDiagramacaoEmailTests
         prompt.Should().NotContain("Saudacao:");
     }
 
+    [Fact]
+    public async Task MontarPrompt_ShouldNotIncludeCta()
+    {
+        var context = CriarContexto();
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().NotContain("CTA: CTA");
+    }
+
+    [Theory]
+    [InlineData("<a href=\"link\">CTA</a><table><tr><td>rest</td></tr></table>", "CTA", "<table><tr><td>rest</td></tr></table>")]
+    [InlineData("<a href=\"link\">Outro link</a><table><tr><td>rest</td></tr></table>", "CTA", "<a href=\"link\">Outro link</a><table><tr><td>rest</td></tr></table>")]
+    [InlineData("<a href=\"link\">CTA</a><table><tr><td>rest</td></tr></table>", "", "<a href=\"link\">CTA</a><table><tr><td>rest</td></tr></table>")]
+    [InlineData("<a href=\"x\">CTA</a><a href=\"y\">outro</a><table><tr><td>t</td></tr></table>", "cta", "<a href=\"y\">outro</a><table><tr><td>t</td></tr></table>")]
+    public void StripCtaDuplicado_ShouldRemoveMatchingAnchorOnly(string input, string ctaTexto, string expected)
+    {
+        StepDiagramacaoEmail.StripCtaDuplicado(input, ctaTexto).Should().Be(expected);
+    }
+
+    [Fact]
+    public void StripCtaDuplicado_WithInnerTags_ShouldCompareStrippedText()
+    {
+        var input = "<a href=\"x\">Confirmar <strong>presenca</strong></a><table><tr><td>t</td></tr></table>";
+
+        StepDiagramacaoEmail.StripCtaDuplicado(input, "Confirmar presenca").Should().Be("<table><tr><td>t</td></tr></table>");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithCtaInCorpo_ShouldStripIt()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td style="padding: 20px;"><p style="font-size: 14px;">Conteudo</p><a href="link">CTA</a></td></tr></table>""";
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(diagrammed);
+
+        var context = CriarContexto();
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().NotContain(">CTA<");
+        context.Copy.Corpo.Should().Contain("Conteudo");
+    }
+
     [Theory]
     [InlineData("<p>Ola, %%NOME%%!</p><table><tr><td>rest</td></tr></table>", "<table><tr><td>rest</td></tr></table>")]
     [InlineData("<p style=\"color:red;\">Ol&aacute;, %%NOME%%!</p><table><tr><td>ok</td></tr></table>", "<table><tr><td>ok</td></tr></table>")]

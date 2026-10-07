@@ -47,7 +47,9 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             return context;
         }
 
-        var html = StripPrimeiraSaudacao(LimparResposta(resposta));
+        var raw = LimparResposta(resposta);
+        var semSaudacao = StripPrimeiraSaudacao(raw);
+        var html = StripCtaDuplicado(semSaudacao, context.Copy!.CtaTexto);
 
         if (IsValidHtml(html))
         {
@@ -75,7 +77,6 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         prompt += $"Assunto: {copy.Assunto}\n";
         prompt += $"Titulo: {copy.Titulo}\n";
         prompt += $"Corpo original:\n{copy.Corpo}\n";
-        prompt += $"CTA: {copy.CtaTexto}\n";
 
         if (context.Estrategia?.FaseDados != null)
         {
@@ -162,8 +163,27 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         return html;
     }
 
+    internal static string StripCtaDuplicado(string html, string ctaTexto)
+    {
+        if (string.IsNullOrWhiteSpace(ctaTexto))
+            return html;
+        var alvo = ctaTexto.Trim();
+        return AnchorRegex().Replace(html, m =>
+        {
+            var innerText = TagStripperRegex().Replace(m.Groups[1].Value, "");
+            var normalized = string.Join(" ", innerText.Split(default(char[]), StringSplitOptions.RemoveEmptyEntries)).Trim();
+            return normalized.Equals(alvo, StringComparison.OrdinalIgnoreCase) ? string.Empty : m.Value;
+        });
+    }
+
     [GeneratedRegex(@"<p\b[^>]*>\s*(?:Ola|Ol&aacute;|Oi|Bem-vindo)[^<]*%%NOME%%[^<]*</p>", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace, matchTimeoutMilliseconds: 200)]
     private static partial Regex SaudacaoRegex();
+
+    [GeneratedRegex(@"<a\b[^>]*>(.*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
+    private static partial Regex AnchorRegex();
+
+    [GeneratedRegex(@"<[^>]+>", RegexOptions.Compiled, matchTimeoutMilliseconds: 200)]
+    private static partial Regex TagStripperRegex();
 
     [GeneratedRegex(@"<\s*div[\s>]", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex DivRegex();
