@@ -157,9 +157,18 @@ public partial class StepDiagramacaoEmail : IPipelineStep
 
     internal static string StripPrimeiraSaudacao(string html)
     {
-        var match = SaudacaoRegex().Match(html);
-        if (match.Success)
-            return html.Remove(match.Index, match.Length);
+        var comNome = SaudacaoComNomeRegex().Match(html);
+        if (comNome.Success)
+            return html.Remove(comNome.Index, comNome.Length);
+
+        var semNome = SaudacaoSemNomeRegex().Match(html);
+        if (semNome.Success)
+        {
+            var pMatch = FirstPRegex().Match(html, semNome.Index);
+            if (pMatch.Success && pMatch.Index == semNome.Index)
+                return html.Remove(pMatch.Index, pMatch.Length);
+        }
+
         return html;
     }
 
@@ -176,8 +185,14 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         });
     }
 
-    [GeneratedRegex(@"<p\b[^>]*>\s*(?:Ola|Ol&aacute;|Oi|Bem-vindo)[^<]*%%NOME%%[^<]*</p>", RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace, matchTimeoutMilliseconds: 200)]
-    private static partial Regex SaudacaoRegex();
+    [GeneratedRegex(@"<p\b[^>]*>\s*(?:Ola|Olá|Ol&aacute;|Oi|Prezado|Caro|Querido|Estimado|Bem-vindo)(?!\w).*?%%NOME%%.*?</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
+    private static partial Regex SaudacaoComNomeRegex();
+
+    [GeneratedRegex(@"^\s*<p\b[^>]*>\s*(?:Ola|Olá|Ol&aacute;|Oi|Prezado|Caro|Querido|Estimado|Bem-vindo)(?!\w)", RegexOptions.IgnoreCase, matchTimeoutMilliseconds: 200)]
+    private static partial Regex SaudacaoSemNomeRegex();
+
+    [GeneratedRegex(@"<p\b[^>]*>.*?</p>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
+    private static partial Regex FirstPRegex();
 
     [GeneratedRegex(@"<a\b[^>]*>(.*?)</a>", RegexOptions.IgnoreCase | RegexOptions.Singleline, matchTimeoutMilliseconds: 200)]
     private static partial Regex AnchorRegex();

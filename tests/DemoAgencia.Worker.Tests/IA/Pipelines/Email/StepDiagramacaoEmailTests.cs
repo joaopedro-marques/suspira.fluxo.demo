@@ -285,6 +285,9 @@ public class StepDiagramacaoEmailTests
     [InlineData("<p>Ola, %%NOME%%!</p><table><tr><td>rest</td></tr></table>", "<table><tr><td>rest</td></tr></table>")]
     [InlineData("<p style=\"color:red;\">Ol&aacute;, %%NOME%%!</p><table><tr><td>ok</td></tr></table>", "<table><tr><td>ok</td></tr></table>")]
     [InlineData("<table><tr><td>sem saudacao</td></tr></table>", "<table><tr><td>sem saudacao</td></tr></table>")]
+    [InlineData("<p>Olá, <strong>%%NOME%%</strong>!</p><table><tr><td>t</td></tr></table>", "<table><tr><td>t</td></tr></table>")]
+    [InlineData("<p>Prezado cliente, bem-vindo.</p><table><tr><td>t</td></tr></table>", "<table><tr><td>t</td></tr></table>")]
+    [InlineData("<table><tr><td>intro</td></tr></table><p>Prezado cliente.</p>", "<table><tr><td>intro</td></tr></table><p>Prezado cliente.</p>")]
     public void StripPrimeiraSaudacao_ShouldRemoveOnlyFirstGreeting(string input, string expected)
     {
         StepDiagramacaoEmail.StripPrimeiraSaudacao(input).Should().Be(expected);
