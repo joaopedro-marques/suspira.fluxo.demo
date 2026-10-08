@@ -83,4 +83,39 @@ public class IconDescricaoCacheTests
         result.Should().NotBeNull();
         result.DescricaoGeral.Should().Be("Desc");
     }
+
+    [Fact]
+    public async Task ObterDescricaoAsync_ConcorrenteMesmoIcone_DeveChamarAnalisadorApenasUmaVez()
+    {
+        var iconPath = Path.Combine(_tempDir, "MRV_race_icon.png");
+        await File.WriteAllBytesAsync(iconPath, new byte[] { 0x89, 0x50 });
+
+        var analyzerStarted = new TaskCompletionSource();
+        var releaseAnalyzer = new TaskCompletionSource();
+        var expected = new IconDescricao("Race icon", new List<string> { "teste" }, "Flat");
+
+        _analisadorMock.Setup(a => a.DescreverIconeAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                analyzerStarted.SetResult();
+                await releaseAnalyzer.Task;
+                return expected;
+            });
+
+        var cache = new IconDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<IconDescricaoCache>>());
+        var icon = new AssetVisual { Caminho = iconPath };
+
+        var task1 = cache.ObterDescricaoAsync(icon, CancellationToken.None);
+        var task2 = cache.ObterDescricaoAsync(icon, CancellationToken.None);
+
+        await analyzerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseAnalyzer.SetResult();
+
+        var result1 = await task1.WaitAsync(TimeSpan.FromSeconds(5));
+        var result2 = await task2.WaitAsync(TimeSpan.FromSeconds(5));
+
+        result1.DescricaoGeral.Should().Be("Race icon");
+        result2.DescricaoGeral.Should().Be("Race icon");
+        _analisadorMock.Verify(a => a.DescreverIconeAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

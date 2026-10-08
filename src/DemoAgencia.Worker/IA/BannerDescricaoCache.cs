@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DemoAgencia.Worker.Referencias;
 
@@ -12,6 +13,7 @@ public class BannerDescricaoCache : IBannerDescricaoCache
 {
     private readonly IAnalisadorImagem _analisador;
     private readonly ILogger<BannerDescricaoCache> _logger;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
     private static readonly JsonSerializerOptions SnakeOptions = new()
     {
@@ -37,32 +39,54 @@ public class BannerDescricaoCache : IBannerDescricaoCache
 
         if (File.Exists(sidecarPath))
         {
-            try
+            var cached = LerSidecar(sidecarPath);
+            if (cached != null)
+                return cached;
+        }
+
+        var sem = _locks.GetOrAdd(sidecarPath, _ => new SemaphoreSlim(1, 1));
+        await sem.WaitAsync(ct);
+        try
+        {
+            if (File.Exists(sidecarPath))
             {
-                var json = await File.ReadAllTextAsync(sidecarPath, ct);
-                var cached = JsonSerializer.Deserialize<BannerDescricao>(json, ReadOptions);
+                var cached = LerSidecar(sidecarPath);
                 if (cached != null)
                     return cached;
             }
+
+            var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
+            var descricao = await _analisador.DescreverBannerAsync(bytes, null, ct);
+
+            try
+            {
+                var json = JsonSerializer.Serialize(descricao, SnakeOptions);
+                await File.WriteAllTextAsync(sidecarPath, json, ct);
+            }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Falha ao ler cache de descricao do banner {Path}. Regenerando.", sidecarPath);
+                _logger.LogWarning(ex, "Falha ao gravar cache de descricao do banner {Path}", sidecarPath);
             }
+
+            return descricao;
         }
+        finally
+        {
+            sem.Release();
+        }
+    }
 
-        var bytes = await File.ReadAllBytesAsync(banner.Caminho, ct);
-        var descricao = await _analisador.DescreverBannerAsync(bytes, null, ct);
-
+    private BannerDescricao? LerSidecar(string sidecarPath)
+    {
         try
         {
-            var json = JsonSerializer.Serialize(descricao, SnakeOptions);
-            await File.WriteAllTextAsync(sidecarPath, json, ct);
+            var json = File.ReadAllText(sidecarPath);
+            return JsonSerializer.Deserialize<BannerDescricao>(json, ReadOptions);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Falha ao gravar cache de descricao do banner {Path}", sidecarPath);
+            _logger.LogWarning(ex, "Falha ao ler cache de descricao do banner {Path}. Regenerando.", sidecarPath);
+            return null;
         }
-
-        return descricao;
     }
 }

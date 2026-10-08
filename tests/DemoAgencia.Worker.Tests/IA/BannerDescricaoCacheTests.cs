@@ -83,4 +83,39 @@ public class BannerDescricaoCacheTests
         result.Should().NotBeNull();
         result.DescricaoGeral.Should().Be("Desc");
     }
+
+    [Fact]
+    public async Task ObterDescricaoAsync_ConcorrenteMesmoBanner_DeveChamarAnalisadorApenasUmaVez()
+    {
+        var bannerPath = Path.Combine(_tempDir, "MRV_race_banner.png");
+        await File.WriteAllBytesAsync(bannerPath, new byte[] { 0x89, 0x50 });
+
+        var analyzerStarted = new TaskCompletionSource();
+        var releaseAnalyzer = new TaskCompletionSource();
+        var expected = new BannerDescricao("Race desc", "Center", new List<string> { "#FF0000" }, "Flat", "Teste", "");
+
+        _analisadorMock.Setup(a => a.DescreverBannerAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                analyzerStarted.SetResult();
+                await releaseAnalyzer.Task;
+                return expected;
+            });
+
+        var cache = new BannerDescricaoCache(_analisadorMock.Object, Mock.Of<ILogger<BannerDescricaoCache>>());
+        var banner = new AssetVisual { Caminho = bannerPath };
+
+        var task1 = cache.ObterDescricaoAsync(banner, CancellationToken.None);
+        var task2 = cache.ObterDescricaoAsync(banner, CancellationToken.None);
+
+        await analyzerStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseAnalyzer.SetResult();
+
+        var result1 = await task1.WaitAsync(TimeSpan.FromSeconds(5));
+        var result2 = await task2.WaitAsync(TimeSpan.FromSeconds(5));
+
+        result1.DescricaoGeral.Should().Be("Race desc");
+        result2.DescricaoGeral.Should().Be("Race desc");
+        _analisadorMock.Verify(a => a.DescreverBannerAsync(It.IsAny<byte[]>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
