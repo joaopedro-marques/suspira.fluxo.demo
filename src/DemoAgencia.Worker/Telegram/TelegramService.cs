@@ -16,32 +16,40 @@ public class TelegramService : BackgroundService
 {
     private readonly ILogger<TelegramService> _logger;
     private readonly TelegramOptions _options;
+    private readonly ConcorrenciaOptions _concorrencia;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
     private readonly RouterService _router;
     private readonly ConversaPendenteStore _pendencias;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<UpdateDispatcher> _dispatcherLogger;
     private ITelegramGateway? _gateway;
+    private UpdateDispatcher? _dispatcher;
+    private SemaphoreSlim? _pipelineLimiter;
 
     public TelegramService(
         ILogger<TelegramService> logger,
         IOptions<TelegramOptions> options,
+        IOptions<ConcorrenciaOptions> concorrencia,
         IAnalisadorImagem analisadorImagem,
         RateLimiterService rateLimiter,
         ITelegramGatewayFactory gatewayFactory,
         RouterService router,
         ConversaPendenteStore pendencias,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        ILogger<UpdateDispatcher> dispatcherLogger)
     {
         _logger = logger;
         _options = options.Value;
+        _concorrencia = concorrencia.Value;
         _analisadorImagem = analisadorImagem;
         _rateLimiter = rateLimiter;
         _gatewayFactory = gatewayFactory;
         _router = router;
         _pendencias = pendencias;
         _serviceProvider = serviceProvider;
+        _dispatcherLogger = dispatcherLogger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -54,6 +62,8 @@ public class TelegramService : BackgroundService
         }
 
         _gateway = _gatewayFactory.Create(botToken);
+        _pipelineLimiter = new SemaphoreSlim(_concorrencia.MaxPipelinesSimultaneos, _concorrencia.MaxPipelinesSimultaneos);
+        _dispatcher = new UpdateDispatcher(ProcessUpdate, _concorrencia.CapacidadeFilaPorChat, _dispatcherLogger);
 
         try
         {
@@ -78,7 +88,22 @@ public class TelegramService : BackgroundService
                 foreach (var update in updates)
                 {
                     offset = update.Id + 1;
-                    await ProcessUpdate(update, stoppingToken);
+
+                    var chatId = update.Message?.Chat.Id;
+                    if (chatId.HasValue && _dispatcher!.TemFilaPendente(chatId.Value))
+                    {
+                        try
+                        {
+                            await _gateway.SendMessageAsync(chatId.Value,
+                                "⏳ Aguarde, ainda estou processando seu pedido anterior...", stoppingToken);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Falha ao enviar aviso de fila para chat {ChatId}", chatId);
+                        }
+                    }
+
+                    await _dispatcher!.EnfileirarAsync(update, stoppingToken);
                 }
 
                 retryDelay = TimeSpan.FromSeconds(1);
@@ -96,6 +121,13 @@ public class TelegramService : BackgroundService
                 retryDelay = newDelay > TimeSpan.FromSeconds(30) ? TimeSpan.FromSeconds(30) : newDelay;
             }
         }
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_dispatcher != null)
+            await _dispatcher.DrainAsync(TimeSpan.FromSeconds(_concorrencia.TimeoutDrainSegundos));
+        await base.StopAsync(cancellationToken);
     }
 
     private async Task ProcessUpdate(Update update, CancellationToken ct)
@@ -268,7 +300,19 @@ public class TelegramService : BackgroundService
 
                 await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo...", ct);
 
-                var resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
+                if (_pipelineLimiter!.CurrentCount == 0)
+                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo... (aguardando vaga)", ct);
+
+                await _pipelineLimiter!.WaitAsync(ct);
+                ResultadoPipeline resultadoPipeline;
+                try
+                {
+                    resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
+                }
+                finally
+                {
+                    _pipelineLimiter.Release();
+                }
 
                 if (!resultadoPipeline.QaAprovado)
                 {

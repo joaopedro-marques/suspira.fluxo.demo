@@ -61,15 +61,17 @@ public class TelegramServiceTests
     [Fact]
     public void Constructor_WithValidToken_ShouldNotThrow()
     {
-        var act = () => new TelegramService(
+        var act = () =>         new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(_telegramOptions),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         act.Should().NotThrow();
     }
@@ -82,12 +84,14 @@ public class TelegramServiceTests
         var act = () => new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(options),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         act.Should().NotThrow();
     }
@@ -133,15 +137,17 @@ public class TelegramServiceTests
         _routerMock.Setup(r => r.ResumirAsync(123, "resposta", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("429"));
 
-        var service = new TelegramService(
+        var service =         new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(_telegramOptions),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -223,15 +229,17 @@ public class TelegramServiceTests
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
 
-        var service = new TelegramService(
+        var service =         new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(_telegramOptions),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -282,15 +290,17 @@ public class TelegramServiceTests
         _routerMock.Setup(r => r.IniciarAsync(123, "pedido", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("429"));
 
-        var service = new TelegramService(
+        var service =         new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(_telegramOptions),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -370,15 +380,17 @@ public class TelegramServiceTests
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
 
-        var service = new TelegramService(
+        var service =         new TelegramService(
             _loggerMock.Object,
             TestOptions.Create(_telegramOptions),
+            TestOptions.Create(new ConcorrenciaOptions()),
             _analisadorImagemMock.Object,
             _rateLimiterMock.Object,
             _gatewayFactoryMock.Object,
             _routerMock.Object,
             _pendencias,
-            _serviceProviderMock.Object);
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
 
         await service.StartAsync(cts.Token);
         await Task.Delay(500);
@@ -387,5 +399,111 @@ public class TelegramServiceTests
 
         gatewayMock.Verify(g => g.SendDocumentAsync(It.IsAny<long>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         editCalls.Should().Contain(m => m.Contains("QA nao aprovou"));
+    }
+
+    [Fact]
+    public async Task PipelineLimiteGlobal_SegundoChatAguardaVaga()
+    {
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(_telegramOptions.BotToken)).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var message1 = new Message
+        {
+            Id = 1,
+            Chat = new Chat { Id = 1000, Type = ChatType.Private },
+            Text = "pedido A"
+        };
+        var message2 = new Message
+        {
+            Id = 2,
+            Chat = new Chat { Id = 2000, Type = ChatType.Private },
+            Text = "pedido B"
+        };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { new Update { Id = 1, Message = message1 }, new Update { Id = 2, Message = message2 } });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Message { Id = 99 });
+        gatewayMock.Setup(g => g.EditMessageTextAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>());
+        var resultado = new RouterResultado("producao", null, new(), "mrv", brief);
+        _routerMock.Setup(r => r.IniciarAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultado);
+
+        var pipelineStarted = new List<long>();
+        var primeiroIniciou = new TaskCompletionSource();
+        var liberarPrimeiro = new TaskCompletionSource();
+
+        var runnerMock = new Mock<PipelineRunner>(Mock.Of<ILogger<PipelineRunner>>());
+        runnerMock.Setup(r => r.ExecutarAsync(It.IsAny<PipelineContext>(), It.IsAny<IReadOnlyList<IPipelineStep>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<PipelineContext, IReadOnlyList<IPipelineStep>, int, CancellationToken>((ctx, _, _, _) =>
+            {
+                pipelineStarted.Add(ctx.ChatId);
+                if (ctx.ChatId == 1000)
+                {
+                    primeiroIniciou.SetResult();
+                    return liberarPrimeiro.Task.ContinueWith(_ => new ResultadoPipeline { QaAprovado = true, RespostaFinal = "<html>A</html>" });
+                }
+                return Task.FromResult(new ResultadoPipeline { QaAprovado = true, RespostaFinal = "<html>B</html>" });
+            });
+
+        var pipelineEmail = new PipelineEmail(
+            Mock.Of<IServicoChat>(),
+            Mock.Of<IGeradorImagem>(),
+            Mock.Of<IReferenciasCliente>(),
+            Mock.Of<IAnalisadorImagem>(),
+            Mock.Of<IAgentesCatalogo>(),
+            Mock.Of<ITemplateCatalogo>(),
+            Mock.Of<IBannerDescricaoCache>(),
+            Mock.Of<IIconDescricaoCache>(),
+            Mock.Of<ILogger<StepCopyEmail>>(),
+            Mock.Of<ILogger<StepImagemHero>>(),
+            Mock.Of<ILogger<StepDiagramacaoEmail>>(),
+            "<tr></tr>",
+            "<tr></tr>");
+
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
+
+        var concorrencia = new ConcorrenciaOptions { MaxPipelinesSimultaneos = 1, TimeoutDrainSegundos = 5 };
+
+        var service = new TelegramService(
+            _loggerMock.Object,
+            TestOptions.Create(_telegramOptions),
+            TestOptions.Create(concorrencia),
+            _analisadorImagemMock.Object,
+            _rateLimiterMock.Object,
+            _gatewayFactoryMock.Object,
+            _routerMock.Object,
+            _pendencias,
+            _serviceProviderMock.Object,
+            Mock.Of<ILogger<UpdateDispatcher>>());
+
+        await service.StartAsync(cts.Token);
+        await primeiroIniciou.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        pipelineStarted.Should().ContainInOrder(1000);
+        pipelineStarted.Should().NotContain(2000);
+
+        liberarPrimeiro.SetResult();
+        await Task.Delay(500);
+
+        pipelineStarted.Should().ContainInOrder(1000, 2000);
+
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
     }
 }
