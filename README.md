@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-182-green)
+![Tests](https://img.shields.io/badge/tests-336-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Prova de Conceito (PoC) para validação de automação de marketing via Telegram com pipeline de email marketing gerada por IA.
@@ -20,13 +20,19 @@ Prova de Conceito (PoC) para validação de automação de marketing via Telegra
 O sistema utiliza um **Router (intake único)** seguido de **Pipelines por canal** (atualmente apenas email):
 
 ```
-Mensagem → TelegramService:
+Mensagem → TelegramService (long polling não-bloqueante):
+  ├── UpdateDispatcher (modelo ator por chat):
+  │     Chats diferentes processam em paralelo
+  │     Mesmo chat: fila FIFO (garante ordem no PreFlight)
+  │     Aviso "⏳ Aguarde..." se chat já tem mensagem em processamento
+  │
   ├── /start, /help → respostas fixas
   └── Mensagem livre → RouterService (intake):
         ├── conversa → resposta direta
         ├── esclarecimento → perguntas (store pendente)
         ├── fora_contexto → recusa
         └── produção:
+              ├── Limite global: SemaphoreSlim (MaxPipelinesSimultaneos=3)
               ├── email → PipelineEmail
               │     ├── StepEstrategiaEmail (retrieval: fase, paleta, temas, mapa, satisfações)
               │     ├── StepMarcaEmail (retrieval: logo, cores, tom)
@@ -161,7 +167,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**182 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD).
+**336 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, UpdateDispatcher, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD), BannerDescricaoCache, IconDescricaoCache.
 
 ## CI/CD
 

@@ -394,6 +394,37 @@ Cada tentativa gera um trace no Langfuse com o modelo efetivamente usado. Falhas
 
 Com Polly re-tryando 429 (até 5×, ~135s no pior caso) **e** fallback depois (até 3 modelos adicionais), o tempo total pode ser longo. Para reduzir latência máxima, configure `OpenRouter__MaxRetriesHttp=2` quando fallback de modelos está ativo. Isso troca latência por cobertura: menos retries no mesmo modelo, mais modelos tentados.
 
+## Concorrência por Chat (Modelo Ator)
+
+O `TelegramService` utiliza um `UpdateDispatcher` que implementa o padrão **modelo ator por chat**: cada `chatId` tem sua própria fila FIFO (`Channel<Update>`), criada sob demanda.
+
+### Regras
+
+| Cenário | Comportamento |
+|---------|--------------|
+| Chats diferentes | Processam **em paralelo** |
+| Mesmo chat (várias mensagens) | Processam **sequencialmente em ordem FIFO** |
+| Pipeline cheio (limite global) | Usuário vê "🚀 Produzindo... (aguardando vaga)" |
+| Mesmo chat com mensagem em processamento | Usuário vê "⏳ Aguarde, ainda estou processando seu pedido anterior..." |
+
+### Limite Global de Pipelines
+
+`SemaphoreSlim` (configurável via `Concorrencia__MaxPipelinesSimultaneos`, default 3) restringe pipelines de email simultâneos. Router, conversa e esclarecimento NÃO competem por essa vaga (são chamadas LLM curtas, protegidas pelo rate limiter de 5 msg/min/chat).
+
+### Thread Safety Verificado
+
+- `ConversaPendenteStore`: `ConcurrentDictionary`
+- `RateLimiterService`: `lock`
+- `PipelineRunner`: stateless por execução (estado vive no `PipelineContext` por request)
+- `PipelineEmail.CriarSteps()`: steps criados por request
+- `OpenRouterService`: `IHttpClientFactory.CreateClient()` por chamada
+- `ReasoningDisablingHandler`: `AsyncLocal<bool>`
+- Caches (Banner/Icon): `ConcurrentDictionary<string, SemaphoreSlim>` com double-check
+
+### Shutdown Gracioso
+
+`StopAsync` chama `UpdateDispatcher.DrainAsync(timeout)` que: (1) completa todos os writers, (2) aguarda consumers processarem itens restantes, (3) respeita timeout antes de cancelar.
+
 ## Observabilidade
 
 ### Langfuse Traces
@@ -445,6 +476,7 @@ src/DemoAgencia.Worker/
 │
 ├── Telegram/
 │   ├── TelegramService.cs              # Long polling + handlers
+│   ├── UpdateDispatcher.cs             # Filas por chat (modelo ator) + drain
 │   ├── ITelegramGateway.cs             # Interface para Telegram Bot
 │   ├── TelegramBotGateway.cs           # Implementacao real + TelegramGatewayFactory
 │   ├── TelegramMessageSplitter.cs      # Divisão de mensagens longas
@@ -580,6 +612,8 @@ public class PipelineContext
 | Contexto mínimo por step | Cada step recebe só o necessário (marca, brief, step anterior) | Contexto compartilhado gigante (todos os steps) |
 | Single Router (ao invés de Refinador + Montador) | Uma única LLM call classifica + estrutura brief | Duas LLM calls (refinador + montador) |
 | Polly + fallback de modelos (ao invés de retry infinito no mesmo modelo) | 429 persistente troca de modelo; Polly honra Retry-After | Retry infinito no mesmo modelo rate-limited |
+| Modelo ator por chat (ao invés de processamento totalmente paralelo) | Garante ordem no PreFlight; evita race conditions por conversa | Paralelismo ingênuo (quebra máquina de estados) |
+| Limite global de pipelines via SemaphoreSlim | Protege RAM (1GB) e rate limit OpenRouter; default 3 para VM E2 Micro | Sem limite (crash por OOM ou storm de 429) |
 
 ## Trade-offs
 
@@ -609,6 +643,7 @@ roadmap
     Router + Pipeline Email :done, 2026-10, 2026-10
     Template HTML table-based :done, 2026-10, 2026-10
     QA com retry :done, 2026-10, 2026-10
+    Concorrência por chat (modelo ator) :done, 2026-10, 2026-10
     
     section Próximos Passos
     Pipeline Instagram :2026-11, 2026-12
