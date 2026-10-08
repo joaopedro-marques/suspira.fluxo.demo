@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.Configure<TelegramOptions>(configuration.GetSection(TelegramOptions.Section));
         services.Configure<SegurancaOptions>(configuration.GetSection(SegurancaOptions.Section));
         services.Configure<PreFlightOptions>(configuration.GetSection(PreFlightOptions.Section));
+        services.Configure<ConcorrenciaOptions>(configuration.GetSection(ConcorrenciaOptions.Section));
 
         var openRouterConfig = configuration.GetSection(OpenRouterOptions.Section).Get<OpenRouterOptions>() ?? new OpenRouterOptions();
 
