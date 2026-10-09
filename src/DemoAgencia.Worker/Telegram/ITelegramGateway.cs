@@ -1,4 +1,5 @@
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace DemoAgencia.Worker.Telegram;
 
@@ -7,7 +8,11 @@ public interface ITelegramGateway
     Task<User> GetMeAsync(CancellationToken ct = default);
     Task<Update[]> GetUpdatesAsync(int offset, int timeout, CancellationToken ct = default);
     Task<Message> SendMessageAsync(long chatId, string text, CancellationToken ct = default);
+    Task<Message> SendMessageAsync(long chatId, string text, InlineKeyboardMarkup? keyboard, CancellationToken ct = default);
     Task EditMessageTextAsync(long chatId, int messageId, string text, CancellationToken ct = default);
+    Task EditMessageTextAsync(long chatId, int messageId, string text, InlineKeyboardMarkup? keyboard, CancellationToken ct = default);
+    Task EditMessageReplyMarkupAsync(long chatId, int messageId, CancellationToken ct = default);
+    Task AnswerCallbackQueryAsync(string callbackQueryId, CancellationToken ct = default);
     Task SendDocumentAsync(long chatId, Stream document, string fileName, string? caption, CancellationToken ct = default);
     Task SendChatActionAsync(long chatId, CancellationToken ct = default);
     Task<byte[]> DownloadFileAsync(string fileId, CancellationToken ct = default);

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace DemoAgencia.Worker.Telegram;
 
@@ -26,14 +27,49 @@ public class TelegramBotGateway : ITelegramGateway
 
     public async Task<Message> SendMessageAsync(long chatId, string text, CancellationToken ct = default)
     {
+        return await SendMessageAsync(chatId, text, keyboard: null, ct);
+    }
+
+    public async Task<Message> SendMessageAsync(long chatId, string text, InlineKeyboardMarkup? keyboard, CancellationToken ct = default)
+    {
         var textoFormatado = TelegramTextFormatter.RemoverFormatacao(text);
-        return await _botClient.SendMessage(chatId: chatId, text: textoFormatado, cancellationToken: ct);
+        return await _botClient.SendMessage(
+            chatId: chatId,
+            text: textoFormatado,
+            replyMarkup: keyboard,
+            cancellationToken: ct);
     }
 
     public async Task EditMessageTextAsync(long chatId, int messageId, string text, CancellationToken ct = default)
     {
+        await EditMessageTextAsync(chatId, messageId, text, keyboard: null, ct);
+    }
+
+    public async Task EditMessageTextAsync(long chatId, int messageId, string text, InlineKeyboardMarkup? keyboard, CancellationToken ct = default)
+    {
         var textoFormatado = TelegramTextFormatter.RemoverFormatacao(text);
-        await _botClient.EditMessageText(chatId: chatId, messageId: messageId, text: textoFormatado, cancellationToken: ct);
+        await _botClient.EditMessageText(
+            chatId: chatId,
+            messageId: messageId,
+            text: textoFormatado,
+            replyMarkup: keyboard,
+            cancellationToken: ct);
+    }
+
+    public async Task EditMessageReplyMarkupAsync(long chatId, int messageId, CancellationToken ct = default)
+    {
+        await _botClient.EditMessageReplyMarkup(
+            chatId: chatId,
+            messageId: messageId,
+            replyMarkup: null,
+            cancellationToken: ct);
+    }
+
+    public async Task AnswerCallbackQueryAsync(string callbackQueryId, CancellationToken ct = default)
+    {
+        await _botClient.AnswerCallbackQuery(
+            callbackQueryId: callbackQueryId,
+            cancellationToken: ct);
     }
 
     public async Task SendDocumentAsync(long chatId, Stream document, string fileName, string? caption, CancellationToken ct = default)
