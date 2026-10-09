@@ -574,4 +574,59 @@ public class StepImagemHeroTests
         prompt.Should().Contain("condominio");
         prompt.Should().Contain("assembleia de condominio");
     }
+
+    [Fact]
+    public void ConstruirDescricaoDefault_WithTemaSelecionado_ShouldUseTemaOnly()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", "vender", null, "produto", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro", "Indicação premiada" }
+                },
+                TemaSelecionado = "Boas vindas"
+            }
+        };
+
+        var descricao = StepImagemHero.ConstruirDescricaoDefault(context);
+
+        descricao.Should().Contain("theme: Boas vindas");
+        descricao.Should().NotContain("themes:");
+    }
+
+    [Fact]
+    public void MontarPromptCurador_WithTemaSelecionado_ShouldUseTemaOnly()
+    {
+        var descricao = new BannerDescricao("Banner teste", "Centralizado", new List<string>(), "Flat", "Tecnico", "Agende");
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", "vender", null, "produto", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro" }
+                },
+                TemaSelecionado = "Boas vindas"
+            }
+        };
+
+        var prompt = StepImagemHero.MontarPromptCurador(descricao, context);
+
+        prompt.Should().Contain("Tema: Boas vindas");
+        prompt.Should().NotContain("Temas:");
+    }
 }
