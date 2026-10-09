@@ -73,21 +73,6 @@ public class RouterServiceTests
     }
 
     [Fact]
-    public async Task IniciarAsync_WithEsclarecimento_ShouldStorePending()
-    {
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual o publico?"]}""");
-
-        var resultado = await _service.IniciarAsync(123, "criar post");
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("esclarecimento");
-        _store.Obter(123).Should().NotBeNull();
-    }
-
-    [Fact]
     public async Task IniciarAsync_WithProducao_ShouldClearPending()
     {
         var estado = new EstadoPreFlight { ChatId = 123, MensagemOriginal = "prev" };
@@ -135,91 +120,6 @@ public class RouterServiceTests
         var resultado = await _service.IniciarAsync(123, "ola");
 
         resultado.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task IniciarAsync_WithEsclarecimentoEClienteComEstrategia_ShouldConvertToOnboarding()
-    {
-        _refsMock.Setup(r => r.ObterEstrategia("acme")).Returns(new EstrategiaCliente
-        {
-            Cliente = "acme",
-            Fases = new Dictionary<string, FaseEstrategia>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["pos-compra"] = new FaseEstrategia
-                {
-                    Fase = "pos-compra",
-                    Temas = new List<string> { "Boas vindas" }
-                }
-            }
-        });
-
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "esclarecimento", "cliente": "acme", "perguntas": ["Qual etapa?"]}""");
-
-        var resultado = await _service.IniciarAsync(123, "criar email acme pós-compra sobre boas vindas");
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("onboarding");
-        resultado.Cliente.Should().Be("acme");
-        resultado.CamposExtraidos.Should().NotBeNull();
-        resultado.CamposExtraidos!.EtapaJornada.Should().Be("pos-compra");
-        resultado.CamposExtraidos!.Tema.Should().Be("Boas vindas");
-        _store.Obter(123).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task ResumirAsync_WithNoPending_ShouldReturnNull()
-    {
-        var resultado = await _service.ResumirAsync(123, "minha resposta");
-
-        resultado.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task ResumirAsync_WithPending_ShouldAccumulateAndCallRouter()
-    {
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Qual o publico?"]}""");
-
-        await _service.IniciarAsync(123, "criar post");
-
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "producao", "cliente": "beta", "brief": {"canal": "instagram"}}""");
-
-        var resultado = await _service.ResumirAsync(123, "jovens");
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("producao");
-        _store.Obter(123).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task ResumirAsync_WhenMaxRoundsExceeded_ShouldClearAndReturnLimitePerguntas()
-    {
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Q1"]}""");
-
-        await _service.IniciarAsync(123, "msg1");
-        await _service.ResumirAsync(123, "r1");
-
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "esclarecimento", "perguntas": ["Q2"]}""");
-
-        var resultado = await _service.ResumirAsync(123, "r2");
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("limite_perguntas");
-        _store.Obter(123).Should().BeNull();
     }
 
     [Fact]
@@ -467,71 +367,6 @@ public class RouterServiceTests
             It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
             It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
             Times.Once);
-    }
-
-    [Fact]
-    public async Task ResumirAsync_AfterTwoRounds_ShouldRenderFullTranscriptInPrompt()
-    {
-        var prompts = new List<string>();
-
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .Returns<long, string, string, string, string, double, int, CancellationToken>(
-                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) =>
-                {
-                    prompts.Add(prompt);
-                    return prompts.Count switch
-                    {
-                        1 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Q1", "Q2"]}"""),
-                        2 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Q3"]}"""),
-                        _ => Task.FromResult("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""")
-                    };
-                });
-
-        await _service.IniciarAsync(123, "criar email");
-        await _service.ResumirAsync(123, "resposta-1");
-        await _service.ResumirAsync(123, "resposta-2");
-
-        prompts.Count.Should().BeGreaterThanOrEqualTo(3);
-        var promptTerceiraChamada = prompts[2];
-
-        promptTerceiraChamada.Should().Contain("Esclarecimentos ja respondidos");
-        promptTerceiraChamada.Should().Contain("Rodada 1");
-        promptTerceiraChamada.Should().Contain("P: Q1");
-        promptTerceiraChamada.Should().Contain("P: Q2");
-        promptTerceiraChamada.Should().Contain("R: resposta-1");
-        promptTerceiraChamada.Should().Contain("Rodada 2");
-        promptTerceiraChamada.Should().Contain("P: Q3");
-        promptTerceiraChamada.Should().Contain("R: resposta-2");
-        promptTerceiraChamada.Should().Contain("NAO re-pergunte nada disto");
-        promptTerceiraChamada.Should().Contain("Pergunte APENAS campos criticos ainda faltantes");
-    }
-
-    [Fact]
-    public async Task ResumirAsync_Prompt_ShouldIncludeAntiRepeatInstruction()
-    {
-        var prompts = new List<string>();
-
-        _chatMock.Setup(c => c.ChamarAgenteAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
-                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .Returns<long, string, string, string, string, double, int, CancellationToken>(
-                (chatId, persona, modelo, prompt, etapa, temp, maxTok, ct) =>
-                {
-                    prompts.Add(prompt);
-                    return prompts.Count switch
-                    {
-                        1 => Task.FromResult("""{"tipo": "esclarecimento", "perguntas": ["Qual o publico?"]}"""),
-                        _ => Task.FromResult("""{"tipo": "producao", "cliente": "acme", "brief": {"canal": "email"}}""")
-                    };
-                });
-
-        await _service.IniciarAsync(123, "msg");
-        await _service.ResumirAsync(123, "jovens");
-
-        prompts.Count.Should().BeGreaterThanOrEqualTo(2);
-        prompts[1].Should().Contain("NAO re-pergunte");
     }
 
     [Fact]

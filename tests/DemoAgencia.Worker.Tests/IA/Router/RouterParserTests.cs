@@ -68,19 +68,6 @@ public class RouterParserTests
     }
 
     [Fact]
-    public void TentarExtrair_WithEsclarecimento_ShouldReturnPerguntas()
-    {
-        var texto = """{"tipo": "esclarecimento", "perguntas": ["Qual o publico?", "Qual o objetivo?"]}""";
-
-        var resultado = RouterParser.TentarExtrair(texto);
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("esclarecimento");
-        resultado.Perguntas.Should().HaveCount(2);
-        resultado.Perguntas.Should().Contain("Qual o publico?");
-    }
-
-    [Fact]
     public void TentarExtrair_WithForaContexto_ShouldReturnTipo()
     {
         var texto = """{"tipo": "fora_contexto"}""";
@@ -158,7 +145,6 @@ public class RouterParserTests
         resultado.Should().NotBeNull();
         resultado!.Cliente.Should().BeNull();
         resultado.Resposta.Should().BeNull();
-        resultado.Perguntas.Should().BeEmpty();
         resultado.Brief!.Link.Should().BeNull();
         resultado.Brief.Objetivo.Should().BeNull();
         resultado.Brief.Publico.Should().BeNull();
@@ -264,42 +250,5 @@ public class RouterParserTests
         resultado.Should().NotBeNull();
         resultado!.Tipo.Should().Be("conversa");
         resultado.Resposta.Should().Be("Ola!");
-    }
-
-    [Fact]
-    public void TentarExtrair_WithClassificacaoAlias_ShouldExtract()
-    {
-        var texto = """{"classificacao": "esclarecimento", "perguntas": ["Qual o publico?"]}""";
-
-        var resultado = RouterParser.TentarExtrair(texto);
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("esclarecimento");
-        resultado.Perguntas.Should().ContainSingle("Qual o publico?");
-    }
-
-    [Fact]
-    public void TentarExtrair_WithResponseEnvelopeAndClassificacao_ShouldExtract()
-    {
-        var texto = """
-        {
-            "response": {
-                "classificacao": "esclarecimento",
-                "resposta": "",
-                "perguntas": ["Qual e o objetivo?", "Para qual etapa?"],
-                "brief": null,
-                "motivo": null
-            }
-        }
-        """;
-
-        var resultado = RouterParser.TentarExtrair(texto);
-
-        resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("esclarecimento");
-        resultado.Resposta.Should().Be("");
-        resultado.Perguntas.Should().HaveCount(2);
-        resultado.Perguntas.Should().Contain("Qual e o objetivo?");
-        resultado.Brief.Should().BeNull();
     }
 }

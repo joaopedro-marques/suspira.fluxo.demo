@@ -142,8 +142,7 @@ public class TelegramServiceTests
             .Callback(() => errorEditCalled.TrySetResult(true))
             .Returns(Task.CompletedTask);
 
-        _pendencias.Guardar(123, new EstadoPreFlight { ChatId = 123, MensagemOriginal = "pedido original" });
-        _routerMock.Setup(r => r.ResumirAsync(123, "resposta", It.IsAny<CancellationToken>()))
+        _routerMock.Setup(r => r.IniciarAsync(123, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("429"));
 
         var service = CriarService();
@@ -199,11 +198,9 @@ public class TelegramServiceTests
             })
             .Returns(Task.CompletedTask);
 
-        _pendencias.Guardar(123, new EstadoPreFlight { ChatId = 123, MensagemOriginal = "pedido original" });
-
         var brief = new Brief("email", null, null, null, null, null, new(), new());
-        var resultado = new RouterResultado("producao", null, new(), "mrv", brief);
-        _routerMock.Setup(r => r.ResumirAsync(123, "resposta", It.IsAny<CancellationToken>()))
+        var resultado = new RouterResultado("producao", null, "mrv", brief);
+        _routerMock.Setup(r => r.IniciarAsync(123, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(resultado);
 
         var runnerMock = new Mock<PipelineRunner>(Mock.Of<ILogger<PipelineRunner>>());
@@ -327,7 +324,7 @@ public class TelegramServiceTests
             .Returns(Task.CompletedTask);
 
         var brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>());
-        var resultado = new RouterResultado("producao", null, new(), "mrv", brief);
+        var resultado = new RouterResultado("producao", null, "mrv", brief);
         _routerMock.Setup(r => r.IniciarAsync(123, "pedido", It.IsAny<CancellationToken>()))
             .ReturnsAsync(resultado);
 
