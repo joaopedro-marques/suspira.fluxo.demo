@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
@@ -9,6 +10,7 @@ using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Seguranca;
 using Microsoft.Extensions.Options;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace DemoAgencia.Worker.Telegram;
 
@@ -22,6 +24,8 @@ public class TelegramService : BackgroundService
     private readonly ITelegramGatewayFactory _gatewayFactory;
     private readonly RouterService _router;
     private readonly ConversaPendenteStore _pendencias;
+    private readonly OnboardingService _onboarding;
+    private readonly OnboardingStore _onboardingStore;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<UpdateDispatcher> _dispatcherLogger;
     private ITelegramGateway? _gateway;
@@ -37,6 +41,8 @@ public class TelegramService : BackgroundService
         ITelegramGatewayFactory gatewayFactory,
         RouterService router,
         ConversaPendenteStore pendencias,
+        OnboardingService onboarding,
+        OnboardingStore onboardingStore,
         IServiceProvider serviceProvider,
         ILogger<UpdateDispatcher> dispatcherLogger)
     {
@@ -48,6 +54,8 @@ public class TelegramService : BackgroundService
         _gatewayFactory = gatewayFactory;
         _router = router;
         _pendencias = pendencias;
+        _onboarding = onboarding;
+        _onboardingStore = onboardingStore;
         _serviceProvider = serviceProvider;
         _dispatcherLogger = dispatcherLogger;
     }
@@ -134,6 +142,12 @@ public class TelegramService : BackgroundService
     {
         try
         {
+            if (update.CallbackQuery is { } callback)
+            {
+                await HandleCallbackQuery(callback, ct);
+                return;
+            }
+
             if (update.Message is { } message)
             {
                 if (!_rateLimiter.PodeProcessar(message.Chat.Id))
@@ -193,6 +207,13 @@ public class TelegramService : BackgroundService
 
     private async Task HandleTextMessage(Message message, string text, CancellationToken ct)
     {
+        var onboardingAtivo = _onboardingStore.Obter(message.Chat.Id);
+        if (onboardingAtivo != null)
+        {
+            await HandleTextoOnboarding(message, text, ct);
+            return;
+        }
+
         var pendente = _pendencias.Obter(message.Chat.Id);
         RouterResultado? resultadoRouter;
         int? mensagemProgressoId = null;
@@ -213,6 +234,34 @@ public class TelegramService : BackgroundService
         {
             _logger.LogError(ex, "Erro ao processar mensagem no pipeline");
             await NotificarErroAsync(message.Chat.Id, mensagemProgressoId, ct);
+        }
+    }
+
+    private async Task HandleTextoOnboarding(Message message, string text, CancellationToken ct)
+    {
+        var estado = _onboardingStore.Obter(message.Chat.Id);
+        if (estado == null) return;
+
+        if (estado.PassoAtual == OnboardingPasso.Materiais)
+        {
+            var link = DetectarLink(text);
+            if (link != null)
+            {
+                _onboarding.AdicionarMaterialLink(message.Chat.Id, link);
+                await _gateway!.SendMessageAsync(message.Chat.Id, "🔗 Link adicionado. Envie mais ou clique em Pular.", ct);
+                return;
+            }
+
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Não identifiquei um link. Envie uma URL válida, uma foto ou clique em Pular.", ct);
+            return;
+        }
+
+        if (estado.PassoAtual == OnboardingPasso.CtaLink)
+        {
+            var pergunta = _onboarding.ResponderTexto(message.Chat.Id, text);
+            if (pergunta != null)
+                await EnviarPerguntaOnboardingAsync(message.Chat.Id, pergunta, ct);
+            return;
         }
     }
 
@@ -353,8 +402,22 @@ public class TelegramService : BackgroundService
         return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
     }
 
+    internal async Task IniciarOnboardingAsync(long chatId, string cliente, string mensagemOriginal, CancellationToken ct)
+    {
+        var pergunta = _onboarding.Iniciar(chatId, cliente, mensagemOriginal);
+        if (pergunta != null)
+            await EnviarPerguntaOnboardingAsync(chatId, pergunta, ct);
+    }
+
     private async Task HandlePhoto(Message message, CancellationToken ct)
     {
+        var onboardingAtivo = _onboardingStore.Obter(message.Chat.Id);
+        if (onboardingAtivo != null && onboardingAtivo.PassoAtual == OnboardingPasso.Materiais)
+        {
+            await HandleFotoOnboarding(message, ct);
+            return;
+        }
+
         await _gateway!.SendChatActionAsync(message.Chat.Id, ct);
 
         try
@@ -375,6 +438,149 @@ public class TelegramService : BackgroundService
             _logger.LogError(ex, "Erro ao processar foto");
             await _gateway!.SendMessageAsync(message.Chat.Id, "Erro ao analisar a imagem. Tente novamente.", ct);
         }
+    }
+
+    private async Task HandleFotoOnboarding(Message message, CancellationToken ct)
+    {
+        try
+        {
+            var photo = message.Photo!.OrderByDescending(p => p.FileSize).First();
+            var imagemBytes = await _gateway!.DownloadFileAsync(photo.FileId, ct);
+
+            _onboarding.AdicionarMaterialFoto(message.Chat.Id, imagemBytes, $"material_{DateTime.UtcNow:yyyyMMddHHmmss}.jpg", message.Caption);
+            await _gateway!.SendMessageAsync(message.Chat.Id, "📷 Foto adicionada. Envie mais ou clique em Pular.", ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao adicionar foto no onboarding");
+            await _gateway!.SendMessageAsync(message.Chat.Id, "Erro ao processar a foto. Tente novamente.", ct);
+        }
+    }
+
+    private async Task HandleCallbackQuery(CallbackQuery callback, CancellationToken ct)
+    {
+        var chatId = callback.Message?.Chat.Id;
+        if (chatId == null || string.IsNullOrEmpty(callback.Data)) return;
+
+        try
+        {
+            await _gateway!.AnswerCallbackQueryAsync(callback.Id!, ct);
+
+            if (OnboardingCallbacks.EhAcaoEspecial(callback.Data, out var acao) && acao == "confirmar")
+            {
+                await ConfirmarOnboardingAsync(chatId.Value, callback.Message!.MessageId, ct);
+                return;
+            }
+
+            var pergunta = _onboarding.Responder(chatId.Value, callback.Data);
+            if (pergunta == null)
+            {
+                await _gateway!.SendMessageAsync(chatId.Value, "Onboarding expirado ou inválido. Envie um novo pedido para recomeçar.", ct);
+                return;
+            }
+
+            if (OnboardingCallbacks.EhAcaoEspecial(callback.Data, out var a) && a == "recomecar")
+            {
+                await _gateway!.EditMessageReplyMarkupAsync(chatId.Value, callback.Message!.MessageId, ct);
+                await EnviarPerguntaOnboardingAsync(chatId.Value, pergunta, ct);
+                return;
+            }
+
+            await _gateway!.EditMessageTextAsync(chatId.Value, callback.Message!.MessageId, pergunta.Texto, CriarKeyboard(pergunta), ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro processando callback query {CallbackId}", callback.Id);
+        }
+    }
+
+    private async Task ConfirmarOnboardingAsync(long chatId, int messageId, CancellationToken ct)
+    {
+        var brief = _onboarding.Confirmar(chatId);
+        if (brief == null)
+        {
+            await _gateway!.EditMessageTextAsync(chatId, messageId, "Onboarding expirado. Envie um novo pedido.", ct);
+            return;
+        }
+
+        await _gateway!.EditMessageTextAsync(chatId, messageId, "🚀 Produzindo...", ct);
+
+        if (_pipelineLimiter!.CurrentCount == 0)
+            await _gateway!.EditMessageTextAsync(chatId, messageId, "🚀 Produzindo... (aguardando vaga)", ct);
+
+        await _pipelineLimiter!.WaitAsync(ct);
+        ResultadoPipeline resultadoPipeline;
+        try
+        {
+            resultadoPipeline = await ExecutarPipelineEmailOnboarding(chatId, brief, ct);
+        }
+        finally
+        {
+            _pipelineLimiter.Release();
+        }
+
+        if (!resultadoPipeline.QaAprovado)
+        {
+            var feedbackMsg = "⚠️ QA nao aprovou o email apos refacoes.";
+            if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
+                feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
+            try
+            {
+                await _gateway!.EditMessageTextAsync(chatId, messageId, feedbackMsg, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao editar feedback QA (chat {ChatId}), enviando como nova mensagem", chatId);
+                await _gateway!.SendMessageAsync(chatId, feedbackMsg, ct);
+            }
+            return;
+        }
+
+        await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
+    }
+
+    private async Task<ResultadoPipeline> ExecutarPipelineEmailOnboarding(long chatId, Brief brief, CancellationToken ct)
+    {
+        var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
+        var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
+        var steps = pipeline.CriarSteps();
+
+        var onboardingState = _onboardingStore.Obter(chatId);
+        var context = new PipelineContext
+        {
+            ChatId = chatId,
+            Brief = brief,
+            MensagemOriginal = onboardingState?.MensagemOriginal ?? "",
+            Cliente = onboardingState?.Cliente
+        };
+
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
+    }
+
+    private async Task EnviarPerguntaOnboardingAsync(long chatId, PerguntaOnboarding pergunta, CancellationToken ct)
+    {
+        await _gateway!.SendMessageAsync(chatId, pergunta.Texto, CriarKeyboard(pergunta), ct);
+    }
+
+    private static InlineKeyboardMarkup? CriarKeyboard(PerguntaOnboarding pergunta)
+    {
+        if (pergunta.Opcoes.Count == 0) return null;
+
+        var botoes = pergunta.Opcoes
+            .Select(o => InlineKeyboardButton.WithCallbackData(o.Label, o.CallbackData))
+            .ToArray();
+
+        return new InlineKeyboardMarkup(botoes.Select(b => new[] { b }));
+    }
+
+    private static string? DetectarLink(string texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return null;
+        var trimmed = texto.Trim();
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return trimmed;
+        return null;
     }
 
     private async Task EnviarMensagemLongaAsync(long chatId, string texto, CancellationToken ct)

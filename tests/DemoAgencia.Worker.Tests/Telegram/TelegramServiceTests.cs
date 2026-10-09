@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
@@ -25,6 +26,8 @@ public class TelegramServiceTests
     private readonly Mock<ITelegramGatewayFactory> _gatewayFactoryMock;
     private readonly Mock<RouterService> _routerMock;
     private readonly ConversaPendenteStore _pendencias;
+    private readonly OnboardingStore _onboardingStore;
+    private readonly OnboardingService _onboardingService;
     private readonly Mock<IServiceProvider> _serviceProviderMock;
     private readonly Mock<IReferenciasCliente> _referenciasMock;
 
@@ -55,23 +58,37 @@ public class TelegramServiceTests
             TimeProvider.System,
             Mock.Of<ILogger<ConversaPendenteStore>>());
 
+        _onboardingStore = new OnboardingStore(
+            TestOptions.Create(new PreFlightOptions()),
+            TimeProvider.System,
+            Mock.Of<ILogger<OnboardingStore>>());
+
+        _onboardingService = new OnboardingService(
+            _onboardingStore,
+            _referenciasMock.Object,
+            Mock.Of<ILogger<OnboardingService>>());
+
         _serviceProviderMock = new Mock<IServiceProvider>();
     }
+
+    private TelegramService CriarService() => new(
+        _loggerMock.Object,
+        TestOptions.Create(_telegramOptions),
+        TestOptions.Create(new ConcorrenciaOptions()),
+        _analisadorImagemMock.Object,
+        _rateLimiterMock.Object,
+        _gatewayFactoryMock.Object,
+        _routerMock.Object,
+        _pendencias,
+        _onboardingService,
+        _onboardingStore,
+        _serviceProviderMock.Object,
+        Mock.Of<ILogger<UpdateDispatcher>>());
 
     [Fact]
     public void Constructor_WithValidToken_ShouldNotThrow()
     {
-        var act = () =>         new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(_telegramOptions),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var act = () => CriarService();
 
         act.Should().NotThrow();
     }
@@ -79,19 +96,9 @@ public class TelegramServiceTests
     [Fact]
     public void Constructor_WithEmptyToken_ShouldNotThrow()
     {
-        var options = new TelegramOptions { BotToken = "" };
+        _telegramOptions.BotToken = "";
 
-        var act = () => new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(options),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var act = () => CriarService();
 
         act.Should().NotThrow();
     }
@@ -137,17 +144,7 @@ public class TelegramServiceTests
         _routerMock.Setup(r => r.ResumirAsync(123, "resposta", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("429"));
 
-        var service =         new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(_telegramOptions),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var service = CriarService();
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -229,17 +226,7 @@ public class TelegramServiceTests
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
 
-        var service =         new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(_telegramOptions),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var service = CriarService();
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -290,17 +277,7 @@ public class TelegramServiceTests
         _routerMock.Setup(r => r.IniciarAsync(123, "pedido", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("429"));
 
-        var service =         new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(_telegramOptions),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var service = CriarService();
 
         await service.StartAsync(cts.Token);
         await errorEditCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -380,17 +357,7 @@ public class TelegramServiceTests
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
 
-        var service =         new TelegramService(
-            _loggerMock.Object,
-            TestOptions.Create(_telegramOptions),
-            TestOptions.Create(new ConcorrenciaOptions()),
-            _analisadorImagemMock.Object,
-            _rateLimiterMock.Object,
-            _gatewayFactoryMock.Object,
-            _routerMock.Object,
-            _pendencias,
-            _serviceProviderMock.Object,
-            Mock.Of<ILogger<UpdateDispatcher>>());
+        var service = CriarService();
 
         await service.StartAsync(cts.Token);
         await Task.Delay(500);
