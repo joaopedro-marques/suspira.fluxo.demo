@@ -1,3 +1,5 @@
+using DemoAgencia.Worker.IA.Onboarding;
+
 namespace DemoAgencia.Worker.IA.Router;
 
 public record RouterResultado(
@@ -6,7 +8,8 @@ public record RouterResultado(
     List<string> Perguntas,
     string? Cliente,
     Brief? Brief,
-    string? Motivo = null)
+    string? Motivo = null,
+    CamposExtraidos? CamposExtraidos = null)
 {
     public static class Motivos
     {

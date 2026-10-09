@@ -1,5 +1,6 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
+using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.PreFlight;
 using DemoAgencia.Worker.Referencias;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,7 @@ public class RouterService
     private readonly ConversaPendenteStore _store;
     private readonly PreFlightOptions _options;
     private readonly ILogger<RouterService> _logger;
+    private readonly BriefExtractor _briefExtractor;
 
     public RouterService(
         IReferenciasCliente referencias,
@@ -21,7 +23,8 @@ public class RouterService
         IAgentesCatalogo catalogo,
         ConversaPendenteStore store,
         IOptions<PreFlightOptions> options,
-        ILogger<RouterService> logger)
+        ILogger<RouterService> logger,
+        BriefExtractor? briefExtractor = null)
     {
         _referencias = referencias;
         _servicoChat = servicoChat;
@@ -29,6 +32,7 @@ public class RouterService
         _store = store;
         _options = options.Value;
         _logger = logger;
+        _briefExtractor = briefExtractor ?? new BriefExtractor();
     }
 
     public virtual async Task<RouterResultado?> IniciarAsync(
@@ -126,6 +130,27 @@ public class RouterService
     {
         if (resultado.Tipo == "esclarecimento")
         {
+            var cliente = resultado.Cliente ?? estado.Cliente ?? "";
+            var estrategia = !string.IsNullOrEmpty(cliente) ? _referencias.ObterEstrategia(cliente) : null;
+
+            if (estrategia != null)
+            {
+                var camposExtraidos = _briefExtractor.Extrair(estado.MensagemOriginal, estrategia);
+
+                _logger.LogInformation("Router converteu 'esclarecimento' em 'onboarding' para chat {ChatId} com {QtdCampos} campos extraídos",
+                    estado.ChatId, CountCampos(camposExtraidos));
+
+                _store.Remover(estado.ChatId);
+                return new RouterResultado(
+                    Tipo: "onboarding",
+                    Resposta: null,
+                    Perguntas: new(),
+                    Cliente: cliente,
+                    Brief: null,
+                    Motivo: null,
+                    CamposExtraidos: camposExtraidos);
+            }
+
             if (estado.RodadasPerguntas >= _options.MaxRodadasPerguntas)
             {
                 _logger.LogWarning("MaxRodadasPerguntas ({Max}) excedido para chat {ChatId}",
@@ -170,10 +195,39 @@ public class RouterService
                     Motivo = RouterResultado.Motivos.ClienteNaoPermitido
                 };
             }
+
+            var estrategia = _referencias.ObterEstrategia(cliente);
+            if (estrategia != null && (string.IsNullOrEmpty(resultado.Brief.EtapaJornada) || string.IsNullOrEmpty(resultado.Brief.Tema)))
+            {
+                var camposExtraidos = _briefExtractor.Extrair(estado.MensagemOriginal, estrategia);
+
+                _logger.LogInformation("Router converteu 'producao' incompleto em 'onboarding' para chat {ChatId} com {QtdCampos} campos extraídos",
+                    estado.ChatId, CountCampos(camposExtraidos));
+
+                _store.Remover(estado.ChatId);
+                return new RouterResultado(
+                    Tipo: "onboarding",
+                    Resposta: null,
+                    Perguntas: new(),
+                    Cliente: cliente,
+                    Brief: null,
+                    Motivo: null,
+                    CamposExtraidos: camposExtraidos);
+            }
         }
 
         _store.Remover(estado.ChatId);
         return resultado;
+    }
+
+    private static int CountCampos(CamposExtraidos campos)
+    {
+        var count = 0;
+        if (!string.IsNullOrEmpty(campos.EtapaJornada)) count++;
+        if (!string.IsNullOrEmpty(campos.Marco)) count++;
+        if (!string.IsNullOrEmpty(campos.Tema)) count++;
+        if (!string.IsNullOrEmpty(campos.Objetivo)) count++;
+        return count;
     }
 
     private string DetectarCliente(string mensagem)

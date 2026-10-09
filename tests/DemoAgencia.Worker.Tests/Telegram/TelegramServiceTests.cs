@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace DemoAgencia.Worker.Tests.Telegram;
 
@@ -51,7 +52,8 @@ public class TelegramServiceTests
                 TimeProvider.System,
                 Mock.Of<ILogger<ConversaPendenteStore>>()),
             TestOptions.Create(new PreFlightOptions()),
-            Mock.Of<ILogger<RouterService>>());
+            Mock.Of<ILogger<RouterService>>(),
+            new BriefExtractor());
 
         _pendencias = new ConversaPendenteStore(
             TestOptions.Create(new PreFlightOptions()),

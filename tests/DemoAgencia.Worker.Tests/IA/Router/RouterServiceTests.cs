@@ -138,6 +138,38 @@ public class RouterServiceTests
     }
 
     [Fact]
+    public async Task IniciarAsync_WithEsclarecimentoEClienteComEstrategia_ShouldConvertToOnboarding()
+    {
+        _refsMock.Setup(r => r.ObterEstrategia("acme")).Returns(new EstrategiaCliente
+        {
+            Cliente = "acme",
+            Fases = new Dictionary<string, FaseEstrategia>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["pos-compra"] = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas" }
+                }
+            }
+        });
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "esclarecimento", "cliente": "acme", "perguntas": ["Qual etapa?"]}""");
+
+        var resultado = await _service.IniciarAsync(123, "criar email acme pós-compra sobre boas vindas");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("onboarding");
+        resultado.Cliente.Should().Be("acme");
+        resultado.CamposExtraidos.Should().NotBeNull();
+        resultado.CamposExtraidos!.EtapaJornada.Should().Be("pos-compra");
+        resultado.CamposExtraidos!.Tema.Should().Be("Boas vindas");
+        _store.Obter(123).Should().BeNull();
+    }
+
+    [Fact]
     public async Task ResumirAsync_WithNoPending_ShouldReturnNull()
     {
         var resultado = await _service.ResumirAsync(123, "minha resposta");

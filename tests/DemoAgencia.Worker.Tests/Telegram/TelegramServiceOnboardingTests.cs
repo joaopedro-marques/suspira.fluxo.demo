@@ -49,7 +49,8 @@ public class TelegramServiceOnboardingTests
                 TimeProvider.System,
                 Mock.Of<ILogger<ConversaPendenteStore>>()),
             TestOptions.Create(new PreFlightOptions()),
-            Mock.Of<ILogger<RouterService>>());
+            Mock.Of<ILogger<RouterService>>(),
+            new BriefExtractor());
         _pendencias = new ConversaPendenteStore(
             TestOptions.Create(new PreFlightOptions()),
             TimeProvider.System,
