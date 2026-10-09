@@ -309,4 +309,60 @@ public class StepDiagramacaoEmailTests
         context.Copy!.Corpo.Should().NotContain("%%NOME%%");
         context.Copy.Corpo.Should().Contain("Conteudo");
     }
+
+    [Fact]
+    public async Task MontarPrompt_WithTemaSelecionado_ShouldUseTemaOnly()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro", "Indicação premiada" }
+                },
+                TemaSelecionado = "Boas vindas"
+            }
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Tema: Boas vindas");
+        prompt.Should().NotContain("Temas:");
+    }
+
+    [Fact]
+    public async Task MontarPrompt_WithoutTemaSelecionado_ShouldListAllTemas()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro" }
+                },
+                TemaSelecionado = null
+            }
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Temas: Boas vindas, Financeiro");
+        prompt.Should().NotContain("Tema: Boas vindas");
+    }
 }

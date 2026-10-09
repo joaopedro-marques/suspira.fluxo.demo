@@ -84,10 +84,12 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             prompt += $"Fase: {context.Estrategia.Fase}\n";
             if (!string.IsNullOrEmpty(context.Estrategia.SubJornada))
                 prompt += $"Sub-jornada: {context.Estrategia.SubJornada}\n";
+            if (!string.IsNullOrEmpty(context.Estrategia.TemaSelecionado))
+                prompt += $"Tema: {context.Estrategia.TemaSelecionado}\n";
+            else if (context.Estrategia.FaseDados.Temas.Count > 0)
+                prompt += $"Temas: {string.Join(", ", context.Estrategia.FaseDados.Temas)}\n";
             if (!string.IsNullOrEmpty(context.Estrategia.FaseDados.CorPrincipal))
                 prompt += $"Cor principal: {context.Estrategia.FaseDados.CorPrincipal}\n";
-            if (context.Estrategia.FaseDados.Temas.Count > 0)
-                prompt += $"Temas: {string.Join(", ", context.Estrategia.FaseDados.Temas)}\n";
         }
 
         if (!string.IsNullOrEmpty(context.Cliente))
