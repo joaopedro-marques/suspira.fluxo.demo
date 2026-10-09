@@ -79,12 +79,14 @@ public class StepCopyEmail : IPipelineStep
             prompt += $"\n## Estrategia de jornada - fase: {estrategia.Fase}\n";
             if (!string.IsNullOrEmpty(estrategia.SubJornada))
                 prompt += $"Sub-jornada: {estrategia.SubJornada}\n";
+            if (!string.IsNullOrEmpty(estrategia.TemaSelecionado))
+                prompt += $"Tema: {estrategia.TemaSelecionado}\n";
+            else if (estrategia.FaseDados.Temas.Count > 0)
+                prompt += $"Temas: {string.Join(", ", estrategia.FaseDados.Temas)}\n";
             if (!string.IsNullOrEmpty(estrategia.FaseDados.CorPrincipal))
                 prompt += $"Cor da fase: {estrategia.FaseDados.CorPrincipal}\n";
             if (!string.IsNullOrEmpty(estrategia.FaseDados.DescricaoCor))
                 prompt += $"Sentimento da cor: {estrategia.FaseDados.DescricaoCor}\n";
-            if (estrategia.FaseDados.Temas.Count > 0)
-                prompt += $"Temas: {string.Join(", ", estrategia.FaseDados.Temas)}\n";
         }
 
         if (estrategia?.MapaEmocional.Count > 0)

@@ -224,4 +224,58 @@ public class StepCopyEmailTests
 
         prompt.Should().NotContain("REVISAO NECESSARIA");
     }
+
+    [Fact]
+    public void MontarPrompt_WithTemaSelecionado_ShouldUseTemaOnly()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro", "Indicação premiada" }
+                },
+                TemaSelecionado = "Boas vindas"
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Tema: Boas vindas");
+        prompt.Should().NotContain("Temas:");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithoutTemaSelecionado_ShouldListAllTemas()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    Temas = new List<string> { "Boas vindas", "Financeiro" }
+                },
+                TemaSelecionado = null
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Temas: Boas vindas, Financeiro");
+        prompt.Should().NotContain("Tema: Boas vindas");
+    }
 }
