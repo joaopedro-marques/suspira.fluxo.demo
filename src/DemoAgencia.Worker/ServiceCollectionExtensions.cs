@@ -5,6 +5,7 @@ using DemoAgencia.Worker.IA;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
+using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Observabilidade;
 using DemoAgencia.Worker.Referencias;
@@ -69,6 +70,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ConversaPendenteStore>();
+        services.AddSingleton<OnboardingStore>();
+        services.AddSingleton<OnboardingService>();
 
         services.AddSingleton<AgentesLoader>();
         services.AddSingleton<IAgentesCatalogo>(sp => sp.GetRequiredService<AgentesLoader>());
