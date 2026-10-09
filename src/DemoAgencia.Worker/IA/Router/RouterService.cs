@@ -50,28 +50,6 @@ public class RouterService
         return await ExecutarRouterAsync(estado, ct);
     }
 
-    public virtual async Task<RouterResultado?> ResumirAsync(
-        long chatId,
-        string resposta,
-        CancellationToken ct = default)
-    {
-        var estado = _store.Obter(chatId);
-        if (estado == null)
-        {
-            _logger.LogWarning("Nenhuma pendencia encontrada para chat {ChatId}", chatId);
-            return null;
-        }
-
-        var ultima = estado.Rodadas.LastOrDefault();
-        if (ultima != null && ultima.RespostaUsuario == null)
-        {
-            ultima.RespostaUsuario = resposta;
-        }
-        estado.RodadasPerguntas++;
-
-        return await ExecutarRouterAsync(estado, ct);
-    }
-
     private async Task<RouterResultado?> ExecutarRouterAsync(EstadoPreFlight estado, CancellationToken ct)
     {
         var prompt = MontarPrompt(estado);
@@ -144,24 +122,20 @@ public class RouterService
                 return new RouterResultado(
                     Tipo: "onboarding",
                     Resposta: null,
-                    Perguntas: new(),
                     Cliente: cliente,
                     Brief: null,
                     Motivo: null,
                     CamposExtraidos: camposExtraidos);
             }
 
-            if (estado.RodadasPerguntas >= _options.MaxRodadasPerguntas)
-            {
-                _logger.LogWarning("MaxRodadasPerguntas ({Max}) excedido para chat {ChatId}",
-                    _options.MaxRodadasPerguntas, estado.ChatId);
-                _store.Remover(estado.ChatId);
-                return new RouterResultado("limite_perguntas", null, new(), null, null);
-            }
-
-            estado.Rodadas.Add(new RodadaEsclarecimento { Perguntas = resultado.Perguntas.ToList() });
-            _store.Guardar(estado.ChatId, estado);
-            return resultado;
+            _logger.LogWarning("Router retornou 'esclarecimento' mas cliente não tem estratégia. Tratando como 'fora_contexto'.");
+            _store.Remover(estado.ChatId);
+            return new RouterResultado(
+                Tipo: "fora_contexto",
+                Resposta: "Não consegui entender seu pedido. Por favor, seja mais específico sobre o que deseja criar.",
+                Cliente: null,
+                Brief: null,
+                Motivo: RouterResultado.Motivos.AssuntoForaEscopo);
         }
 
         if (resultado.Tipo == "producao" && resultado.Brief != null)
@@ -208,7 +182,6 @@ public class RouterService
                 return new RouterResultado(
                     Tipo: "onboarding",
                     Resposta: null,
-                    Perguntas: new(),
                     Cliente: cliente,
                     Brief: null,
                     Motivo: null,
@@ -268,21 +241,6 @@ public class RouterService
                 prompt += $"\n\n{MontarEstrategiaPrompt(estrategia)}";
         }
 
-        if (estado.Rodadas.Count > 0)
-        {
-            prompt += "\n\n## Esclarecimentos ja respondidos (NAO re-pergunte nada disto)";
-            for (var i = 0; i < estado.Rodadas.Count; i++)
-            {
-                var rodada = estado.Rodadas[i];
-                prompt += $"\nRodada {i + 1}:";
-                foreach (var pergunta in rodada.Perguntas)
-                    prompt += $"\nP: {pergunta}";
-                prompt += $"\nR: {rodada.RespostaUsuario}";
-            }
-
-            prompt += "\n\nPergunte APENAS campos criticos ainda faltantes. Se as informacoes acima completam o brief, classifique como producao.";
-        }
-
         return prompt;
     }
 
@@ -307,7 +265,7 @@ public class RouterService
         }
 
         sb.AppendLine();
-        sb.AppendLine("Etapa da jornada e campo critico. So preencha se o usuario declarou explicitamente a etapa; caso contrario, pergunte via esclarecimento.");
+        sb.AppendLine("Etapa da jornada e campo critico. So preencha se o usuario declarou explicitamente a etapa.");
 
         return sb.ToString();
     }

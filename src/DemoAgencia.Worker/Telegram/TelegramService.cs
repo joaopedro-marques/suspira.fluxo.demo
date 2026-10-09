@@ -220,13 +220,10 @@ public class TelegramService : BackgroundService
 
         try
         {
-            var textoInicial = pendente != null ? "🧠 Retomando com suas respostas..." : "🧠 Analisando seu pedido...";
-            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, textoInicial, ct);
+            var msg = await _gateway!.SendMessageAsync(message.Chat.Id, "🧠 Analisando seu pedido...", ct);
             mensagemProgressoId = msg.MessageId;
 
-            resultadoRouter = pendente != null
-                ? await _router.ResumirAsync(message.Chat.Id, text, ct)
-                : await _router.IniciarAsync(message.Chat.Id, text, ct);
+            resultadoRouter = await _router.IniciarAsync(message.Chat.Id, text, ct);
 
             await ProcessarResultadoRouter(message.Chat.Id, resultadoRouter, mensagemProgressoId.Value, text, ct);
         }
@@ -339,17 +336,6 @@ public class TelegramService : BackgroundService
 
                 await _gateway!.EditMessageReplyMarkupAsync(chatId, mensagemProgressoId, ct);
                 await EnviarPerguntaOnboardingAsync(chatId, pergunta, ct);
-                return;
-
-            case "esclarecimento":
-                var perguntas = string.Join("\n", resultado.Perguntas.Select((p, i) => $"{i + 1}. {p}"));
-                var textoPerguntas = $"Preciso de mais alguns detalhes:\n{perguntas}";
-                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, textoPerguntas, ct);
-                return;
-
-            case "limite_perguntas":
-                await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId,
-                    "Nao consegui reunir todos os detalhes mesmo com as perguntas. Vamos recomecar: reenvie o pedido completo com cliente, objetivo, publico, oferta e canal em uma unica mensagem.", ct);
                 return;
 
             case "producao":

@@ -7,7 +7,7 @@ public static class RouterParser
 {
     private static readonly HashSet<string> TiposValidos = new(StringComparer.OrdinalIgnoreCase)
     {
-        "fora_contexto", "conversa", "esclarecimento", "producao"
+        "fora_contexto", "conversa", "producao"
     };
 
     private static readonly HashSet<string> CanaisValidos = new(StringComparer.OrdinalIgnoreCase)
@@ -48,17 +48,6 @@ public static class RouterParser
             var cliente = root.TryGetProperty("cliente", out var cliEl) ? cliEl.GetString()?.ToLowerInvariant() : null;
             var motivo = root.TryGetProperty("motivo", out var motEl) ? motEl.GetString() : null;
 
-            var perguntas = new List<string>();
-            if (root.TryGetProperty("perguntas", out var pergEl) && pergEl.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in pergEl.EnumerateArray())
-                {
-                    var p = item.GetString();
-                    if (!string.IsNullOrEmpty(p))
-                        perguntas.Add(p);
-                }
-            }
-
             Brief? brief = null;
             if (root.TryGetProperty("brief", out var briefEl) && briefEl.ValueKind == JsonValueKind.Object)
             {
@@ -70,7 +59,7 @@ public static class RouterParser
             if (string.Equals(tipo, "producao", StringComparison.OrdinalIgnoreCase) && brief == null)
                 return null;
 
-            return new RouterResultado(tipo, resposta, perguntas, cliente, brief, motivo);
+            return new RouterResultado(tipo, resposta, cliente, brief, motivo);
         }
         catch
         {
