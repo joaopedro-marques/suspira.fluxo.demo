@@ -186,4 +186,60 @@ public class StepEstrategiaEmailTests
         result.Estrategia.Should().BeNull();
         result.TemplateId.Should().Be("MRV_html_default");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithTemaNoBrief_ShouldPropagateToEstrategia()
+    {
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-compra"] = new FaseEstrategia
+        {
+            Fase = "pos-compra",
+            Temas = new List<string> { "Boas vindas", "Financeiro" }
+        };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(),
+                EtapaJornada: "pos-compra",
+                SubJornada: null,
+                Tema: "Boas vindas")
+        };
+
+        var result = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        result.Estrategia.Should().NotBeNull();
+        result.Estrategia!.TemaSelecionado.Should().Be("Boas vindas");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutTemaNoBrief_ShouldPropagateNull()
+    {
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-compra"] = new FaseEstrategia
+        {
+            Fase = "pos-compra",
+            Temas = new List<string> { "Boas vindas" }
+        };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(),
+                EtapaJornada: "pos-compra",
+                SubJornada: null,
+                Tema: null)
+        };
+
+        var result = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        result.Estrategia.Should().NotBeNull();
+        result.Estrategia!.TemaSelecionado.Should().BeNull();
+    }
 }

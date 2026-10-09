@@ -10,4 +10,5 @@ public class EstrategiaEmail
     public List<CategoriaSatisfacao> Satisfacoes { get; init; } = new();
     public List<CategoriaSatisfacao> Insatisfacoes { get; init; } = new();
     public string? SubJornada { get; init; }
+    public string? TemaSelecionado { get; init; }
 }
