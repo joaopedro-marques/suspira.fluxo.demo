@@ -328,23 +328,10 @@ public class ReferenciaClienteLoaderTests : IDisposable
         }
         """;
 
-        var satisfacoes = """
-        {
-          "titulo": "Mapeamento",
-          "insatisfacoes": {
-            "categorias": [{ "nome": "Entrega", "itens": ["Demora", "Atraso"] }]
-          },
-          "satisfacoes": {
-            "categorias": [{ "nome": "Atendimento", "itens": ["Geral", "Elogio"] }]
-          }
-        }
-        """;
-
         await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_paleta_de_cores.json"), paleta);
         await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_temas_jornadas.json"), temas);
         await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_jornada_cliente.json"), jornada);
         await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_mapa_emocional_jornada.json"), mapa);
-        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_satisfacoes_insatisfacoes.json"), satisfacoes);
 
         var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
         await loader.StartAsync(CancellationToken.None);
@@ -359,38 +346,6 @@ public class ReferenciaClienteLoaderTests : IDisposable
         estrategia.Fases["pos-compra"].Temas.Should().Contain("Boas vindas");
         estrategia.Fases["pre-chaves"].CorPrincipal.Should().Be("Rosa");
         estrategia.MapaEmocional.Should().HaveCount(2);
-        estrategia.Satisfacoes.Should().HaveCount(1);
-        estrategia.Insatisfacoes.Should().HaveCount(1);
-    }
-
-    [Fact]
-    public async Task ObterEstrategia_WithTomVerbalVisual_ShouldReturnIdentidade()
-    {
-        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
-        Directory.CreateDirectory(estrategiaDir);
-
-        var identidade = """
-        {
-          "Identidade verbal": "Não é sobre pessoas que mudam de endereço, é sobre pessoas que mudam de vida.",
-          "Identidade visual": "Sua casa é um mundo. Transformação começa em casa.",
-          "Tom de voz": "Mobiliza. Realiza. Valoriza.",
-          "Linguagem": "Vá além dos metros quadrados."
-        }
-        """;
-
-        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_tom_verbal_visual.json"), identidade);
-
-        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
-        await loader.StartAsync(CancellationToken.None);
-
-        var estrategia = loader.ObterEstrategia("mrv");
-
-        estrategia.Should().NotBeNull();
-        estrategia!.Identidade.Should().NotBeNull();
-        estrategia.Identidade!.IdentidadeVerbal.Should().Contain("mudam de vida");
-        estrategia.Identidade.IdentidadeVisual.Should().Contain("Transformação");
-        estrategia.Identidade.TomDeVoz.Should().Contain("Mobiliza");
-        estrategia.Identidade.Linguagem.Should().Contain("metros quadrados");
     }
 
     [Fact]

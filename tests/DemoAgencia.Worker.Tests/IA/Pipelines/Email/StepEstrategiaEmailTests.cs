@@ -43,8 +43,6 @@ public class StepEstrategiaEmailTests
             FatorDecisao = "ER",
             Sentimentos = new List<string> { "ANIMACAO", "FELICIDADE" }
         });
-        estrategia.Satisfacoes.Add(new CategoriaSatisfacao { Nome = "Atendimento", Itens = new List<string> { "Geral" } });
-        estrategia.Insatisfacoes.Add(new CategoriaSatisfacao { Nome = "Entrega", Itens = new List<string> { "Demora" } });
 
         _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
 
@@ -64,8 +62,6 @@ public class StepEstrategiaEmailTests
         result.Estrategia.FaseDados!.CorPrincipal.Should().Be("Roxo");
         result.Estrategia.FaseDados.Temas.Should().Contain("Boas vindas");
         result.Estrategia.MapaEmocional.Should().HaveCount(1);
-        result.Estrategia.Satisfacoes.Should().HaveCount(1);
-        result.Estrategia.Insatisfacoes.Should().HaveCount(1);
         result.Estrategia.SubJornada.Should().Be("Pos Financiamento");
     }
 
