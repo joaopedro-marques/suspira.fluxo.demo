@@ -83,12 +83,12 @@ sequenceDiagram
         T-->>U: Resposta direta
     else tipo = fora_contexto
         T-->>U: Mensagem específica por motivo (cliente/canal/assunto)
-    else tipo = producao (com etapa_jornada valida)
-        T->>T: Dispatch por canal (pipeline direto)
-    else tipo = producao/onboarding (sem etapa_jornada ou invalida)
+    else tipo = producao (com estrategia)
         T->>O: Iniciar(chatId, cliente, mensagem, camposExtraidos, briefOriginal)
-        O-->>T: Pergunta onboarding
-        loop Coleta de respostas (etapa, marco, tema, objetivo, cta)
+        O->>O: Pre-preenche etapa/marco/tema do brief do router (validados)
+        O->>O: Pula objetivo se brief do router ja forneceu
+        O-->>T: Pergunta onboarding (apenas campos faltantes)
+        loop Coleta de respostas (so campos nao pre-preenchidos)
             T-->>U: Pergunta
             U->>T: Resposta
             T->>O: Responder/ResponderTexto
@@ -96,6 +96,8 @@ sequenceDiagram
         T->>O: Confirmar(chatId)
         O-->>T: Brief (merge: router brief rico + respostas onboarding)
         T->>T: Dispatch por canal (pipeline via onboarding)
+    else tipo = producao (sem estrategia)
+        T->>T: Dispatch por canal (pipeline direto — fallback)
     end
 ```
 
@@ -209,10 +211,10 @@ sequenceDiagram
 
 | Step | Tipo | Modelo | Descrição |
 |------|------|--------|-----------|
-| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
+| `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta (cores/hex do MRV_paleta_de_cores.json), temas, sub-jornada e mapa emocional; seleciona template via ITemplateCatalogo |
 | `StepMapaEmocionalEmail` | LLM (classificador) | `deepseek/deepseek-v3.2` | Associa o email a uma etapa do mapa emocional (LLM escolhe entre as etapas existentes; fator E/R lido do mapa). Degradação graciosa se parse falhar |
-| `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
-| `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
+| `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo do cliente |
+| `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé. Prompt inclui Tom do brief (extraído pelo router) e hex codes da fase da paleta JSON |
 | `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido |
 | `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners cujo nome contém palavras do TemaSelecionado (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate, retorna vazio; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou tema sem match no nome → gera hero via IA com instrução de régua de jornada no topo e estilo visual das referências; em refação QA → pula seleção e regenera direto |
 | `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
@@ -227,8 +229,8 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 |------|--------|------------|
 | `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
 | `StepMapaEmocionalEmail` | Estrategia (MapaEmocional), Brief, MensagemOriginal | Outros steps |
-| `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
-| `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
+| `StepMarcaEmail` | Cliente, assets (logo) | Brief, Estrategia, outros steps |
+| `StepCopyEmail` | Brief fields (incl. Tom) + Estrategia (cores/temas/hex/mapa/E-R) | Marca, outros steps, histórico |
 | `StepDiagramacaoEmail` | Copy + Estrategia (cores/temas) + ícones disponíveis | Outros steps, histórico |
 | `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) + BannerDescricaoCache | Outros steps |
 | `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca | Brief, outros steps |
