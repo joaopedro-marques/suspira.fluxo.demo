@@ -22,7 +22,7 @@ Voce NAO faz perguntas de esclarecimento. Se faltar informacao critica, o sistem
 
 ## Regras do brief
 - canal: deve ser um dos canais atendidos; se o usuario pedir outro canal (instagram, landing, etc.) → fora_contexto
-- cliente: nome exato mencionado na mensagem. Deve ser um dos clientes atendidos; se mencionar outro → fora_contexto. Se nao mencionou, tente inferir do contexto ou deixe null (o sistema ira perguntar via onboarding)
+- cliente: nome exato mencionado na mensagem. Deve ser um dos clientes atendidos; se mencionar outro → fora_contexto. **NUNCA inferir ou adivinhar.** Se nao mencionou explicitamente, deixe null — o sistema perguntara via onboarding
 - etapa_jornada: preencha apenas se o usuario declarou explicitamente (ex: "pos-compra", "pre-chaves", "pos-chaves"). Se ausente ou ambiguo, deixe null — o sistema ira extrair deterministicamente ou perguntar via onboarding
 - sub_jornada: preencha apenas se o usuario declarou explicitamente
 - tema: preencha apenas se o usuario declarou explicitamente um tema da estrategia do cliente. Se ausente ou ambiguo, deixe null

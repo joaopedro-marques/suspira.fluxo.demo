@@ -155,8 +155,21 @@ public class RouterService
             }
 
             var cliente = resultado.Cliente ?? "";
-            if (string.IsNullOrEmpty(cliente) ||
-                !_options.ClientesPermitidos.Contains(cliente, StringComparer.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(cliente))
+            {
+                _logger.LogInformation("Guarda: cliente null para chat {ChatId} — convertendo para onboarding",
+                    estado.ChatId);
+                _store.Remover(estado.ChatId);
+                return new RouterResultado(
+                    Tipo: "onboarding",
+                    Resposta: null,
+                    Cliente: null,
+                    Brief: resultado.Brief,
+                    Motivo: null,
+                    CamposExtraidos: null);
+            }
+
+            if (!_options.ClientesPermitidos.Contains(cliente, StringComparer.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Guarda: cliente {Cliente} fora do escopo permitido para chat {ChatId}",
                     cliente, estado.ChatId);

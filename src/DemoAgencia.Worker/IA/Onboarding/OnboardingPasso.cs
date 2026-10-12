@@ -2,6 +2,7 @@ namespace DemoAgencia.Worker.IA.Onboarding;
 
 public enum OnboardingPasso
 {
+    Cliente,
     Etapa,
     Marco,
     Tema,

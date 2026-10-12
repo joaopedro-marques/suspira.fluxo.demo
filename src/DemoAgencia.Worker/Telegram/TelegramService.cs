@@ -321,13 +321,7 @@ public class TelegramService : BackgroundService
                 return;
 
             case "onboarding":
-                if (string.IsNullOrEmpty(resultado.Cliente))
-                {
-                    await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui identificar o cliente. Pode informar?", ct);
-                    return;
-                }
-
-                var pergunta = _onboarding.Iniciar(chatId, resultado.Cliente, mensagemOriginal, resultado.CamposExtraidos, resultado.Brief);
+                var pergunta = _onboarding.Iniciar(chatId, resultado.Cliente ?? "", mensagemOriginal, resultado.CamposExtraidos, resultado.Brief);
                 if (pergunta == null)
                 {
                     await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui iniciar o onboarding. Tente novamente.", ct);

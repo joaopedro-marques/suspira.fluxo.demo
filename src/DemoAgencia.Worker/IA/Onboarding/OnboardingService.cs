@@ -28,6 +28,23 @@ public class OnboardingService
         CamposExtraidos? extraidos = null,
         Brief? briefOriginal = null)
     {
+        var state = new OnboardingState
+        {
+            ChatId = chatId,
+            Cliente = cliente ?? "",
+            MensagemOriginal = mensagemOriginal,
+            PassoAtual = OnboardingPasso.Cliente,
+            BriefOriginal = briefOriginal,
+            CriadoEm = DateTimeOffset.UtcNow
+        };
+
+        if (string.IsNullOrEmpty(cliente))
+        {
+            _store.Guardar(chatId, state);
+            _logger.LogInformation("Onboarding iniciado para chat {ChatId} passo Cliente (cliente desconhecido)", chatId);
+            return ObterPerguntaCliente(state);
+        }
+
         var estrategia = _referencias.ObterEstrategia(cliente);
         if (estrategia == null)
         {
@@ -35,16 +52,7 @@ public class OnboardingService
             return null;
         }
 
-        var state = new OnboardingState
-        {
-            ChatId = chatId,
-            Cliente = cliente,
-            MensagemOriginal = mensagemOriginal,
-            PassoAtual = OnboardingPasso.Etapa,
-            BriefOriginal = briefOriginal,
-            CriadoEm = DateTimeOffset.UtcNow
-        };
-
+        state.PassoAtual = OnboardingPasso.Etapa;
         AplicarPrePreenchimento(state, estrategia, extraidos);
         AplicarPrePreenchimentoDoBrief(state, estrategia, briefOriginal);
         AvancarComAutoSelecao(state, estrategia);
@@ -60,30 +68,61 @@ public class OnboardingService
         var state = _store.Obter(chatId);
         if (state == null) return null;
 
-        var estrategia = _referencias.ObterEstrategia(state.Cliente);
-        if (estrategia == null) return null;
+        if (state.PassoAtual == OnboardingPasso.Cliente)
+        {
+            if (OnboardingCallbacks.EhAcaoEspecial(callbackData, out var acaoCliente) && acaoCliente == "recomecar")
+            {
+                return ObterPerguntaCliente(state);
+            }
+
+            if (!OnboardingCallbacks.TentarParse(callbackData, out var passo, out var valor) || passo != OnboardingPasso.Cliente)
+            {
+                _logger.LogWarning("Callback invalido para passo Cliente chat {ChatId}: {Callback}", chatId, callbackData);
+                return null;
+            }
+
+            var clienteSelecionado = valor.Trim().ToLowerInvariant();
+            var estrategia = _referencias.ObterEstrategia(clienteSelecionado);
+            if (estrategia == null)
+            {
+                _logger.LogWarning("Estrategia nao encontrada para cliente {Cliente} selecionado no chat {ChatId}",
+                    clienteSelecionado, chatId);
+                return ObterPerguntaCliente(state);
+            }
+
+            state.Cliente = clienteSelecionado;
+            state.PassoAtual = OnboardingPasso.Etapa;
+            AplicarPrePreenchimento(state, estrategia, null);
+            AplicarPrePreenchimentoDoBrief(state, estrategia, state.BriefOriginal);
+            AvancarComAutoSelecao(state, estrategia);
+            _store.Guardar(chatId, state);
+            return ObterPergunta(state, estrategia);
+        }
+
+        var estrategia2 = _referencias.ObterEstrategia(state.Cliente);
+        if (estrategia2 == null) return null;
 
         if (OnboardingCallbacks.EhAcaoEspecial(callbackData, out var acao))
-            return ProcessarAcaoEspecial(state, estrategia, acao);
+            return ProcessarAcaoEspecial(state, estrategia2, acao);
 
-        if (!OnboardingCallbacks.TentarParse(callbackData, out var passo, out var valor))
+        if (!OnboardingCallbacks.TentarParse(callbackData, out var passo2, out var valor2))
         {
             _logger.LogWarning("Callback invalido para chat {ChatId}: {Callback}", chatId, callbackData);
             return null;
         }
 
-        if (passo != state.PassoAtual)
+        if (passo2 != state.PassoAtual)
         {
             _logger.LogWarning("Passo incompativel para chat {ChatId}: esperado {Esperado}, recebido {Recebido}",
-                chatId, state.PassoAtual, passo);
+                chatId, state.PassoAtual, passo2);
             return null;
         }
 
-        AplicarResposta(state, passo, valor);
-        AvancarComAutoSelecao(state, estrategia);
+        AplicarResposta(state, passo2, valor2);
+        AvancarComAutoSelecao(state, estrategia2);
 
         _store.Guardar(chatId, state);
-        return ObterPergunta(state, estrategia);
+        return ObterPergunta(state, estrategia2);
     }
 
     public PerguntaOnboarding? ResponderTexto(long chatId, string texto)
@@ -352,6 +391,12 @@ public class OnboardingService
                 state.CtaLinkDefinidoExplicitamente = false;
                 state.LinksExtras.Clear();
                 state.Materiais.Clear();
+                if (string.IsNullOrEmpty(state.Cliente))
+                {
+                    state.PassoAtual = OnboardingPasso.Cliente;
+                    _store.Guardar(state.ChatId, state);
+                    return ObterPerguntaCliente(state);
+                }
                 state.PassoAtual = OnboardingPasso.Etapa;
                 AplicarPrePreenchimentoDoBrief(state, estrategia, state.BriefOriginal);
                 AvancarComAutoSelecao(state, estrategia);
@@ -367,6 +412,9 @@ public class OnboardingService
     {
         switch (state.PassoAtual)
         {
+            case OnboardingPasso.Cliente:
+                return ObterPerguntaCliente(state);
+
             case OnboardingPasso.Etapa:
                 return CriarPerguntaOpcoes(
                     "Qual etapa da jornada?",
@@ -466,6 +514,19 @@ public class OnboardingService
     {
         if (string.IsNullOrEmpty(valor)) return valor;
         return char.ToUpper(valor[0]) + valor[1..];
+    }
+
+    private PerguntaOnboarding ObterPerguntaCliente(OnboardingState state)
+    {
+        var clientesComEstrategia = _referencias.ListarClientes()
+            .Where(c => _referencias.ObterEstrategia(c) != null)
+            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return CriarPerguntaOpcoes(
+            "Qual cliente?",
+            OnboardingPasso.Cliente,
+            clientesComEstrategia);
     }
 
     internal static List<string> GetMarcos(FaseEstrategia fase)

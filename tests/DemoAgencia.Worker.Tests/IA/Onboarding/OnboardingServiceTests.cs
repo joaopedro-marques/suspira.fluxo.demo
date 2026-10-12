@@ -29,6 +29,54 @@ public class OnboardingServiceTests
     #region Iniciar
 
     [Fact]
+    public void Iniciar_WithNullCliente_ShouldReturnClienteQuestion()
+    {
+        _referencias.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv", "outro" });
+        _referencias.Setup(r => r.ObterEstrategia(It.IsAny<string>()))
+            .Returns<string>(c => c == "mrv" ? CriarEstrategiaCompleta() : null);
+
+        var pergunta = _service.Iniciar(123, "", "mensagem original");
+
+        pergunta.Should().NotBeNull();
+        pergunta!.Tipo.Should().Be(OnboardingTipoPasso.Opcoes);
+        pergunta.Opcoes.Should().Contain(o => o.CallbackData.Contains("mrv"));
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Cliente);
+    }
+
+    [Fact]
+    public void Responder_ClienteValido_ShouldAdvanceToEtapa()
+    {
+        SetupEstrategiaCompleta();
+        _referencias.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv" });
+        _service.Iniciar(123, "", "mensagem original");
+
+        var pergunta = _service.Responder(123, "onb|cliente|mrv");
+
+        pergunta.Should().NotBeNull();
+        pergunta!.Tipo.Should().Be(OnboardingTipoPasso.Opcoes);
+        var state = _store.Obter(123);
+        state!.Cliente.Should().Be("mrv");
+        state.PassoAtual.Should().Be(OnboardingPasso.Etapa);
+    }
+
+    [Fact]
+    public void Responder_ClienteInvalido_ShouldReaskCliente()
+    {
+        _referencias.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv", "outro_cliente" });
+        _referencias.Setup(r => r.ObterEstrategia(It.IsAny<string>()))
+            .Returns<string>(c => c == "mrv" ? CriarEstrategiaCompleta() : null);
+        _service.Iniciar(123, "", "mensagem original");
+
+        var pergunta = _service.Responder(123, "onb|cliente|outro_cliente");
+
+        pergunta.Should().NotBeNull();
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Cliente);
+        state.Cliente.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
     public void Iniciar_WithValidClient_ShouldReturnEtapaQuestion()
     {
         SetupEstrategiaCompleta();
