@@ -11,4 +11,6 @@ public class EstrategiaEmail
     public List<CategoriaSatisfacao> Insatisfacoes { get; init; } = new();
     public string? SubJornada { get; init; }
     public string? TemaSelecionado { get; init; }
+    public string? EtapaMapaEmocional { get; set; }
+    public string? FatorDecisao { get; set; }
 }
