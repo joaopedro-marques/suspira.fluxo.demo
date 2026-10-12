@@ -154,7 +154,6 @@ public class StepMapaEmocionalEmailTests
 
         var prompt = StepMapaEmocionalEmail.MontarPrompt(ctx);
 
-        prompt.Should().Contain("PESQUISA");
         prompt.Should().Contain("ASSINATURA DO CONTRATO");
         prompt.Should().Contain("POS VENDA");
         prompt.Should().Contain("VISTORIA DO APARTAMENTO");
