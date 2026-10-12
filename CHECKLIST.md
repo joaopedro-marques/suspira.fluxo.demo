@@ -58,7 +58,7 @@
 - [ ] StepEstrategiaEmail - Carrega fase, paleta, temas, sub-jornada, mapa emocional e satisfações
 - [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
 - [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
-- [ ] StepImagemHero - Seleciona banner por afinidade (etapa/sub-jornada/mensagem); se banner afim, pula IA; senão gera prompt + imagem hero
+- [ ] StepImagemHero - Seleciona banner cujo nome contém palavras do tema escolhido (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate com o tema, gera hero via IA com régua de jornada no topo e estilo visual das referências; se há candidatos, valida compatibilidade via curador; primeiro compatível é anexado
 - [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px, {{banner_section}} e {{hero_section}} condicionais
 - [ ] StepAssetsEmail - Resolve referências assets/ no HTML e empacota assets correspondentes
 - [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 2 refações)

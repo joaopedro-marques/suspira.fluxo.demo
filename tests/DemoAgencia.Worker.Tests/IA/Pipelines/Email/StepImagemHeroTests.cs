@@ -629,4 +629,94 @@ public class StepImagemHeroTests
         prompt.Should().Contain("Tema: Boas vindas");
         prompt.Should().NotContain("Temas:");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithTemaSelecionado_ShouldPassTemaToSelecionarBannersRanked()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString() + ".png");
+        await File.WriteAllBytesAsync(tempFile, new byte[] { 0x89, 0x50, 0x4E, 0x47 });
+
+        var bannerAsset = new AssetVisual
+        {
+            Cliente = "mrv",
+            Tipo = TipoAsset.Banner,
+            Nome = "banner_financiamento_banco",
+            Caminho = tempFile
+        };
+
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.Is<string?>(t => t == "Juros de Obra")))
+            .Returns(new List<AssetVisual> { bannerAsset });
+
+        _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new BannerDescricao("Banner de juros", "", new List<string>(), "", "", "Juros de obra"));
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), "email_banner_check", It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("{\"compativel\": true, \"motivo\": \"OK\"}");
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "quero saber sobre juros",
+            Brief = new Brief("email", "informar", null, "juros de obra", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                TemaSelecionado = "Juros de Obra"
+            }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().Be("assets/banner_financiamento_banco.png");
+        _refsMock.Verify(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            "Juros de Obra"), Times.Once);
+    }
+
+    [Fact]
+    public void ConstruirInstrucaoRegua_WithFaseAndMarco_ShouldHighlightMatchingStep()
+    {
+        var estrategia = new EstrategiaEmail
+        {
+            Fase = "pre-chaves",
+            SubJornada = "Vistoria Antecipada"
+        };
+
+        var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
+
+        instruction.Should().Contain("Assinatura do Contrato");
+        instruction.Should().Contain("Financiamento com o banco");
+        instruction.Should().Contain("Visita a Obra");
+        instruction.Should().Contain("Vistoria");
+        instruction.Should().Contain("Entrega das chaves");
+        instruction.Should().Contain("\"Vistoria\"");
+    }
+
+    [Fact]
+    public void ConstruirInstrucaoRegua_WithFaseOnly_ShouldFallbackToPhaseStep()
+    {
+        var estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            SubJornada = null
+        };
+
+        var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
+
+        instruction.Should().Contain("\"Financiamento com o banco\"");
+    }
+
+    [Fact]
+    public void ConstruirInstrucaoRegua_WithNullEstrategia_ShouldReturnEmpty()
+    {
+        StepImagemHero.ConstruirInstrucaoRegua(null).Should().BeEmpty();
+    }
 }

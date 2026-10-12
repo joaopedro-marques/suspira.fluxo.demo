@@ -27,6 +27,12 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         "header", "footer", "icon", "logo", "foto", "post", "banner"
     };
 
+    private static readonly HashSet<string> Stopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "de", "da", "do", "das", "dos", "e", "a", "o", "as", "os",
+        "com", "para", "em", "no", "na", "nos", "nas", "por", "pela", "pelo"
+    };
+
     private static int _assetIdCounter;
 
     public ReferenciaClienteLoader(
@@ -526,13 +532,13 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             || relative.Contains("/" + subdir + "/", StringComparison.OrdinalIgnoreCase);
     }
 
-    public virtual AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto)
+    public virtual AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, string? tema = null)
     {
-        var ranked = SelecionarBannersRanked(cliente, fase, subJornada, templateSubJornadas, texto, 1);
+        var ranked = SelecionarBannersRanked(cliente, fase, subJornada, templateSubJornadas, texto, 1, tema);
         return ranked.Count > 0 ? ranked[0] : null;
     }
 
-    public virtual IReadOnlyList<AssetVisual> SelecionarBannersRanked(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, int max)
+    public virtual IReadOnlyList<AssetVisual> SelecionarBannersRanked(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, int max, string? tema = null)
     {
         if (max <= 0)
             return Array.Empty<AssetVisual>();
@@ -556,10 +562,18 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 faseStageNames.AddRange(stageList);
         }
 
+        var temaPalavras = ExtrairPalavrasTema(tema);
+
         var scored = banners.Select(b =>
         {
             var nomeNorm = b.Nome.Replace('_', '-').ToLowerInvariant();
             var score = 0;
+            var temaScore = 0;
+
+            foreach (var palavra in temaPalavras)
+            {
+                if (nomeNorm.Contains(palavra)) temaScore += 10;
+            }
 
             if (templateSubJornadas != null)
             {
@@ -596,8 +610,24 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                     score += 1;
             }
 
-            return (banner: b, score);
+            return (banner: b, score, temaScore);
         });
+
+        var temTema = temaPalavras.Count > 0;
+        var temMatch = scored.Where(x => x.temaScore > 0).ToList();
+
+        if (temTema && temMatch.Count > 0)
+        {
+            return temMatch
+                .OrderByDescending(x => x.score)
+                .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
+                .Take(max)
+                .Select(x => x.banner)
+                .ToList();
+        }
+
+        if (temTema)
+            return Array.Empty<AssetVisual>();
 
         return scored
             .Where(x => x.score > 0)
@@ -605,6 +635,22 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
             .Take(max)
             .Select(x => x.banner)
+            .ToList();
+    }
+
+    private static List<string> ExtrairPalavrasTema(string? tema)
+    {
+        if (string.IsNullOrWhiteSpace(tema)) return new List<string>();
+
+        var normalized = tema.ToLowerInvariant()
+            .Replace("á", "a").Replace("é", "e").Replace("ê", "e")
+            .Replace("í", "i").Replace("ó", "o").Replace("ô", "o")
+            .Replace("ú", "u").Replace("ã", "a").Replace("õ", "o")
+            .Replace("ç", "c").Replace("-", " ").Replace("_", " ");
+
+        return normalized
+            .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 2 && !Stopwords.Contains(w))
             .ToList();
     }
 }

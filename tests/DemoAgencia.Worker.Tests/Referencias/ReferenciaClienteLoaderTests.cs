@@ -705,6 +705,46 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task SelecionarBannersRanked_WithTemaMatchingBannerName_ShouldReturnOnlyThemeBanners()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_juros_fase_de_obra.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 2 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_solicitar_assitencia_tecnica.png"), new byte[] { 3 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked(
+            "mrv", "pos-compra", "vistoria", null, "vistoria", 5,
+            tema: "Juros de Obra");
+
+        ranked.Should().HaveCount(1);
+        ranked[0].Nome.Should().Be("juros_fase_de_obra");
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_WithTemaNotMatchingAnyName_ShouldReturnEmpty()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_juros_fase_de_obra.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked(
+            "mrv", "pos-chaves", null, null, null, 5,
+            tema: "Sustentabilidade");
+
+        ranked.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task StartAsync_ShouldIgnoreDescJsonSidecars()
     {
         var bannersDir = Path.Combine(_tempDir, "imagens", "banners");

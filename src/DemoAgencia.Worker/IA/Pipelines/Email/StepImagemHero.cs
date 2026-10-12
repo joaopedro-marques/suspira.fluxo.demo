@@ -64,7 +64,8 @@ public class StepImagemHero : IPipelineStep
                 : null;
 
             var candidatos = _referencias.SelecionarBannersRanked(
-                cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal, MaxCandidatosBanner);
+                cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal, MaxCandidatosBanner,
+                context.Estrategia?.TemaSelecionado);
 
             if (candidatos.Count > 0)
             {
@@ -87,6 +88,10 @@ public class StepImagemHero : IPipelineStep
                     }
                 }
 
+                bannerRejeitado = true;
+            }
+            else if (!string.IsNullOrEmpty(context.Estrategia?.TemaSelecionado))
+            {
                 bannerRejeitado = true;
             }
         }
@@ -113,6 +118,8 @@ public class StepImagemHero : IPipelineStep
         }
 
         var promptBase = await ConstruirPromptBase(descricaoBase, context.Cliente, context.Estrategia, ct);
+
+        promptBase += ConstruirInstrucaoRegua(context.Estrategia);
 
         if (isHeroRefacao && !string.IsNullOrEmpty(context.QaFeedback))
         {
@@ -330,5 +337,67 @@ public class StepImagemHero : IPipelineStep
             ct: ct);
 
         return resposta?.Trim() ?? promptBase;
+    }
+
+    internal static string ConstruirInstrucaoRegua(EstrategiaEmail? estrategia)
+    {
+        if (estrategia == null || string.IsNullOrEmpty(estrategia.Fase))
+            return string.Empty;
+
+        var etapasRegua = new[]
+        {
+            "Assinatura do Contrato",
+            "Financiamento com o banco",
+            "Visita a Obra",
+            "Vistoria",
+            "Entrega das chaves"
+        };
+
+        var etapaDestacada = DeterminarEtapaDestacada(estrategia, etapasRegua);
+
+        var instruction = "\n\n## Journey ruler (progress bar)\n";
+        instruction += "Include at the top of the banner a horizontal journey ruler (progress bar) showing these 5 steps in order:\n";
+        instruction += string.Join(" -> ", etapasRegua);
+        instruction += $"\n\nThe current step to highlight/emphasize is: \"{etapaDestacada}\". ";
+        instruction += "Render the labels in Portuguese exactly as shown above, with the current step visually highlighted (different color, larger, or bold). ";
+        instruction += "The ruler should be clean, professional, and integrated with the banner's visual style.\n";
+
+        return instruction;
+    }
+
+    internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, string[] etapasRegua)
+    {
+        var marco = estrategia.SubJornada;
+        if (!string.IsNullOrEmpty(marco))
+        {
+            var marcoNorm = NormalizarTexto(marco);
+
+            foreach (var etapa in etapasRegua)
+            {
+                var etapaNorm = NormalizarTexto(etapa);
+                foreach (var palavra in etapaNorm.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (palavra.Length > 2 && marcoNorm.Contains(palavra))
+                        return etapa;
+                }
+            }
+        }
+
+        return estrategia.Fase switch
+        {
+            "pos-compra" => "Financiamento com o banco",
+            "pre-chaves" => "Vistoria",
+            "pos-chaves" => "Entrega das chaves",
+            _ => "Assinatura do Contrato"
+        };
+    }
+
+    private static string NormalizarTexto(string texto)
+    {
+        return texto.ToLowerInvariant()
+            .Replace("á", "a").Replace("é", "e").Replace("ê", "e")
+            .Replace("í", "i").Replace("ó", "o").Replace("ô", "o")
+            .Replace("ú", "u").Replace("ã", "a").Replace("õ", "o")
+            .Replace("ç", "c");
     }
 }
