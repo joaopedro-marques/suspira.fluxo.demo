@@ -122,6 +122,63 @@ public class TelegramServiceOnboardingTests
     }
 
     [Fact]
+    public async Task RouterRetornaOnboarding_ViaTexto_DeveEnviarPerguntaSemErro()
+    {
+        SetupEstrategiaCompleta();
+
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(_telegramOptions.BotToken)).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var sentMessages = new List<(long ChatId, string Text, InlineKeyboardMarkup? Keyboard)>();
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, CancellationToken>((chatId, text, _) => sentMessages.Add((chatId, text, null)))
+            .ReturnsAsync(new Message { Id = 99 });
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<InlineKeyboardMarkup?>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, InlineKeyboardMarkup?, CancellationToken>((chatId, text, kb, _) => sentMessages.Add((chatId, text, kb)))
+            .ReturnsAsync(new Message { Id = 99 });
+
+        gatewayMock.Setup(g => g.EditMessageTextAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var campos = new CamposExtraidos(EtapaJornada: "pos-compra", Tema: "Boas vindas");
+        var resultado = new RouterResultado("onboarding", null, "mrv", null, null, campos);
+        _routerMock.Setup(r => r.IniciarAsync(123, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resultado);
+
+        var message = new Message
+        {
+            Id = 1,
+            Chat = new Chat { Id = 123, Type = ChatType.Private },
+            Text = "criar email pos-compra para mrv"
+        };
+        var update = new Update { Id = 42, Message = message };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { update });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        var service = CriarService();
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(500);
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
+
+        sentMessages.Should().Contain(m => m.Text == "🧠 Analisando seu pedido...");
+        sentMessages.Should().Contain(m => m.Keyboard != null && m.Text != "🧠 Analisando seu pedido...");
+        sentMessages.Should().NotContain(m => m.Text.Contains("Desculpe"));
+    }
+
+    [Fact]
     public async Task CallbackQuery_DuranteOnboarding_DeveResponderEAguardarProximaPergunta()
     {
         SetupEstrategiaCompleta();
