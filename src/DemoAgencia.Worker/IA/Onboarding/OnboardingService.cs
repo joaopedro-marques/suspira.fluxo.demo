@@ -46,6 +46,7 @@ public class OnboardingService
         };
 
         AplicarPrePreenchimento(state, estrategia, extraidos);
+        AplicarPrePreenchimentoDoBrief(state, estrategia, briefOriginal);
         AvancarComAutoSelecao(state, estrategia);
 
         _store.Guardar(chatId, state);
@@ -94,6 +95,7 @@ public class OnboardingService
             return null;
 
         state.CtaLink = texto.Trim();
+        state.CtaLinkDefinidoExplicitamente = true;
         state.PassoAtual = OnboardingPasso.Materiais;
 
         var estrategia = _referencias.ObterEstrategia(state.Cliente);
@@ -138,7 +140,7 @@ public class OnboardingService
             Publico: routerBrief?.Publico,
             Oferta: routerBrief?.Oferta,
             Tom: routerBrief?.Tom,
-            Link: state.CtaLink ?? routerBrief?.Link,
+            Link: state.CtaLinkDefinidoExplicitamente ? state.CtaLink : routerBrief?.Link,
             Restricoes: routerBrief?.Restricoes != null
                 ? new List<string>(routerBrief.Restricoes)
                 : new List<string>(),
@@ -196,6 +198,43 @@ public class OnboardingService
             Objetivos.Contains(extraidos.Objetivo.ToLowerInvariant()))
         {
             state.Objetivo = extraidos.Objetivo.ToLowerInvariant();
+            state.PassoAtual = OnboardingPasso.CtaLink;
+        }
+    }
+
+    private void AplicarPrePreenchimentoDoBrief(OnboardingState state, EstrategiaCliente estrategia, Brief? briefOriginal)
+    {
+        if (briefOriginal == null) return;
+
+        if (!string.IsNullOrEmpty(briefOriginal.EtapaJornada) &&
+            estrategia.Fases.ContainsKey(briefOriginal.EtapaJornada))
+        {
+            state.EtapaJornada = briefOriginal.EtapaJornada;
+            state.PassoAtual = OnboardingPasso.Marco;
+        }
+
+        if (state.EtapaJornada != null && !string.IsNullOrEmpty(briefOriginal.SubJornada))
+        {
+            var marcos = GetMarcos(estrategia.Fases[state.EtapaJornada]);
+            if (marcos.Contains(briefOriginal.SubJornada, StringComparer.OrdinalIgnoreCase))
+            {
+                state.Marco = briefOriginal.SubJornada;
+                state.PassoAtual = OnboardingPasso.Tema;
+            }
+        }
+
+        if (state.EtapaJornada != null && !string.IsNullOrEmpty(briefOriginal.Tema))
+        {
+            var temas = estrategia.Fases[state.EtapaJornada].Temas;
+            if (temas.Contains(briefOriginal.Tema, StringComparer.OrdinalIgnoreCase))
+            {
+                state.Tema = briefOriginal.Tema;
+                state.PassoAtual = OnboardingPasso.Objetivo;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(briefOriginal.Objetivo))
+        {
             state.PassoAtual = OnboardingPasso.CtaLink;
         }
     }
@@ -290,6 +329,7 @@ public class OnboardingService
             case "sem-link":
                 if (state.PassoAtual != OnboardingPasso.CtaLink) return null;
                 state.CtaLink = null;
+                state.CtaLinkDefinidoExplicitamente = true;
                 state.PassoAtual = OnboardingPasso.Materiais;
                 _store.Guardar(state.ChatId, state);
                 return ObterPergunta(state, estrategia);
@@ -309,9 +349,11 @@ public class OnboardingService
                 state.Tema = null;
                 state.Objetivo = null;
                 state.CtaLink = null;
+                state.CtaLinkDefinidoExplicitamente = false;
                 state.LinksExtras.Clear();
                 state.Materiais.Clear();
                 state.PassoAtual = OnboardingPasso.Etapa;
+                AplicarPrePreenchimentoDoBrief(state, estrategia, state.BriefOriginal);
                 AvancarComAutoSelecao(state, estrategia);
                 _store.Guardar(state.ChatId, state);
                 return ObterPergunta(state, estrategia);

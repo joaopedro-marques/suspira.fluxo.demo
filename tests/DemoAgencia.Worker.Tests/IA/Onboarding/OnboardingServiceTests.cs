@@ -527,6 +527,128 @@ public class OnboardingServiceTests
         brief!.Objetivo.Should().Be("Chamar clientes para a reunião condominial do Edifício Del Rey.");
     }
 
+    [Fact]
+    public void Iniciar_WithRouterBriefValidEtapa_ShouldPreFillAndSkipQuestion()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.EtapaJornada.Should().Be("pos-compra");
+        state.PassoAtual.Should().NotBe(OnboardingPasso.Etapa);
+    }
+
+    [Fact]
+    public void Iniciar_WithRouterBriefValidTema_ShouldPreFillAndSkipTemaQuestion()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.Tema.Should().Be("Boas vindas");
+    }
+
+    [Fact]
+    public void Iniciar_WithRouterBriefObjetivo_ShouldSkipObjetivoQuestion()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "Chamar clientes para a reunião",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+    }
+
+    [Fact]
+    public void Confirmar_SemLinkExplicit_ShouldOverrideRouterLink()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: null,
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: "https://mrv.com.br/router-link",
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>());
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+        _service.Responder(123, "onb|etapa|pos-compra");
+        _service.Responder(123, "onb|marco|Pós Financiamento");
+        _service.Responder(123, "onb|tema|Boas vindas");
+        _service.Responder(123, "onb|objetivo|vender");
+        _service.Responder(123, "onb|sem-link");
+        _service.Responder(123, "onb|pular");
+
+        var brief = _service.Confirmar(123);
+
+        brief.Should().NotBeNull();
+        brief!.Link.Should().BeNull();
+    }
+
+    [Fact]
+    public void Confirmar_UserTypesLink_ShouldOverrideRouterLink()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: null,
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: "https://mrv.com.br/router-link",
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>());
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+        _service.Responder(123, "onb|etapa|pos-compra");
+        _service.Responder(123, "onb|marco|Pós Financiamento");
+        _service.Responder(123, "onb|tema|Boas vindas");
+        _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "https://mrv.com.br/user-link");
+        _service.Responder(123, "onb|pular");
+
+        var brief = _service.Confirmar(123);
+
+        brief.Should().NotBeNull();
+        brief!.Link.Should().Be("https://mrv.com.br/user-link");
+    }
+
     #endregion
 
     #region Recomeçar

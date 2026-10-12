@@ -393,7 +393,7 @@ public class RouterServiceTests
     }
 
     [Fact]
-    public async Task Guarda_WhenProducaoComEtapaJornada_ShouldGoToProducaoEvenWithoutTema()
+    public async Task Guarda_WhenProducaoComEstrategia_ShouldSempreIrParaOnboardingPreservandoBrief()
     {
         _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv" });
         var estrategia = new EstrategiaCliente { Cliente = "mrv" };
@@ -417,14 +417,16 @@ public class RouterServiceTests
         _chatMock.Setup(c => c.ChamarAgenteAsync(
                 It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
                 "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("""{"tipo": "producao", "cliente": "mrv", "brief": {"canal": "email", "etapa_jornada": "pos-compra", "objetivo": "vender"}}""");
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "mrv", "brief": {"canal": "email", "etapa_jornada": "pos-compra", "objetivo": "vender", "publico": "clientes MRV"}}""");
 
         var resultado = await restrictedService.IniciarAsync(123, "criar email pos-compra para MRV");
 
         resultado.Should().NotBeNull();
-        resultado!.Tipo.Should().Be("producao");
+        resultado!.Tipo.Should().Be("onboarding");
         resultado.Brief.Should().NotBeNull();
-        resultado.Brief!.EtapaJornada.Should().Be("pos-compra");
+        resultado.Brief!.Objetivo.Should().Be("vender");
+        resultado.Brief.Publico.Should().Be("clientes MRV");
+        resultado.Cliente.Should().Be("mrv");
     }
 
     [Fact]

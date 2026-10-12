@@ -171,11 +171,11 @@ public class RouterService
             }
 
             var estrategia = _referencias.ObterEstrategia(cliente);
-            if (estrategia != null && (string.IsNullOrEmpty(resultado.Brief.EtapaJornada) || !estrategia.Fases.ContainsKey(resultado.Brief.EtapaJornada)))
+            if (estrategia != null)
             {
                 var camposExtraidos = _briefExtractor.Extrair(estado.MensagemOriginal, estrategia);
 
-                _logger.LogInformation("Router converteu 'producao' incompleto em 'onboarding' para chat {ChatId} com {QtdCampos} campos extraídos",
+                _logger.LogInformation("Router converteu 'producao' em 'onboarding' para chat {ChatId} com {QtdCampos} campos extraídos",
                     estado.ChatId, CountCampos(camposExtraidos));
 
                 _store.Remover(estado.ChatId);
