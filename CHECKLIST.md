@@ -56,6 +56,7 @@
 
 #### Steps da Pipeline
 - [ ] StepEstrategiaEmail - Carrega fase, paleta, temas, sub-jornada, mapa emocional e satisfações
+- [ ] StepMapaEmocionalEmail - LLM associa o email a uma etapa do mapa emocional; define fator E/R para tom verbal/visual
 - [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
 - [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
 - [ ] StepImagemHero - Seleciona banner cujo nome contém palavras do tema escolhido (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate com o tema, gera hero via IA com régua de jornada no topo e estilo visual das referências; se há candidatos, valida compatibilidade via curador; primeiro compatível é anexado
@@ -89,6 +90,7 @@
 ### Langfuse
 - [ ] Acessar dashboard Langfuse
 - [ ] Verificar trace `router` (etapaNome="router")
+- [ ] Verificar trace `email_mapa_emocional` (etapaNome="email_mapa_emocional")
 - [ ] Verificar trace `email_copy` (etapaNome="email_copy")
 - [ ] Verificar trace `email_hero_prompt` (etapaNome="email_hero_prompt")
 - [ ] Verificar trace `email_hero_imagem` (etapaNome="email_hero_imagem")

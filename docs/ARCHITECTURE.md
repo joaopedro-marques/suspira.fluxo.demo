@@ -143,6 +143,7 @@ A PipelineEmail é uma lista ordenada de steps executados deterministicamente pe
 sequenceDiagram
     participant PR as PipelineRunner
     participant SE as StepEstrategiaEmail
+    participant SMA as StepMapaEmocionalEmail
     participant SM as StepMarcaEmail
     participant SC as StepCopyEmail
     participant SH as StepImagemHero
@@ -156,6 +157,11 @@ sequenceDiagram
     SE->>RC: ObterEstrategia(cliente)
     RC-->>SE: Fase, paleta, temas, mapa, satisfacoes
     SE-->>PR: context.Estrategia
+    
+    PR->>SMA: ExecutarAsync(context)
+    SMA->>OR: ChamarAgenteAsync(email_mapa_emocional)
+    OR-->>SMA: JSON com etapa
+    SMA-->>PR: context.Estrategia (EtapaMapaEmocional, FatorDecisao)
     
     PR->>SM: ExecutarAsync(context)
     SM->>RC: ListarAssets(cliente)
@@ -198,6 +204,7 @@ sequenceDiagram
 | Step | Tipo | Modelo | Descrição |
 |------|------|--------|-----------|
 | `StepEstrategiaEmail` | Retrieval determinístico | N/A | Carrega fase da jornada, paleta, temas, sub-jornada, mapa emocional e satisfações/insatisfações; seleciona template via ITemplateCatalogo |
+| `StepMapaEmocionalEmail` | LLM (classificador) | `deepseek/deepseek-v3.2` | Associa o email a uma etapa do mapa emocional (LLM escolhe entre as etapas existentes; fator E/R lido do mapa). Degradação graciosa se parse falhar |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo, cores, tom de voz do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé |
 | `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido |
@@ -213,6 +220,7 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 | Step | Recebe | Não recebe |
 |------|--------|------------|
 | `StepEstrategiaEmail` | Cliente, Brief.etapa_jornada, banco de estratégias, ITemplateCatalogo | Brief restante, outros steps |
+| `StepMapaEmocionalEmail` | Estrategia (MapaEmocional), Brief, MensagemOriginal | Outros steps |
 | `StepMarcaEmail` | Cliente, banco de referências | Brief, Estrategia, outros steps |
 | `StepCopyEmail` | Brief fields + Marca + Estrategia | Outros steps, histórico |
 | `StepDiagramacaoEmail` | Copy + Estrategia (cores/temas) + ícones disponíveis | Outros steps, histórico |
@@ -435,6 +443,7 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 |-------|-----------|--------|
 | `router` | Classificação + estruturação do brief | `deepseek/deepseek-v3.2` |
 | `router_retry` | Retry do router (JSON inválido) | `deepseek/deepseek-v3.2` |
+| `email_mapa_emocional` | Associação LLM da etapa do mapa emocional | `deepseek/deepseek-v3.2` |
 | `email_copy` | Geração de copy (assunto, corpo, CTA) | `qwen/qwen3.7-plus` |
 | `email_diagramacao` | Geração de seções HTML diagramadas para o corpo | `qwen/qwen3.7-plus` |
 | `email_hero_prompt` | Geração de prompt para imagem hero | `qwen/qwen3.7-plus` |
@@ -498,6 +507,7 @@ src/DemoAgencia.Worker/
     │   │   └── Email/
     │   │       ├── PipelineEmail.cs        # Composição da pipeline email
     │   │       ├── StepEstrategiaEmail.cs  # Retrieval de estratégia
+    │   │       ├── StepMapaEmocionalEmail.cs # LLM associação etapa emocional
     │   │       ├── StepMarcaEmail.cs       # Retrieval de marca
     │   │       ├── StepCopyEmail.cs        # LLM copy
     │   │       ├── StepDiagramacaoEmail.cs # LLM diagramação HTML + guarda

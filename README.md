@@ -35,6 +35,7 @@ Mensagem → TelegramService (long polling não-bloqueante):
               ├── Limite global: SemaphoreSlim (MaxPipelinesSimultaneos=3)
               ├── email → PipelineEmail
               │     ├── StepEstrategiaEmail (retrieval: fase, paleta, temas, mapa, satisfações)
+              │     ├── StepMapaEmocionalEmail (LLM: associação etapa emocional → fator E/R)
               │     ├── StepMarcaEmail (retrieval: logo, cores, tom)
               │     ├── StepCopyEmail (LLM: assunto, título, corpo, CTA)
               │     ├── StepDiagramacaoEmail (LLM: seções HTML visuais + guarda determinística)
@@ -53,7 +54,7 @@ Mensagem → TelegramService (long polling não-bloqueante):
 - **Fallback de modelos em 429**: Polly re-tenta no mesmo modelo respeitando Retry-After; se 429 persiste, troca para próximo modelo da cadeia configurável com backoff exponencial
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
 - **Descrições de ícones**: Ícones são descritos via visão (IconDescricaoCache com sidecar JSON) e injetados no prompt do diagramador para escolha semântica
-- **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_marca, email_copy, email_diagramacao, email_hero_prompt, email_hero_imagem, email_template, email_assets, email_qa)
+- **Observabilidade**: Langfuse traces por step (router, email_estrategia, email_mapa_emocional, email_marca, email_copy, email_diagramacao, email_hero_prompt, email_hero_imagem, email_template, email_assets, email_qa)
 
 ## Estrutura
 
@@ -64,9 +65,9 @@ src/DemoAgencia.Worker/
   │   ├── Router/            # RouterService, RouterParser, Brief
   │   ├── PreFlight/         # ConversaPendenteStore, EstadoPreFlight
   │   └── Pipelines/         # PipelineRunner, IPipelineStep
-  │   │       └── Email/         # StepEstrategiaEmail, StepMarcaEmail, StepCopyEmail,
-   │                          # StepDiagramacaoEmail, StepImagemHero, StepTemplateEmail,
-   │                          # StepAssetsEmail, StepQaEmail
+  │   │       └── Email/         # StepEstrategiaEmail, StepMapaEmocionalEmail, StepMarcaEmail, StepCopyEmail,
+    │                          # StepDiagramacaoEmail, StepImagemHero, StepTemplateEmail,
+    │                          # StepAssetsEmail, StepQaEmail
   │   ├── BannerDescricao.cs     # Record estruturado para análise visual de banners
   │   ├── BannerDescricaoCache.cs # Cache com sidecar JSON para descrições
   │   ├── IconDescricao.cs        # Record estruturado para análise visual de ícones
@@ -167,7 +168,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**335 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, UpdateDispatcher, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD), BannerDescricaoCache, IconDescricaoCache.
+**453 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepMapaEmocionalEmail (8 testes TDD), StepCopyEmail, StepImagemHero, StepTemplateEmail (11 testes TDD), StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, UpdateDispatcher, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo (10 testes TDD), BannerDescricaoCache, IconDescricaoCache, TomEmocional (12 testes).
 
 ## CI/CD
 
