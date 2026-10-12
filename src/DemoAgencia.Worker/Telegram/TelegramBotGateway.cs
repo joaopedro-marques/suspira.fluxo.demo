@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -58,11 +59,17 @@ public class TelegramBotGateway : ITelegramGateway
 
     public async Task EditMessageReplyMarkupAsync(long chatId, int messageId, CancellationToken ct = default)
     {
-        await _botClient.EditMessageReplyMarkup(
-            chatId: chatId,
-            messageId: messageId,
-            replyMarkup: null,
-            cancellationToken: ct);
+        try
+        {
+            await _botClient.EditMessageReplyMarkup(
+                chatId: chatId,
+                messageId: messageId,
+                replyMarkup: null,
+                cancellationToken: ct);
+        }
+        catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+        {
+        }
     }
 
     public async Task AnswerCallbackQueryAsync(string callbackQueryId, CancellationToken ct = default)
