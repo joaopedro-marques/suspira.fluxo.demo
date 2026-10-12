@@ -178,7 +178,7 @@ public class OnboardingServiceTests
     }
 
     [Fact]
-    public void Responder_Objetivo_ShouldAdvanceToCtaLink()
+    public void Responder_Objetivo_ShouldAdvanceToOferta()
     {
         SetupEstrategiaCompleta();
         _service.Iniciar(123, "mrv", "criar email");
@@ -193,7 +193,7 @@ public class OnboardingServiceTests
 
         var state = _store.Obter(123);
         state!.Objetivo.Should().Be("vender");
-        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+        state.PassoAtual.Should().Be(OnboardingPasso.Oferta);
     }
 
     [Fact]
@@ -205,6 +205,8 @@ public class OnboardingServiceTests
         _service.Responder(123, "onb|marco|Pós Financiamento");
         _service.Responder(123, "onb|tema|Boas vindas");
         _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "Oferta teste");
+        _service.ResponderTexto(123, "Publico teste");
 
         var pergunta = _service.Responder(123, "onb|sem-link");
 
@@ -269,6 +271,8 @@ public class OnboardingServiceTests
         _service.Responder(123, "onb|marco|Pós Financiamento");
         _service.Responder(123, "onb|tema|Boas vindas");
         _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "Oferta teste");
+        _service.ResponderTexto(123, "Publico teste");
 
         var pergunta = _service.ResponderTexto(123, "https://mrv.com.br/promo");
 
@@ -362,7 +366,7 @@ public class OnboardingServiceTests
 
         var state = _store.Obter(123);
         state!.Objetivo.Should().Be("vender");
-        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+        state.PassoAtual.Should().Be(OnboardingPasso.Oferta);
         pergunta!.Tipo.Should().Be(OnboardingTipoPasso.TextoLivre);
     }
 
@@ -395,7 +399,7 @@ public class OnboardingServiceTests
         var pergunta = _service.Responder(123, "onb|objetivo|vender");
 
         var state = _store.Obter(123);
-        state!.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Oferta);
         pergunta!.Tipo.Should().Be(OnboardingTipoPasso.TextoLivre);
     }
 
@@ -447,7 +451,7 @@ public class OnboardingServiceTests
         state.Marco.Should().Be("Pós Financiamento");
         state.Tema.Should().Be("Boas vindas");
         state.Objetivo.Should().Be("vender");
-        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+        state.PassoAtual.Should().Be(OnboardingPasso.Oferta);
         pergunta!.Tipo.Should().Be(OnboardingTipoPasso.TextoLivre);
     }
 
@@ -512,6 +516,8 @@ public class OnboardingServiceTests
         _service.Responder(123, "onb|marco|Pós Financiamento");
         _service.Responder(123, "onb|tema|Boas vindas");
         _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "Oferta teste");
+        _service.ResponderTexto(123, "Publico teste");
         _service.ResponderTexto(123, "https://mrv.com.br");
         _service.AdicionarMaterialFoto(123, new byte[] { 1, 2, 3 }, "foto.png", "promo");
         _service.AdicionarMaterialLink(123, "https://extra.com");
@@ -638,7 +644,7 @@ public class OnboardingServiceTests
         _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
 
         var state = _store.Obter(123);
-        state!.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Oferta);
     }
 
     [Fact]
@@ -660,6 +666,8 @@ public class OnboardingServiceTests
         _service.Responder(123, "onb|marco|Pós Financiamento");
         _service.Responder(123, "onb|tema|Boas vindas");
         _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "Oferta teste");
+        _service.ResponderTexto(123, "Publico teste");
         _service.Responder(123, "onb|sem-link");
         _service.Responder(123, "onb|pular");
 
@@ -688,6 +696,8 @@ public class OnboardingServiceTests
         _service.Responder(123, "onb|marco|Pós Financiamento");
         _service.Responder(123, "onb|tema|Boas vindas");
         _service.Responder(123, "onb|objetivo|vender");
+        _service.ResponderTexto(123, "Oferta teste");
+        _service.ResponderTexto(123, "Publico teste");
         _service.ResponderTexto(123, "https://mrv.com.br/user-link");
         _service.Responder(123, "onb|pular");
 
@@ -695,6 +705,183 @@ public class OnboardingServiceTests
 
         brief.Should().NotBeNull();
         brief!.Link.Should().Be("https://mrv.com.br/user-link");
+    }
+
+    #endregion
+
+    #region Oferta e Público
+
+    [Fact]
+    public void Iniciar_WithRouterBriefOferta_ShouldSkipOfertaQuestion()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: "Reunião condominial dia 09/10",
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.Oferta.Should().BeNull();
+        state.PassoAtual.Should().Be(OnboardingPasso.Publico);
+    }
+
+    [Fact]
+    public void Iniciar_WithRouterBriefPublico_ShouldSkipPublicoQuestion()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: "Clientes MRV 27-45 anos",
+            Oferta: "Reunião condominial",
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.Publico.Should().BeNull();
+        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+    }
+
+    [Fact]
+    public void ResponderTexto_WhenOferta_ShouldAdvanceToPublico()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Oferta);
+
+        var pergunta = _service.ResponderTexto(123, "Reunião condominial do edifício Del Rey");
+
+        pergunta.Should().NotBeNull();
+        state = _store.Obter(123);
+        state!.Oferta.Should().Be("Reunião condominial do edifício Del Rey");
+        state.PassoAtual.Should().Be(OnboardingPasso.Publico);
+    }
+
+    [Fact]
+    public void ResponderTexto_WhenPublico_ShouldAdvanceToCtaLink()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: "Reunião condominial",
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Publico);
+
+        var pergunta = _service.ResponderTexto(123, "Clientes MRV recém-casados");
+
+        pergunta.Should().NotBeNull();
+        state = _store.Obter(123);
+        state!.Publico.Should().Be("Clientes MRV recém-casados");
+        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+    }
+
+    [Fact]
+    public void Responder_PularOferta_ShouldAdvanceToPublico()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "vender",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Oferta);
+
+        _service.Responder(123, OnboardingCallbacks.Pular);
+
+        state = _store.Obter(123);
+        state!.Oferta.Should().BeNull();
+        state.PassoAtual.Should().Be(OnboardingPasso.Publico);
+    }
+
+    [Fact]
+    public void Confirmar_WithOfertaPublico_ShouldIncludeInBrief()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "engajar",
+            Publico: null,
+            Oferta: null,
+            Tom: null,
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>(),
+            EtapaJornada: "pos-compra",
+            Tema: "Boas vindas");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+
+        var state = _store.Obter(123);
+        state!.PassoAtual.Should().Be(OnboardingPasso.Oferta);
+
+        _service.ResponderTexto(123, "Reunião condominial");
+        state = _store.Obter(123);
+        state!.Oferta.Should().Be("Reunião condominial");
+        state.PassoAtual.Should().Be(OnboardingPasso.Publico);
+
+        _service.ResponderTexto(123, "Clientes MRV");
+        state = _store.Obter(123);
+        state!.Publico.Should().Be("Clientes MRV");
+        state.PassoAtual.Should().Be(OnboardingPasso.CtaLink);
+
+        _service.Responder(123, "onb|sem-link");
+        _service.Responder(123, "onb|pular");
+
+        var brief = _service.Confirmar(123);
+
+        brief.Should().NotBeNull();
+        brief!.Oferta.Should().Be("Reunião condominial");
+        brief.Publico.Should().Be("Clientes MRV");
     }
 
     #endregion
@@ -889,6 +1076,8 @@ public class OnboardingServiceTests
         _service.Responder(chatId, "onb|marco|Pós Financiamento");
         _service.Responder(chatId, "onb|tema|Boas vindas");
         _service.Responder(chatId, "onb|objetivo|vender");
+        _service.ResponderTexto(chatId, "Oferta teste");
+        _service.ResponderTexto(chatId, "Publico teste");
         _service.Responder(chatId, "onb|sem-link");
     }
 
@@ -898,6 +1087,8 @@ public class OnboardingServiceTests
         _service.Responder(chatId, "onb|marco|Pós Financiamento");
         _service.Responder(chatId, "onb|tema|Boas vindas");
         _service.Responder(chatId, "onb|objetivo|vender");
+        _service.ResponderTexto(chatId, "Oferta teste");
+        _service.ResponderTexto(chatId, "Publico teste");
         _service.ResponderTexto(chatId, "https://mrv.com.br");
         _service.Responder(chatId, "onb|pular");
     }

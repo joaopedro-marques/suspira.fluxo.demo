@@ -243,6 +243,8 @@ public class TelegramServiceOnboardingTests
         _onboardingService.Responder(123, "onb|marco|Pós Financiamento");
         _onboardingService.Responder(123, "onb|tema|Boas vindas");
         _onboardingService.Responder(123, "onb|objetivo|vender");
+        _onboardingService.ResponderTexto(123, "Oferta teste");
+        _onboardingService.ResponderTexto(123, "Publico teste");
 
         var gatewayMock = new Mock<ITelegramGateway>();
         _gatewayFactoryMock.Setup(f => f.Create(_telegramOptions.BotToken)).Returns(gatewayMock.Object);
@@ -292,6 +294,8 @@ public class TelegramServiceOnboardingTests
         _onboardingService.Responder(123, "onb|marco|Pós Financiamento");
         _onboardingService.Responder(123, "onb|tema|Boas vindas");
         _onboardingService.Responder(123, "onb|objetivo|vender");
+        _onboardingService.ResponderTexto(123, "Oferta teste");
+        _onboardingService.ResponderTexto(123, "Publico teste");
         _onboardingService.Responder(123, "onb|sem-link");
 
         var gatewayMock = new Mock<ITelegramGateway>();

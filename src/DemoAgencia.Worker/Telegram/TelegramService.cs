@@ -253,7 +253,7 @@ public class TelegramService : BackgroundService
             return;
         }
 
-        if (estado.PassoAtual == OnboardingPasso.CtaLink)
+        if (estado.PassoAtual is OnboardingPasso.Oferta or OnboardingPasso.Publico or OnboardingPasso.CtaLink)
         {
             var pergunta = _onboarding.ResponderTexto(message.Chat.Id, text);
             if (pergunta != null)

@@ -7,6 +7,8 @@ public enum OnboardingPasso
     Marco,
     Tema,
     Objetivo,
+    Oferta,
+    Publico,
     CtaLink,
     Materiais,
     Confirmacao

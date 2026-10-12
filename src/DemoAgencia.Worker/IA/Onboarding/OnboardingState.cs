@@ -12,6 +12,8 @@ public class OnboardingState
     public string? Marco { get; set; }
     public string? Tema { get; set; }
     public string? Objetivo { get; set; }
+    public string? Oferta { get; set; }
+    public string? Publico { get; set; }
     public string? CtaLink { get; set; }
     public bool CtaLinkDefinidoExplicitamente { get; set; }
     public List<string> LinksExtras { get; set; } = new();

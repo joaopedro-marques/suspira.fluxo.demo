@@ -130,19 +130,31 @@ public class OnboardingService
         var state = _store.Obter(chatId);
         if (state == null) return null;
 
-        if (state.PassoAtual != OnboardingPasso.CtaLink)
-            return null;
-
-        state.CtaLink = texto.Trim();
-        state.CtaLinkDefinidoExplicitamente = true;
-        state.PassoAtual = OnboardingPasso.Materiais;
-
         var estrategia = _referencias.ObterEstrategia(state.Cliente);
-        if (estrategia != null)
-            AvancarComAutoSelecao(state, estrategia);
+        if (estrategia == null) return null;
 
+        switch (state.PassoAtual)
+        {
+            case OnboardingPasso.Oferta:
+                state.Oferta = texto.Trim();
+                state.PassoAtual = OnboardingPasso.Publico;
+                break;
+            case OnboardingPasso.Publico:
+                state.Publico = texto.Trim();
+                state.PassoAtual = OnboardingPasso.CtaLink;
+                break;
+            case OnboardingPasso.CtaLink:
+                state.CtaLink = texto.Trim();
+                state.CtaLinkDefinidoExplicitamente = true;
+                state.PassoAtual = OnboardingPasso.Materiais;
+                break;
+            default:
+                return null;
+        }
+
+        AvancarComAutoSelecao(state, estrategia);
         _store.Guardar(chatId, state);
-        return ObterPergunta(state, estrategia!);
+        return ObterPergunta(state, estrategia);
     }
 
     public void AdicionarMaterialFoto(long chatId, byte[] bytes, string fileName, string? caption)
@@ -176,8 +188,8 @@ public class OnboardingService
         var brief = new Brief(
             Canal: "email",
             Objetivo: objetivo,
-            Publico: routerBrief?.Publico,
-            Oferta: routerBrief?.Oferta,
+            Publico: !string.IsNullOrEmpty(state.Publico) ? state.Publico : routerBrief?.Publico,
+            Oferta: !string.IsNullOrEmpty(state.Oferta) ? state.Oferta : routerBrief?.Oferta,
             Tom: routerBrief?.Tom,
             Link: state.CtaLinkDefinidoExplicitamente ? state.CtaLink : routerBrief?.Link,
             Restricoes: routerBrief?.Restricoes != null
@@ -237,7 +249,7 @@ public class OnboardingService
             Objetivos.Contains(extraidos.Objetivo.ToLowerInvariant()))
         {
             state.Objetivo = extraidos.Objetivo.ToLowerInvariant();
-            state.PassoAtual = OnboardingPasso.CtaLink;
+            state.PassoAtual = OnboardingPasso.Oferta;
         }
     }
 
@@ -273,6 +285,16 @@ public class OnboardingService
         }
 
         if (!string.IsNullOrEmpty(briefOriginal.Objetivo))
+        {
+            state.PassoAtual = OnboardingPasso.Oferta;
+        }
+
+        if (!string.IsNullOrEmpty(briefOriginal.Oferta))
+        {
+            state.PassoAtual = OnboardingPasso.Publico;
+        }
+
+        if (!string.IsNullOrEmpty(briefOriginal.Publico))
         {
             state.PassoAtual = OnboardingPasso.CtaLink;
         }
@@ -356,7 +378,7 @@ public class OnboardingService
                 break;
             case OnboardingPasso.Objetivo:
                 state.Objetivo = valor.ToLowerInvariant();
-                state.PassoAtual = OnboardingPasso.CtaLink;
+                state.PassoAtual = OnboardingPasso.Oferta;
                 break;
         }
     }
@@ -374,10 +396,25 @@ public class OnboardingService
                 return ObterPergunta(state, estrategia);
 
             case "pular":
-                if (state.PassoAtual != OnboardingPasso.Materiais) return null;
-                state.PassoAtual = OnboardingPasso.Confirmacao;
-                _store.Guardar(state.ChatId, state);
-                return ObterPergunta(state, estrategia);
+                if (state.PassoAtual == OnboardingPasso.Oferta)
+                {
+                    state.PassoAtual = OnboardingPasso.Publico;
+                    _store.Guardar(state.ChatId, state);
+                    return ObterPergunta(state, estrategia);
+                }
+                if (state.PassoAtual == OnboardingPasso.Publico)
+                {
+                    state.PassoAtual = OnboardingPasso.CtaLink;
+                    _store.Guardar(state.ChatId, state);
+                    return ObterPergunta(state, estrategia);
+                }
+                if (state.PassoAtual == OnboardingPasso.Materiais)
+                {
+                    state.PassoAtual = OnboardingPasso.Confirmacao;
+                    _store.Guardar(state.ChatId, state);
+                    return ObterPergunta(state, estrategia);
+                }
+                return null;
 
             case "confirmar":
                 return null;
@@ -441,6 +478,24 @@ public class OnboardingService
                     OnboardingPasso.Objetivo,
                     Objetivos);
 
+            case OnboardingPasso.Oferta:
+                return new PerguntaOnboarding(
+                    "Qual a oferta/produto do email? (descreva em uma frase ou clique em Pular)",
+                    OnboardingTipoPasso.TextoLivre,
+                    new List<OpcaoOnboarding>
+                    {
+                        new("Pular", OnboardingCallbacks.Pular)
+                    });
+
+            case OnboardingPasso.Publico:
+                return new PerguntaOnboarding(
+                    "Qual o publico-alvo do email? (descreva em uma frase ou clique em Pular)",
+                    OnboardingTipoPasso.TextoLivre,
+                    new List<OpcaoOnboarding>
+                    {
+                        new("Pular", OnboardingCallbacks.Pular)
+                    });
+
             case OnboardingPasso.CtaLink:
                 return new PerguntaOnboarding(
                     "Qual o link do CTA? (envie a URL ou clique em Sem link)",
@@ -490,6 +545,10 @@ public class OnboardingService
             linhas.Add($"• Tema: {state.Tema}");
         if (!string.IsNullOrEmpty(state.Objetivo))
             linhas.Add($"• Objetivo: {FormatLabel(state.Objetivo)}");
+        if (!string.IsNullOrEmpty(state.Oferta))
+            linhas.Add($"• Oferta: {state.Oferta}");
+        if (!string.IsNullOrEmpty(state.Publico))
+            linhas.Add($"• Publico: {state.Publico}");
         if (!string.IsNullOrEmpty(state.CtaLink))
             linhas.Add($"• CTA: {state.CtaLink}");
         else
