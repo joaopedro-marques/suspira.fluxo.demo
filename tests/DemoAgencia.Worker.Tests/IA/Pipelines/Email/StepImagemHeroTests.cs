@@ -67,6 +67,41 @@ public class StepImagemHeroTests
     }
 
     [Fact]
+    public async Task ConstruirPromptBase_WithFatorDecisao_ShouldIncludeVisualTone()
+    {
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>());
+
+        var estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = new FaseEstrategia { Fase = "pos-compra" },
+            FatorDecisao = "E"
+        };
+
+        var prompt = await _step.ConstruirPromptBase("A professional banner", "mrv", estrategia, CancellationToken.None);
+
+        prompt.Should().Contain("Fator Emoção/Razão");
+        prompt.Should().Contain("inspirador");
+    }
+
+    [Fact]
+    public async Task ConstruirPromptBase_WithoutFatorDecisao_ShouldNotIncludeToneSection()
+    {
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>());
+
+        var estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = new FaseEstrategia { Fase = "pos-compra" },
+            FatorDecisao = null
+        };
+
+        var prompt = await _step.ConstruirPromptBase("A professional banner", "mrv", estrategia, CancellationToken.None);
+
+        prompt.Should().NotContain("Fator Emoção/Razão");
+    }
+
+    [Fact]
     public async Task ConstruirPromptBase_WithoutEstrategia_ShouldNotIncludePalette()
     {
         _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>());

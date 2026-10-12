@@ -257,6 +257,16 @@ public class StepImagemHero : IPipelineStep
             }
         }
 
+        if (!string.IsNullOrEmpty(estrategia?.FatorDecisao))
+        {
+            var tomVisual = TomEmocional.Visual(estrategia.FatorDecisao);
+            if (!string.IsNullOrEmpty(tomVisual))
+            {
+                prompt += $"\n\nFator Emoção/Razão — etapa: {estrategia.EtapaMapaEmocional}";
+                prompt += $"\n{tomVisual}";
+            }
+        }
+
         if (string.IsNullOrEmpty(cliente))
             return prompt;
 
