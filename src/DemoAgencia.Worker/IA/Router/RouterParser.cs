@@ -82,6 +82,7 @@ public static class RouterParser
         var etapaJornadaRaw = el.TryGetProperty("etapa_jornada", out var etEl) ? etEl.GetString() : null;
         var etapaJornada = FaseJornada.Normalizar(etapaJornadaRaw);
         var subJornada = el.TryGetProperty("sub_jornada", out var sjEl) ? sjEl.GetString() : null;
+        var tema = el.TryGetProperty("tema", out var temaEl) ? temaEl.GetString() : null;
 
         var restricoes = new List<string>();
         if (el.TryGetProperty("restricoes", out var restEl) && restEl.ValueKind == JsonValueKind.Array)
@@ -107,6 +108,6 @@ public static class RouterParser
             }
         }
 
-        return new Brief(canal, objetivo, publico, oferta, tom, link, restricoes, imagens, etapaJornada, subJornada);
+        return new Brief(canal, objetivo, publico, oferta, tom, link, restricoes, imagens, etapaJornada, subJornada, tema);
     }
 }

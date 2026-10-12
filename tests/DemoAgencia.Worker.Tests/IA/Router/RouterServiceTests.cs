@@ -392,6 +392,72 @@ public class RouterServiceTests
         prompts[1].Should().Contain("fora_contexto");
     }
 
+    [Fact]
+    public async Task Guarda_WhenProducaoComEtapaJornada_ShouldGoToProducaoEvenWithoutTema()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv" });
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-compra"] = new FaseEstrategia
+        {
+            Fase = "pos-compra",
+            Temas = new List<string> { "Boas vindas" }
+        };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "mrv", "brief": {"canal": "email", "etapa_jornada": "pos-compra", "objetivo": "vender"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar email pos-compra para MRV");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("producao");
+        resultado.Brief.Should().NotBeNull();
+        resultado.Brief!.EtapaJornada.Should().Be("pos-compra");
+    }
+
+    [Fact]
+    public async Task Guarda_WhenProducaoSemEtapaJornada_ShouldGoToOnboarding()
+    {
+        _refsMock.Setup(r => r.ListarClientes()).Returns(new List<string> { "mrv" });
+        var estrategia = new EstrategiaCliente { Cliente = "mrv" };
+        estrategia.Fases["pos-compra"] = new FaseEstrategia { Fase = "pos-compra" };
+        _refsMock.Setup(r => r.ObterEstrategia("mrv")).Returns(estrategia);
+
+        var restrictedOptions = Options.Create(new PreFlightOptions
+        {
+            MaxRodadasPerguntas = 2,
+            ClientesPermitidos = new List<string> { "mrv" },
+            CanaisPermitidos = new List<string> { "email" }
+        });
+        var restrictedService = new RouterService(
+            _refsMock.Object, _chatMock.Object, _catalogo, _store, restrictedOptions,
+            new Mock<ILogger<RouterService>>().Object);
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                "router", It.IsAny<double>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("""{"tipo": "producao", "cliente": "mrv", "brief": {"canal": "email", "objetivo": "vender"}}""");
+
+        var resultado = await restrictedService.IniciarAsync(123, "criar email para MRV");
+
+        resultado.Should().NotBeNull();
+        resultado!.Tipo.Should().Be("onboarding");
+        resultado.Brief.Should().NotBeNull();
+        resultado.Cliente.Should().Be("mrv");
+    }
+
     private class FakeTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset _now = DateTimeOffset.UtcNow;

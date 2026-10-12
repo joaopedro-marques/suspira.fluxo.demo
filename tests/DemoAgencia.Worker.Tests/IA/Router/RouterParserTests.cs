@@ -251,4 +251,28 @@ public class RouterParserTests
         resultado!.Tipo.Should().Be("conversa");
         resultado.Resposta.Should().Be("Ola!");
     }
+
+    [Fact]
+    public void TentarExtrair_WithTema_ShouldParse()
+    {
+        var texto = """
+        {
+            "tipo": "producao",
+            "cliente": "Acme",
+            "brief": {
+                "canal": "email",
+                "objetivo": "vender",
+                "tema": "Boas vindas",
+                "etapa_jornada": "pos-compra"
+            }
+        }
+        """;
+
+        var resultado = RouterParser.TentarExtrair(texto);
+
+        resultado.Should().NotBeNull();
+        resultado!.Brief.Should().NotBeNull();
+        resultado.Brief!.Tema.Should().Be("Boas vindas");
+        resultado.Brief.EtapaJornada.Should().Be("pos-compra");
+    }
 }

@@ -171,7 +171,7 @@ public class RouterService
             }
 
             var estrategia = _referencias.ObterEstrategia(cliente);
-            if (estrategia != null && (string.IsNullOrEmpty(resultado.Brief.EtapaJornada) || string.IsNullOrEmpty(resultado.Brief.Tema)))
+            if (estrategia != null && (string.IsNullOrEmpty(resultado.Brief.EtapaJornada) || !estrategia.Fases.ContainsKey(resultado.Brief.EtapaJornada)))
             {
                 var camposExtraidos = _briefExtractor.Extrair(estado.MensagemOriginal, estrategia);
 

@@ -25,6 +25,7 @@ Voce NAO faz perguntas de esclarecimento. Se faltar informacao critica, o sistem
 - cliente: nome exato mencionado na mensagem. Deve ser um dos clientes atendidos; se mencionar outro → fora_contexto. Se nao mencionou, tente inferir do contexto ou deixe null (o sistema ira perguntar via onboarding)
 - etapa_jornada: preencha apenas se o usuario declarou explicitamente (ex: "pos-compra", "pre-chaves", "pos-chaves"). Se ausente ou ambiguo, deixe null — o sistema ira extrair deterministicamente ou perguntar via onboarding
 - sub_jornada: preencha apenas se o usuario declarou explicitamente
+- tema: preencha apenas se o usuario declarou explicitamente um tema da estrategia do cliente. Se ausente ou ambiguo, deixe null
 - imagens: uma entrada por imagem a gerar, com papel (hero, banner, capa, post_principal...) e descricao visual; deck/carrossel = 1 entrada por slide
 - restricoes: apenas o que o usuario disse; NUNCA invente campos
 - motivo: quando classificar como fora_contexto, preencha o motivo (assunto_fora_escopo, cliente_nao_permitido, canal_nao_permitido)
@@ -44,6 +45,7 @@ Responda APENAS com este JSON, na raiz, sem envelope, sem fences markdown, sem e
     "link": "string",
     "etapa_jornada": "pos-compra | pre-chaves | pos-chaves",
     "sub_jornada": "string",
+    "tema": "string",
     "restricoes": ["string"],
     "imagens": [{"papel": "string", "descricao": "string"}]
   },
