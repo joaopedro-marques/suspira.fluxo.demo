@@ -146,7 +146,7 @@ public class StepCopyEmailTests
     }
 
     [Fact]
-    public void MontarPrompt_WithMapaEmocional_ShouldIncludeSentimentos()
+    public void MontarPrompt_WithFatorDecisao_ShouldIncludeToneInstruction()
     {
         var contexto = new PipelineContext
         {
@@ -158,17 +158,39 @@ public class StepCopyEmailTests
             {
                 Fase = "pos-compra",
                 FaseDados = new FaseEstrategia { Fase = "pos-compra" },
-                MapaEmocional = new List<EtapaEmocional>
-                {
-                    new() { Etapa = "CONTRATO", Sentimentos = new List<string> { "ANIMACAO", "FELICIDADE" } }
-                }
+                EtapaMapaEmocional = "ASSINATURA DO CONTRATO",
+                FatorDecisao = "E"
             }
         };
 
         var prompt = StepCopyEmail.MontarPrompt(contexto);
 
-        prompt.Should().Contain("Sentimentos");
-        prompt.Should().Contain("ANIMACAO");
+        prompt.Should().Contain("Fator Emoção/Razão");
+        prompt.Should().Contain("ASSINATURA DO CONTRATO");
+        prompt.Should().Contain("emocional");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithoutFatorDecisao_ShouldNotIncludeToneSection()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia { Fase = "pos-compra" },
+                EtapaMapaEmocional = null,
+                FatorDecisao = null
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().NotContain("Fator Emoção/Razão");
     }
 
     [Fact]

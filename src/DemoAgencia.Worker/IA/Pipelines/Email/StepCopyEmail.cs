@@ -89,11 +89,14 @@ public class StepCopyEmail : IPipelineStep
                 prompt += $"Sentimento da cor: {estrategia.FaseDados.DescricaoCor}\n";
         }
 
-        if (estrategia?.MapaEmocional.Count > 0)
+        if (!string.IsNullOrEmpty(estrategia?.FatorDecisao))
         {
-            var sentimentos = estrategia.MapaEmocional.SelectMany(e => e.Sentimentos).Distinct();
-            if (sentimentos.Any())
-                prompt += $"\n## Sentimentos-alvo na jornada\n{string.Join(", ", sentimentos)}\n";
+            var tom = TomEmocional.Verbal(estrategia.FatorDecisao);
+            if (!string.IsNullOrEmpty(tom))
+            {
+                prompt += $"\n## Fator Emoção/Razão — etapa: {estrategia.EtapaMapaEmocional}\n";
+                prompt += $"{tom}\n";
+            }
         }
 
         if (estrategia != null)
