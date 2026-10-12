@@ -94,6 +94,10 @@ public class StepImagemHero : IPipelineStep
             {
                 bannerRejeitado = true;
             }
+            else if (!string.IsNullOrEmpty(context.Brief.Oferta))
+            {
+                bannerRejeitado = true;
+            }
         }
 
         var heroBrief = context.Brief.Imagens.FirstOrDefault(i =>

@@ -564,9 +564,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 .ToList();
         }
 
-        if (temTema)
-            return Array.Empty<AssetVisual>();
-
         return scored
             .Where(x => x.score > 0)
             .OrderByDescending(x => x.score)

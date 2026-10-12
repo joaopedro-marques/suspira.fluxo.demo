@@ -681,7 +681,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
-    public async Task SelecionarBannersRanked_WithTemaNotMatchingAnyName_ShouldReturnEmpty()
+    public async Task SelecionarBannersRanked_WithTemaNotMatchingAnyName_ShouldFallbackToScoreBased()
     {
         var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
         Directory.CreateDirectory(bannersDir);
@@ -697,6 +697,26 @@ public class ReferenciaClienteLoaderTests : IDisposable
             tema: "Sustentabilidade");
 
         ranked.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SelecionarBannersRanked_WithTemaNotMatching_ShouldFallbackWhenScoreAboveZero()
+    {
+        var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
+        Directory.CreateDirectory(bannersDir);
+
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_juros_fase_de_obra.png"), new byte[] { 1 });
+        await File.WriteAllBytesAsync(Path.Combine(bannersDir, "MRV_agendar_vistoria.png"), new byte[] { 2 });
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var ranked = loader.SelecionarBannersRanked(
+            "mrv", "pre-chaves", "vistoria", null, "vistoria", 5,
+            tema: "Sustentabilidade");
+
+        ranked.Should().HaveCount(1);
+        ranked[0].Nome.Should().Contain("vistoria");
     }
 
     [Fact]
