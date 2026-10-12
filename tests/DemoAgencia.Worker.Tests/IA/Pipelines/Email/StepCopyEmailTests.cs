@@ -115,7 +115,7 @@ public class StepCopyEmailTests
     }
 
     [Fact]
-    public void MontarPrompt_WithSatisfacoes_ShouldIncludeGuidance()
+    public void MontarPrompt_ShouldNotIncludeSatisfacoesSection()
     {
         var contexto = new PipelineContext
         {
@@ -127,22 +127,61 @@ public class StepCopyEmailTests
             {
                 Fase = "pos-compra",
                 FaseDados = new FaseEstrategia { Fase = "pos-compra" },
-                Satisfacoes = new List<CategoriaSatisfacao>
+            }
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().NotContain("satisfac");
+        prompt.Should().NotContain("insatisfac");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithTomNoBrief_ShouldIncludeTomInBriefing()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, "informativo e convidativo", null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+        };
+
+        var prompt = StepCopyEmail.MontarPrompt(contexto);
+
+        prompt.Should().Contain("Tom: informativo e convidativo");
+    }
+
+    [Fact]
+    public void MontarPrompt_WithCoresHex_ShouldIncludeHexCodes()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>(), "pos-compra", null),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
                 {
-                    new() { Nome = "Atendimento", Itens = new List<string> { "Elogio", "Geral" } }
-                },
-                Insatisfacoes = new List<CategoriaSatisfacao>
-                {
-                    new() { Nome = "Entrega", Itens = new List<string> { "Demora", "Atraso" } }
+                    Fase = "pos-compra",
+                    CoresHex = new List<List<string>>
+                    {
+                        new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56" },
+                        new() { "#F48421", "#FFB719" },
+                        new() { "#784099" }
+                    }
                 }
             }
         };
 
         var prompt = StepCopyEmail.MontarPrompt(contexto);
 
-        prompt.Should().Contain("satisfacoes");
-        prompt.Should().Contain("Elogio");
-        prompt.Should().Contain("Demora");
+        prompt.Should().Contain("#006B40");
+        prompt.Should().Contain("#F48421");
+        prompt.Should().Contain("#784099");
     }
 
     [Fact]

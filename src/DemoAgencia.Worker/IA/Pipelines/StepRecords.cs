@@ -3,8 +3,6 @@ using DemoAgencia.Worker.IA;
 namespace DemoAgencia.Worker.IA.Pipelines;
 
 public record MarcaEmail(
-    string? TomDeVoz,
-    string? Cores,
     byte[]? LogoBytes,
     string? LogoExtensao);
 

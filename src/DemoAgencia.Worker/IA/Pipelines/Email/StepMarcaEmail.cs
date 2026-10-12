@@ -18,7 +18,7 @@ public class StepMarcaEmail : IPipelineStep
         var cliente = context.Cliente;
         if (string.IsNullOrEmpty(cliente))
         {
-            context.Marca = new MarcaEmail(null, null, null, null);
+            context.Marca = new MarcaEmail(null, null);
             context.LogoSrc = null;
             return Task.FromResult(context);
         }
@@ -34,10 +34,7 @@ public class StepMarcaEmail : IPipelineStep
             logoExt = Path.GetExtension(logo.Caminho).TrimStart('.');
         }
 
-        var textoRefs = _referencias.ObterReferenciasTexto(cliente);
-        var (cores, tom) = ExtrairMetadata(textoRefs);
-
-        context.Marca = new MarcaEmail(tom, cores, logoBytes, logoExt);
+        context.Marca = new MarcaEmail(logoBytes, logoExt);
         context.LogoSrc = logoBytes != null ? $"assets/logo.{logoExt}" : null;
 
         if (logoBytes != null)
@@ -46,30 +43,5 @@ public class StepMarcaEmail : IPipelineStep
         }
 
         return Task.FromResult(context);
-    }
-
-    private static (string? cores, string? tom) ExtrairMetadata(string textoRefs)
-    {
-        if (string.IsNullOrEmpty(textoRefs))
-            return (null, null);
-
-        string? cores = null;
-        string? tom = null;
-
-        var linhas = textoRefs.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var linha in linhas)
-        {
-            var linhaLower = linha.ToLowerInvariant();
-            if (linhaLower.Contains("cor") || linhaLower.Contains("paleta") || linhaLower.Contains("color"))
-            {
-                cores = linha.Trim();
-            }
-            else if (linhaLower.Contains("tom") || linhaLower.Contains("voz") || linhaLower.Contains("tone"))
-            {
-                tom = linha.Trim();
-            }
-        }
-
-        return (cores, tom);
     }
 }

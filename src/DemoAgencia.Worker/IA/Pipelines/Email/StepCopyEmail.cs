@@ -51,7 +51,6 @@ public class StepCopyEmail : IPipelineStep
     internal static string MontarPrompt(PipelineContext context)
     {
         var brief = context.Brief;
-        var marca = context.Marca;
         var estrategia = context.Estrategia;
 
         var prompt = $"## Briefing\n";
@@ -61,18 +60,12 @@ public class StepCopyEmail : IPipelineStep
             prompt += $"Publico-alvo: {brief.Publico}\n";
         if (!string.IsNullOrEmpty(brief.Oferta))
             prompt += $"Oferta/produto: {brief.Oferta}\n";
+        if (!string.IsNullOrEmpty(brief.Tom))
+            prompt += $"Tom: {brief.Tom}\n";
         if (!string.IsNullOrEmpty(brief.Link))
             prompt += $"Link do CTA: {brief.Link}\n";
         if (brief.Restricoes.Count > 0)
             prompt += $"Restricoes: {string.Join(", ", brief.Restricoes)}\n";
-
-        if (marca != null)
-        {
-            if (!string.IsNullOrEmpty(marca.TomDeVoz))
-                prompt += $"\n## Tom de voz da marca\n{marca.TomDeVoz}\n";
-            if (!string.IsNullOrEmpty(marca.Cores))
-                prompt += $"\n## Paleta de cores\n{marca.Cores}\n";
-        }
 
         if (estrategia?.FaseDados != null)
         {
@@ -87,6 +80,14 @@ public class StepCopyEmail : IPipelineStep
                 prompt += $"Cor da fase: {estrategia.FaseDados.CorPrincipal}\n";
             if (!string.IsNullOrEmpty(estrategia.FaseDados.DescricaoCor))
                 prompt += $"Sentimento da cor: {estrategia.FaseDados.DescricaoCor}\n";
+            if (estrategia.FaseDados.CoresHex.Count > 0)
+            {
+                var hexList = estrategia.FaseDados.CoresHex
+                    .SelectMany(h => h)
+                    .Where(c => c.StartsWith("#", StringComparison.Ordinal));
+                if (hexList.Any())
+                    prompt += $"Cores hex da fase: {string.Join(", ", hexList)}\n";
+            }
         }
 
         if (!string.IsNullOrEmpty(estrategia?.FatorDecisao))
@@ -96,24 +97,6 @@ public class StepCopyEmail : IPipelineStep
             {
                 prompt += $"\n## Fator Emoção/Razão — etapa: {estrategia.EtapaMapaEmocional}\n";
                 prompt += $"{tom}\n";
-            }
-        }
-
-        if (estrategia != null)
-        {
-            if (estrategia.Satisfacoes.Count > 0 || estrategia.Insatisfacoes.Count > 0)
-            {
-                prompt += $"\n## Guia de satisfacoes e insatisfacoes\n";
-                if (estrategia.Satisfacoes.Count > 0)
-                {
-                    var itens = estrategia.Satisfacoes.SelectMany(c => c.Itens).Distinct();
-                    prompt += $"Pontos de satisfacao a reforcar: {string.Join(", ", itens)}\n";
-                }
-                if (estrategia.Insatisfacoes.Count > 0)
-                {
-                    var itens = estrategia.Insatisfacoes.SelectMany(c => c.Itens).Distinct();
-                    prompt += $"Pontos de insatisfacao a mitigar: {string.Join(", ", itens)}\n";
-                }
             }
         }
 
