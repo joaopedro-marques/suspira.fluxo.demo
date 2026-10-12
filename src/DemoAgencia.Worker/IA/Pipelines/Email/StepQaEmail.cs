@@ -142,12 +142,8 @@ public partial class StepQaEmail : IPipelineStep
                 prompt += $"Sub-jornada: {estrategia.SubJornada}\n";
             if (estrategia.FaseDados.Temas.Count > 0)
                 prompt += $"Temas esperados: {string.Join(", ", estrategia.FaseDados.Temas)}\n";
-            if (estrategia.MapaEmocional.Count > 0)
-            {
-                var sentimentos = estrategia.MapaEmocional.SelectMany(e => e.Sentimentos).Distinct();
-                if (sentimentos.Any())
-                    prompt += $"Sentimentos esperados: {string.Join(", ", sentimentos)}\n";
-            }
+            if (!string.IsNullOrEmpty(estrategia.EtapaMapaEmocional))
+                prompt += $"Etapa emocional: {estrategia.EtapaMapaEmocional} (fator: {estrategia.FatorDecisao})\n";
             prompt += "Avalie se a copy e a imagem estao alinhadas com a fase, temas e sentimentos da jornada.\n";
         }
 

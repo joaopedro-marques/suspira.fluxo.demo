@@ -27,10 +27,8 @@ public class StepQaEmailPromptTests
                     Fase = "pos-compra",
                     Temas = new List<string> { "Boas vindas", "Financeiro" }
                 },
-                MapaEmocional = new List<EtapaEmocional>
-                {
-                    new() { Etapa = "CONTRATO", Sentimentos = new List<string> { "ANIMACAO" } }
-                },
+                EtapaMapaEmocional = "ASSINATURA DO CONTRATO",
+                FatorDecisao = "ER",
                 SubJornada = "Pos Financiamento"
             }
         };
@@ -40,7 +38,8 @@ public class StepQaEmailPromptTests
         prompt.Should().Contain("Estrategia de jornada");
         prompt.Should().Contain("pos-compra");
         prompt.Should().Contain("Boas vindas");
-        prompt.Should().Contain("ANIMACAO");
+        prompt.Should().Contain("ASSINATURA DO CONTRATO");
+        prompt.Should().Contain("ER");
         prompt.Should().Contain("Pos Financiamento");
         prompt.Should().Contain("alinhadas com a fase");
     }
