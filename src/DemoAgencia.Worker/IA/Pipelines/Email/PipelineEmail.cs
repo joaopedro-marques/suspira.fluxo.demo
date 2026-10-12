@@ -18,6 +18,7 @@ public class PipelineEmail
     private readonly ILogger<StepImagemHero> _heroLogger;
     private readonly ILogger<StepDiagramacaoEmail> _diagramacaoLogger;
     private readonly ILogger<StepMapaEmocionalEmail> _mapaLogger;
+    private readonly ILogger<StepAssetsEmail> _assetsLogger;
     private readonly string _heroSectionTemplate;
     private readonly string _bannerSectionTemplate;
 
@@ -34,6 +35,7 @@ public class PipelineEmail
         ILogger<StepImagemHero> heroLogger,
         ILogger<StepDiagramacaoEmail> diagramacaoLogger,
         ILogger<StepMapaEmocionalEmail> mapaLogger,
+        ILogger<StepAssetsEmail> assetsLogger,
         string heroSectionTemplate,
         string bannerSectionTemplate)
     {
@@ -49,6 +51,7 @@ public class PipelineEmail
         _heroLogger = heroLogger;
         _diagramacaoLogger = diagramacaoLogger;
         _mapaLogger = mapaLogger;
+        _assetsLogger = assetsLogger;
         _heroSectionTemplate = heroSectionTemplate;
         _bannerSectionTemplate = bannerSectionTemplate;
     }
@@ -64,7 +67,7 @@ public class PipelineEmail
             new StepDiagramacaoEmail(_catalogo.Obter("diagramador"), _servicoChat, _referencias, _iconCache, _diagramacaoLogger),
             new StepImagemHero(_catalogo.Obter("hero"), _catalogo.Obter("curador"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem, _templateCatalogo, _bannerCache, _iconCache, _heroLogger),
             new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate, _bannerSectionTemplate),
-            new StepAssetsEmail(_referencias),
+            new StepAssetsEmail(_referencias, _assetsLogger),
             new StepQaEmail(_catalogo.Obter("qa"), _servicoChat)
         };
 

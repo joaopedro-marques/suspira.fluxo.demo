@@ -4,6 +4,7 @@ using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
@@ -19,7 +20,7 @@ public class StepAssetsEmailTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         Directory.CreateDirectory(_tempDir);
         _refsMock = new Mock<IReferenciasCliente>();
-        _step = new StepAssetsEmail(_refsMock.Object);
+        _step = new StepAssetsEmail(_refsMock.Object, Mock.Of<ILogger<StepAssetsEmail>>());
     }
 
     public void Dispose()
@@ -85,7 +86,7 @@ public class StepAssetsEmailTests : IDisposable
     }
 
     [Fact]
-    public async Task ExecutarAsync_WithUnmatchedReference_ShouldSkipSilently()
+    public async Task ExecutarAsync_WithUnmatchedReference_ShouldRemoveImgTagFromHtml()
     {
         _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>());
 
@@ -94,12 +95,14 @@ public class StepAssetsEmailTests : IDisposable
             ChatId = 1,
             Cliente = "mrv",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
-            Html = """<img src="assets/nonexistent.png">"""
+            Html = """<div><img src="assets/nonexistent.png"></div>"""
         };
 
         context = await _step.ExecutarAsync(context, CancellationToken.None);
 
         context.Resultado.AssetsAnexados.Should().BeEmpty();
+        context.Html.Should().NotContain("nonexistent.png");
+        context.Html.Should().Contain("<div></div>");
     }
 
     [Fact]

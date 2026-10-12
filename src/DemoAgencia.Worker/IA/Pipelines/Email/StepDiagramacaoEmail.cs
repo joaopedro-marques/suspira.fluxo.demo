@@ -101,7 +101,7 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             if (icons.Count > 0)
             {
                 prompt += $"\n## Icones disponiveis\n";
-                prompt += $"Referencie cada icone como assets/{{nome}}.png. Selecione o icone mais adequado pelo significado:\n";
+                prompt += $"Use APENAS os icones listados abaixo. Copie o nome EXATAMENTE como mostrado (incluindo extensao). NUNCA invente, altere ou alucine nomes de arquivos. Se nao houver icone adequado, nao use nenhum.\n";
                 foreach (var icon in icons)
                 {
                     var desc = await iconCache.ObterDescricaoAsync(icon, ct);

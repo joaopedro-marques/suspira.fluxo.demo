@@ -374,6 +374,7 @@ public class TelegramServiceOnboardingTests
             Mock.Of<ILogger<StepImagemHero>>(),
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
             Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
+            Mock.Of<ILogger<StepAssetsEmail>>(),
             "",
             "");
         pipelineMock.Setup(p => p.CriarSteps()).Returns(new List<IPipelineStep>());

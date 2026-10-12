@@ -113,6 +113,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<ILogger<StepImagemHero>>(),
             sp.GetRequiredService<ILogger<StepDiagramacaoEmail>>(),
             sp.GetRequiredService<ILogger<StepMapaEmocionalEmail>>(),
+            sp.GetRequiredService<ILogger<StepAssetsEmail>>(),
             heroSectionTemplate,
             bannerSectionTemplate));
 
