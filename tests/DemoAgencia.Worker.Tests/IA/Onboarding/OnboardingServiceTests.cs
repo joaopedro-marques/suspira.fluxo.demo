@@ -474,6 +474,59 @@ public class OnboardingServiceTests
         brief!.LinksExtras.Should().Contain("https://extra.com");
     }
 
+    [Fact]
+    public void Confirmar_WithRouterBrief_ShouldPreservePublicoOfertaTom()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "Chamar clientes para a reunião condominial do Edifício Del Rey.",
+            Publico: "Clientes MRV 27-45 anos, recém-casados",
+            Oferta: "Reunião condominial dia 09/10 às 20h",
+            Tom: "informativo e convidativo",
+            Link: null,
+            Restricoes: new List<string> { "nao mencionar concorrentes" },
+            Imagens: new List<ImagemBrief> { new("hero", "foto do edificio") },
+            EtapaJornada: "pos-chaves",
+            SubJornada: null,
+            Tema: "Assistência técnica");
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+        CompletarOnboarding(123);
+
+        var brief = _service.Confirmar(123);
+
+        brief.Should().NotBeNull();
+        brief!.Publico.Should().Be("Clientes MRV 27-45 anos, recém-casados");
+        brief.Oferta.Should().Be("Reunião condominial dia 09/10 às 20h");
+        brief.Tom.Should().Be("informativo e convidativo");
+        brief.Restricoes.Should().Contain("nao mencionar concorrentes");
+        brief.Imagens.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void Confirmar_WithRouterBrief_ShouldPreferRichObjetivo()
+    {
+        SetupEstrategiaCompleta();
+        var routerBrief = new Brief(
+            Canal: "email",
+            Objetivo: "Chamar clientes para a reunião condominial do Edifício Del Rey.",
+            Publico: "publico",
+            Oferta: "oferta",
+            Tom: "tom",
+            Link: null,
+            Restricoes: new List<string>(),
+            Imagens: new List<ImagemBrief>());
+
+        _service.Iniciar(123, "mrv", "pedido original", null, routerBrief);
+        CompletarOnboarding(123);
+
+        var brief = _service.Confirmar(123);
+
+        brief.Should().NotBeNull();
+        brief!.Objetivo.Should().Be("Chamar clientes para a reunião condominial do Edifício Del Rey.");
+    }
+
     #endregion
 
     #region Recomeçar

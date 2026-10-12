@@ -25,7 +25,8 @@ public class OnboardingService
         long chatId,
         string cliente,
         string mensagemOriginal,
-        CamposExtraidos? extraidos = null)
+        CamposExtraidos? extraidos = null,
+        Brief? briefOriginal = null)
     {
         var estrategia = _referencias.ObterEstrategia(cliente);
         if (estrategia == null)
@@ -40,6 +41,7 @@ public class OnboardingService
             Cliente = cliente,
             MensagemOriginal = mensagemOriginal,
             PassoAtual = OnboardingPasso.Etapa,
+            BriefOriginal = briefOriginal,
             CriadoEm = DateTimeOffset.UtcNow
         };
 
@@ -125,15 +127,24 @@ public class OnboardingService
         var state = _store.Obter(chatId);
         if (state == null) return null;
 
+        var routerBrief = state.BriefOriginal;
+        var objetivo = !string.IsNullOrEmpty(routerBrief?.Objetivo)
+            ? routerBrief!.Objetivo
+            : state.Objetivo;
+
         var brief = new Brief(
             Canal: "email",
-            Objetivo: state.Objetivo,
-            Publico: null,
-            Oferta: null,
-            Tom: null,
-            Link: state.CtaLink,
-            Restricoes: new List<string>(),
-            Imagens: new List<ImagemBrief>(),
+            Objetivo: objetivo,
+            Publico: routerBrief?.Publico,
+            Oferta: routerBrief?.Oferta,
+            Tom: routerBrief?.Tom,
+            Link: state.CtaLink ?? routerBrief?.Link,
+            Restricoes: routerBrief?.Restricoes != null
+                ? new List<string>(routerBrief.Restricoes)
+                : new List<string>(),
+            Imagens: routerBrief?.Imagens != null
+                ? new List<ImagemBrief>(routerBrief.Imagens)
+                : new List<ImagemBrief>(),
             EtapaJornada: state.EtapaJornada,
             SubJornada: state.Marco,
             Tema: state.Tema,

@@ -183,7 +183,7 @@ public class RouterService
                     Tipo: "onboarding",
                     Resposta: null,
                     Cliente: cliente,
-                    Brief: null,
+                    Brief: resultado.Brief,
                     Motivo: null,
                     CamposExtraidos: camposExtraidos);
             }

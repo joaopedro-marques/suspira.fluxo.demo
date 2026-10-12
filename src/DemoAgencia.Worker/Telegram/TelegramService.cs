@@ -327,7 +327,7 @@ public class TelegramService : BackgroundService
                     return;
                 }
 
-                var pergunta = _onboarding.Iniciar(chatId, resultado.Cliente, mensagemOriginal, resultado.CamposExtraidos);
+                var pergunta = _onboarding.Iniciar(chatId, resultado.Cliente, mensagemOriginal, resultado.CamposExtraidos, resultado.Brief);
                 if (pergunta == null)
                 {
                     await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "Nao consegui iniciar o onboarding. Tente novamente.", ct);

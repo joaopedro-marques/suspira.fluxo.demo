@@ -1,3 +1,5 @@
+using DemoAgencia.Worker.IA.Router;
+
 namespace DemoAgencia.Worker.IA.Onboarding;
 
 public class OnboardingState
@@ -11,7 +13,9 @@ public class OnboardingState
     public string? Tema { get; set; }
     public string? Objetivo { get; set; }
     public string? CtaLink { get; set; }
+    public bool CtaLinkDefinidoExplicitamente { get; set; }
     public List<string> LinksExtras { get; set; } = new();
     public List<MaterialCliente> Materiais { get; set; } = new();
+    public Brief? BriefOriginal { get; set; }
     public DateTimeOffset CriadoEm { get; set; }
 }
