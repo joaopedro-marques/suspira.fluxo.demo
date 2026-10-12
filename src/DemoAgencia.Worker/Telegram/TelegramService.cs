@@ -334,7 +334,6 @@ public class TelegramService : BackgroundService
                     return;
                 }
 
-                await _gateway!.EditMessageReplyMarkupAsync(chatId, mensagemProgressoId, ct);
                 await EnviarPerguntaOnboardingAsync(chatId, pergunta, ct);
                 return;
 
