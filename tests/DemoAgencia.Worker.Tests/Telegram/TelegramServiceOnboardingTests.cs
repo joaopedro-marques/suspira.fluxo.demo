@@ -334,4 +334,102 @@ public class TelegramServiceOnboardingTests
         var state = _onboardingStore.Obter(123);
         state!.PassoAtual.Should().Be(OnboardingPasso.Materiais);
     }
+
+    [Fact]
+    public async Task ConfirmarOnboarding_PipelineDeveReceberClienteEMensagemOriginal()
+    {
+        SetupEstrategiaCompleta();
+        _onboardingService.Iniciar(123, "mrv", "pedido original MRV reunião");
+        _onboardingService.Responder(123, "onb|etapa|pos-chaves");
+        _onboardingService.Responder(123, "onb|tema|Assistência técnica");
+        _onboardingService.Responder(123, "onb|objetivo|engajar");
+        _onboardingService.Responder(123, "onb|sem-link");
+        _onboardingService.Responder(123, "onb|pular");
+
+        PipelineContext? capturedContext = null;
+        var runnerMock = new Mock<PipelineRunner>(Mock.Of<ILogger<PipelineRunner>>());
+        runnerMock.Setup(r => r.ExecutarAsync(
+                It.IsAny<PipelineContext>(),
+                It.IsAny<IReadOnlyList<IPipelineStep>>(),
+                It.IsAny<int>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<PipelineContext, IReadOnlyList<IPipelineStep>, int, CancellationToken>(
+                (ctx, _, _, _) => capturedContext = ctx)
+            .ReturnsAsync(new ResultadoPipeline { QaAprovado = true });
+
+        var pipelineMock = new Mock<PipelineEmail>(
+            Mock.Of<IServicoChat>(),
+            Mock.Of<IGeradorImagem>(),
+            _referenciasMock.Object,
+            Mock.Of<IAnalisadorImagem>(),
+            Mock.Of<IAgentesCatalogo>(),
+            Mock.Of<ITemplateCatalogo>(),
+            Mock.Of<IBannerDescricaoCache>(),
+            Mock.Of<IIconDescricaoCache>(),
+            Mock.Of<ILogger<StepCopyEmail>>(),
+            Mock.Of<ILogger<StepImagemHero>>(),
+            Mock.Of<ILogger<StepDiagramacaoEmail>>(),
+            Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
+            "",
+            "");
+        pipelineMock.Setup(p => p.CriarSteps()).Returns(new List<IPipelineStep>());
+
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner)))
+            .Returns(runnerMock.Object);
+        _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail)))
+            .Returns(pipelineMock.Object);
+
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(_telegramOptions.BotToken)).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var callbackMessage = new Message
+        {
+            Id = 10,
+            Chat = new Chat { Id = 123, Type = ChatType.Private }
+        };
+        var callback = new CallbackQuery
+        {
+            Id = "cb1",
+            Data = OnboardingCallbacks.Confirmar,
+            Message = callbackMessage
+        };
+        var update = new Update { Id = 42, CallbackQuery = callback };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { update });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        gatewayMock.Setup(g => g.AnswerCallbackQueryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        gatewayMock.Setup(g => g.EditMessageTextAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        gatewayMock.Setup(g => g.EditMessageTextAsync(It.IsAny<long>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<InlineKeyboardMarkup?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        gatewayMock.Setup(g => g.SendChatActionAsync(It.IsAny<long>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        gatewayMock.Setup(g => g.SendDocumentAsync(It.IsAny<long>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        gatewayMock.Setup(g => g.DownloadFileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new byte[] { 1 });
+
+        var service = CriarService();
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(500);
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
+
+        capturedContext.Should().NotBeNull("pipeline deve ter sido executado apos confirmar onboarding");
+        capturedContext!.Cliente.Should().Be("mrv");
+        capturedContext.MensagemOriginal.Should().Be("pedido original MRV reunião");
+    }
 }

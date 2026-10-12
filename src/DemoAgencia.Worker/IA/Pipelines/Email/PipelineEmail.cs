@@ -53,7 +53,7 @@ public class PipelineEmail
         _bannerSectionTemplate = bannerSectionTemplate;
     }
 
-    public IReadOnlyList<IPipelineStep> CriarSteps()
+    public virtual IReadOnlyList<IPipelineStep> CriarSteps()
     {
         var steps = new List<IPipelineStep>
         {

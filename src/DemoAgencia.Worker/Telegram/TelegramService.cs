@@ -499,6 +499,10 @@ public class TelegramService : BackgroundService
 
     private async Task ConfirmarOnboardingAsync(long chatId, int messageId, CancellationToken ct)
     {
+        var state = _onboardingStore.Obter(chatId);
+        var cliente = state?.Cliente ?? "";
+        var mensagemOriginal = state?.MensagemOriginal ?? "";
+
         var brief = _onboarding.Confirmar(chatId);
         if (brief == null)
         {
@@ -515,7 +519,7 @@ public class TelegramService : BackgroundService
         ResultadoPipeline resultadoPipeline;
         try
         {
-            resultadoPipeline = await ExecutarPipelineEmailOnboarding(chatId, brief, ct);
+            resultadoPipeline = await ExecutarPipelineEmailOnboarding(chatId, brief, cliente, mensagemOriginal, ct);
         }
         finally
         {
@@ -542,19 +546,18 @@ public class TelegramService : BackgroundService
         await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
     }
 
-    private async Task<ResultadoPipeline> ExecutarPipelineEmailOnboarding(long chatId, Brief brief, CancellationToken ct)
+    internal virtual async Task<ResultadoPipeline> ExecutarPipelineEmailOnboarding(long chatId, Brief brief, string cliente, string mensagemOriginal, CancellationToken ct)
     {
         var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
         var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
         var steps = pipeline.CriarSteps();
 
-        var onboardingState = _onboardingStore.Obter(chatId);
         var context = new PipelineContext
         {
             ChatId = chatId,
             Brief = brief,
-            MensagemOriginal = onboardingState?.MensagemOriginal ?? "",
-            Cliente = onboardingState?.Cliente
+            MensagemOriginal = mensagemOriginal,
+            Cliente = cliente
         };
 
         return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
