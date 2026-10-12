@@ -219,6 +219,7 @@ public class TelegramServiceTests
             Mock.Of<ILogger<StepCopyEmail>>(),
             Mock.Of<ILogger<StepImagemHero>>(),
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
+            Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
             "<tr></tr>",
             "<tr></tr>");
 
@@ -350,6 +351,7 @@ public class TelegramServiceTests
             Mock.Of<ILogger<StepCopyEmail>>(),
             Mock.Of<ILogger<StepImagemHero>>(),
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
+            Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
             "<tr></tr>",
             "<tr></tr>");
 
