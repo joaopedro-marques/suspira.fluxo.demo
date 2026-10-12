@@ -608,7 +608,7 @@ public class TelegramService : BackgroundService
             foreach (var imagem in resultado.Imagens)
             {
                 imageIndex++;
-                var ext = DetectarExtensaoImagem(imagem.Bytes);
+                var ext = ImageFormatHelper.DetectarExtensao(imagem.Bytes);
                 var imgEntry = archive.CreateEntry($"imagens/gerada_{imageIndex}{ext}");
                 using var entryStream = imgEntry.Open();
                 await entryStream.WriteAsync(imagem.Bytes, ct);
@@ -618,7 +618,7 @@ public class TelegramService : BackgroundService
             foreach (var asset in resultado.AssetsAnexados)
             {
                 assetIndex++;
-                var ext = DetectarExtensaoImagem(asset.Bytes);
+                var ext = ImageFormatHelper.DetectarExtensao(asset.Bytes);
                 var nomeSeguro = (asset.Legenda ?? $"asset_{assetIndex}")
                     .Replace("/", "_").Replace("\\", "_").Replace(" ", "_");
                 var nomeSemExt = Path.GetFileNameWithoutExtension(nomeSeguro);
@@ -630,18 +630,5 @@ public class TelegramService : BackgroundService
 
         memoryStream.Position = 0;
         await _gateway!.SendDocumentAsync(chatId, memoryStream, "entregavel.zip", "Entregavel HTML completo com assets", ct);
-    }
-
-    private static string DetectarExtensaoImagem(byte[] bytes)
-    {
-        if (bytes.Length >= 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)
-            return ".png";
-        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8)
-            return ".jpg";
-        if (bytes.Length >= 4 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46)
-            return ".gif";
-        if (bytes.Length >= 4 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46)
-            return ".webp";
-        return ".bin";
     }
 }

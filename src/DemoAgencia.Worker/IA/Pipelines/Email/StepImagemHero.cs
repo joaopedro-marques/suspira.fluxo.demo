@@ -139,8 +139,9 @@ public class StepImagemHero : IPipelineStep
         }
 
         var indice = context.Resultado.Imagens.Count + 1;
+        var ext = ImageFormatHelper.DetectarExtensao(resultado.Bytes);
         context.Resultado.Imagens.Add(new ImagemGerada(resultado.Bytes, $"Hero image {indice}"));
-        context.HeroSrc = $"imagens/gerada_{indice}.png";
+        context.HeroSrc = $"imagens/gerada_{indice}{ext}";
         context.BannerSrc = null;
 
         return context;
