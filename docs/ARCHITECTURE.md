@@ -70,6 +70,7 @@ sequenceDiagram
     participant T as TelegramService
     participant R as RouterService
     participant PS as ConversaPendenteStore
+    participant O as OnboardingService
     
     U->>T: Mensagem livre
     T->>R: IniciarAsync(chatId, mensagem)
@@ -80,17 +81,21 @@ sequenceDiagram
     
     alt tipo = conversa
         T-->>U: Resposta direta
-    else tipo = esclarecimento
-        R->>PS: Guardar estado (perguntas)
-        T-->>U: Perguntas
-        U->>T: Respostas
-        T->>R: ResumirAsync(chatId, respostas)
-        R->>R: Re-processar com respostas acumuladas
-        R-->>T: RouterResultado (producao)
     else tipo = fora_contexto
         T-->>U: Mensagem específica por motivo (cliente/canal/assunto)
-    else tipo = producao
-        T->>T: Dispatch por canal
+    else tipo = producao (com etapa_jornada valida)
+        T->>T: Dispatch por canal (pipeline direto)
+    else tipo = producao/onboarding (sem etapa_jornada ou invalida)
+        T->>O: Iniciar(chatId, cliente, mensagem, camposExtraidos, briefOriginal)
+        O-->>T: Pergunta onboarding
+        loop Coleta de respostas (etapa, marco, tema, objetivo, cta)
+            T-->>U: Pergunta
+            U->>T: Resposta
+            T->>O: Responder/ResponderTexto
+        end
+        T->>O: Confirmar(chatId)
+        O-->>T: Brief (merge: router brief rico + respostas onboarding)
+        T->>T: Dispatch por canal (pipeline via onboarding)
     end
 ```
 
@@ -109,6 +114,7 @@ sequenceDiagram
     "link": "https://acme.com/promo",
     "etapa_jornada": "pos-compra | pre-chaves | pos-chaves",
     "sub_jornada": "Pos Financiamento",
+    "tema": "Boas vindas",
     "restricoes": ["sem emojis", "max 200 palavras"],
     "imagens": [{"papel": "hero", "descricao": "Banner com produto"}]
   }
@@ -559,7 +565,7 @@ src/DemoAgencia.Worker/
 ```csharp
 public record Brief(
     string Canal,           // email | instagram | landing
-    string? Objetivo,       // vender | engajar | informar
+    string? Objetivo,       // vender | engajar | informar (frase rica do router ou valor normalizado)
     string? Publico,        // Descrição do público-alvo
     string? Oferta,         // Produto/serviço em oferta
     string? Tom,            // Tom de voz desejado
@@ -567,7 +573,8 @@ public record Brief(
     List<string> Restricoes,// Restrições adicionais
     List<ImagemBrief> Imagens, // Imagens a gerar (papel + descrição)
     string? EtapaJornada,   // pos-compra | pre-chaves | pos-chaves (quando cliente tem estratégia)
-    string? SubJornada      // Sub-jornada específica (quando aplicável)
+    string? SubJornada,     // Sub-jornada específica (quando aplicável)
+    string? Tema            // Tema do email (quando declarado explicitamente)
 );
 
 public record ImagemBrief(string Papel, string Descricao);
