@@ -83,10 +83,10 @@ sequenceDiagram
         T-->>U: Resposta direta
     else tipo = fora_contexto
         T-->>U: Mensagem específica por motivo (cliente/canal/assunto)
-    else tipo = producao (com estrategia)
+    else tipo = producao (cliente identificado)
         T->>O: Iniciar(chatId, cliente, mensagem, camposExtraidos, briefOriginal)
         O->>O: Pre-preenche etapa/marco/tema do brief do router (validados)
-        O->>O: Pula objetivo se brief do router ja forneceu
+        O->>O: Pula objetivo/oferta/publico se brief do router ja forneceu
         O-->>T: Pergunta onboarding (apenas campos faltantes)
         loop Coleta de respostas (so campos nao pre-preenchidos)
             T-->>U: Pergunta
@@ -95,6 +95,23 @@ sequenceDiagram
         end
         T->>O: Confirmar(chatId)
         O-->>T: Brief (merge: router brief rico + respostas onboarding)
+        T->>T: Dispatch por canal (pipeline via onboarding)
+    else tipo = producao (cliente null - nao identificado)
+        T->>O: Iniciar(chatId, null, mensagem, null, briefOriginal)
+        O->>O: Passo Cliente: pergunta qual cliente (botoes de clientes com estrategia)
+        O-->>T: Pergunta "Qual cliente?"
+        T-->>U: Botoes de clientes
+        U->>T: Seleciona cliente
+        T->>O: Responder(onb|cliente|...)
+        O->>O: Pre-preenche do briefOriginal + inicia fluxo normal
+        O-->>T: Proxima pergunta (etapa/marco/tema/oferta/publico)
+        loop Coleta de respostas
+            T-->>U: Pergunta
+            U->>T: Resposta
+            T->>O: Responder/ResponderTexto
+        end
+        T->>O: Confirmar(chatId)
+        O-->>T: Brief (merge: router brief + respostas onboarding)
         T->>T: Dispatch por canal (pipeline via onboarding)
     else tipo = producao (sem estrategia)
         T->>T: Dispatch por canal (pipeline direto — fallback)
@@ -215,10 +232,10 @@ sequenceDiagram
 | `StepMapaEmocionalEmail` | LLM (classificador) | `deepseek/deepseek-v3.2` | Associa o email a uma etapa do mapa emocional (LLM escolhe entre as etapas existentes; fator E/R lido do mapa). Degradação graciosa se parse falhar |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé. Prompt inclui Tom do brief (extraído pelo router) e hex codes da fase da paleta JSON |
-| `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido |
-| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners cujo nome contém palavras do TemaSelecionado (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate, retorna vazio; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou tema sem match no nome → gera hero via IA com instrução de régua de jornada no topo e estilo visual das referências; em refação QA → pula seleção e regenera direto |
+| `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis (nomes exatos) e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido. Prompt reforçado: usa APENAS nomes exatos de ícones listados, nunca inventa |
+| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com instrução de régua de jornada no topo e estilo visual das referências; extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
 | `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
-| `StepAssetsEmail` | Retrieval determinístico | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota |
+| `StepAssetsEmail` | Retrieval determinístico + sanitização | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota; **remove tags `<img>` com referências não resolvidas** (sanitização determinística contra alucinações do LLM) |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
 ### Contexto por Step
