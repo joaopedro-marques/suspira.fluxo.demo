@@ -106,6 +106,33 @@ public class TelegramBotGatewayInlineKeyboardTests
         body.Should().Contain("42");
     }
 
+    [Fact]
+    public async Task EditMessageReplyMarkupAsync_QuandoMessageNotModified_NaoDeveLancar()
+    {
+        var handler = new NotModifiedHandler();
+        var httpClient = new HttpClient(handler);
+        var botClient = new TelegramBotClient("123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11", httpClient);
+        var gateway = new TelegramBotGateway(botClient);
+
+        var act = async () => await gateway.EditMessageReplyMarkupAsync(123, 42, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
+    }
+
+    private class NotModifiedHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent(
+                    "{\"ok\":false,\"error_code\":400,\"description\":\"Bad Request: message is not modified: specified new message content and reply markup are exactly the same as a current content and reply markup of the message\"}",
+                    Encoding.UTF8,
+                    "application/json")
+            });
+        }
+    }
+
     private class CapturingHandler : HttpMessageHandler
     {
         private readonly TaskCompletionSource<string> _capturedBody;
