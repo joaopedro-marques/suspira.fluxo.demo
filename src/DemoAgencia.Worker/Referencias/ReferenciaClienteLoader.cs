@@ -552,16 +552,21 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         });
 
         var temTema = temaPalavras.Count > 0;
-        var temMatch = scored.Where(x => x.temaScore > 0).ToList();
 
-        if (temTema && temMatch.Count > 0)
+        if (temTema)
         {
-            return temMatch
-                .OrderByDescending(x => x.score)
-                .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
-                .Take(max)
-                .Select(x => x.banner)
-                .ToList();
+            var temMatch = scored.Where(x => x.temaScore > 0).ToList();
+            if (temMatch.Count > 0)
+            {
+                return temMatch
+                    .OrderByDescending(x => x.score)
+                    .ThenBy(x => x.banner.Nome, StringComparer.OrdinalIgnoreCase)
+                    .Take(max)
+                    .Select(x => x.banner)
+                    .ToList();
+            }
+
+            return Array.Empty<AssetVisual>();
         }
 
         return scored

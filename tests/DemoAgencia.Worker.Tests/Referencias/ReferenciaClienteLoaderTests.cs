@@ -700,7 +700,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
-    public async Task SelecionarBannersRanked_WithTemaNotMatching_ShouldFallbackWhenScoreAboveZero()
+    public async Task SelecionarBannersRanked_WithTemaNotMatching_ShouldNotFallbackToScoreBased()
     {
         var bannersDir = Path.Combine(_tempDir, "imagens", "banners");
         Directory.CreateDirectory(bannersDir);
@@ -715,8 +715,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
             "mrv", "pre-chaves", "vistoria", null, "vistoria", 5,
             tema: "Sustentabilidade");
 
-        ranked.Should().HaveCount(1);
-        ranked[0].Nome.Should().Contain("vistoria");
+        ranked.Should().BeEmpty();
     }
 
     [Fact]
