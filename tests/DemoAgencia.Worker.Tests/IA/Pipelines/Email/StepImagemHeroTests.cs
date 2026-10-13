@@ -818,4 +818,42 @@ public class StepImagemHeroTests
 
         descricao.Should().Contain("theme: lancamento no bairro lourdes");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WhenRefacaoHero_WithoutHeroBrief_ShouldGenerateHeroImage()
+    {
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A revised hero image prompt");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email sobre lancamento",
+            Brief = new Brief("email", "prospectar", null, "lancamento no bairro lourdes", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = null,
+            Refacoes = 1,
+            QaStepAlvo = "hero",
+            QaFeedback = "Banner is inadequate for this content"
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.BannerSrc.Should().BeNull();
+        context.HeroSrc.Should().NotBeNull();
+        _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        _refsMock.Verify(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()), Times.Never);
+    }
 }

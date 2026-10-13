@@ -111,7 +111,7 @@ public class StepImagemHero : IPipelineStep
         {
             descricaoBase = heroBrief.Descricao;
         }
-        else if (bannerRejeitado)
+        else if (bannerRejeitado || isHeroRefacao)
         {
             descricaoBase = ConstruirDescricaoDefault(context);
         }
