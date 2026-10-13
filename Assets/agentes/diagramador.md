@@ -44,6 +44,33 @@ Use estes padroes para criar layout inovadores dentro das restricoes:
 </table>
 ```
 
+### Destaque com Gradiente e Fallback
+```html
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+  <tr>
+    <td bgcolor="#006B40" style="background-color: #006B40; background-image: linear-gradient(135deg, #006B40, #039E56); border-radius: 8px; padding: 20px;">
+      <p style="margin: 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #ffffff; line-height: 20px;">Conteudo em destaque com gradiente. Outlook usa background-color solido como fallback.</p>
+    </td>
+  </tr>
+</table>
+```
+
+### Icone sobre Fundo Colorido
+```html
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+  <tr>
+    <td style="background-color: #784099; border-radius: 8px; padding: 16px;">
+      <table border="0" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="48" valign="middle"><img src="assets/icon.png" width="40" height="40" alt="" border="0" style="display: block;"></td>
+          <td valign="middle" style="padding-left: 12px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #ffffff; line-height: 20px;">Texto branco sobre fundo escuro com icone claro visivel.</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+```
+
 ### Lista Visual com Icones
 ```html
 <table width="100%" border="0" cellpadding="0" cellspacing="0">
@@ -80,10 +107,12 @@ Use estes padroes para criar layout inovadores dentro das restricoes:
 
 ## Diretrizes de Design
 - Use espacamento generoso entre secoes (padding, height="spacer")
-- Contraste adequado: texto escuro em fundo claro ou vice-versa
 - Hierarquia visual clara: titulos maiores, corpo legivel (14-16px)
-- Cores da marca devem ser aplicadas em destaques, badges e divisores
-- Icones disponiveis serao informados no contexto com suas descricoes — referencie-os por `assets/{nome}.png` (use a extensao completa)
+- Use a paleta de cores informada no contexto para background-color de secoes/badges/divisores E para color dos textos. Nao use cores neutras padrao (#333, #f0f7ff etc) se a paleta da fase estiver disponivel
+- TODO texto DEVE ter color inline explicito com contraste contra o fundo da propria secao. Nunca deixe a cor do texto herdada do template
+- O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta
+- Icones claros/brancos APENAS sobre fundos escuros ou coloridos da paleta. Verifique a cor de cada icone na descricao antes de posiciona-lo
+- Para gradientes: use bgcolor="#hex" + background-color solido como fallback + background-image: linear-gradient(...) por cima. Outlook ignora gradientes e usa o fallback solido
 - Priorize blocos visuais ao inves de texto corrido longo
 - NUNCA inclua botao/link de CTA no corpo — o template renderiza o botao oficial de CTA abaixo do corpo
 

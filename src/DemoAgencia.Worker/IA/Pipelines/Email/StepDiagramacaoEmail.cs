@@ -90,6 +90,37 @@ public partial class StepDiagramacaoEmail : IPipelineStep
                 prompt += $"Temas: {string.Join(", ", context.Estrategia.FaseDados.Temas)}\n";
             if (!string.IsNullOrEmpty(context.Estrategia.FaseDados.CorPrincipal))
                 prompt += $"Cor principal: {context.Estrategia.FaseDados.CorPrincipal}\n";
+            if (!string.IsNullOrEmpty(context.Estrategia.FaseDados.DescricaoCor))
+                prompt += $"Sentimento da cor: {context.Estrategia.FaseDados.DescricaoCor}\n";
+            if (context.Estrategia.FaseDados.CoresHex.Count > 0)
+            {
+                var hexList = context.Estrategia.FaseDados.CoresHex
+                    .SelectMany(h => h)
+                    .Where(c => c.StartsWith("#", StringComparison.Ordinal));
+                if (hexList.Any())
+                    prompt += $"Cores hex da fase: {string.Join(", ", hexList)}\n";
+
+                var gradientes = context.Estrategia.FaseDados.CoresHex
+                    .Where(r => r.Count > 1 && r[0].Equals("gradiente", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (gradientes.Count > 0)
+                {
+                    var formatados = gradientes.Select(g =>
+                    {
+                        var stops = g.Where(s => s.StartsWith("#", StringComparison.Ordinal));
+                        var direcao = string.Join(" ", g.Skip(1).Where(s => !s.StartsWith("#", StringComparison.Ordinal)));
+                        return $"{direcao} {string.Join(", ", stops)}".Trim();
+                    });
+                    prompt += $"Gradientes da fase: {string.Join(" | ", formatados)}\n";
+                }
+            }
+
+            prompt += $"\n## Paleta e contraste (OBRIGATORIO)\n";
+            prompt += $"- Aplique as cores da paleta da fase em background-color de secoes/badges/divisores E em color dos textos\n";
+            prompt += $"- Todo texto DEVE ter color inline explicito com contraste contra o fundo da propria secao\n";
+            prompt += $"- O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta\n";
+            prompt += $"- Icones claros/brancos APENAS sobre fundos escuros ou coloridos da paleta (verifique a cor de cada icone na descricao)\n";
+            prompt += $"- Para gradientes: use bgcolor=\"#hex\" + background-color solido como fallback + background-image: linear-gradient(...) por cima. Outlook ignora gradientes e usa o fallback solido\n";
         }
 
         if (!string.IsNullOrEmpty(context.Cliente))

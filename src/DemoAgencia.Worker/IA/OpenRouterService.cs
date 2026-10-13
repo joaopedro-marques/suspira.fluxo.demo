@@ -233,7 +233,8 @@ public class OpenRouterService : IServicoChat, IGeradorImagem, IAnalisadorImagem
         {
             "descricao_geral": "Descricao do que o icone representa (1 frase concisa)",
             "palavras_chave": ["lista de 3-5 palavras-chave sobre quando usar este icone"],
-            "estilo": "Estilo visual do icone (ex: flat line, filled, outline, duotone)"
+            "estilo": "Estilo visual do icone (ex: flat line, filled, outline, duotone)",
+            "cor_predominante": "Cor predominante do icone (ex: branco, preto, #006b40, #FFB719)"
         }
         """;
 

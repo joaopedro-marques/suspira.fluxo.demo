@@ -91,6 +91,78 @@ public class IconDescricaoTests
         section.Should().Contain("Style: Flat line");
     }
 
+    [Fact]
+    public void ToPromptSection_WithCorPredominante_ShouldIncludeColorLine()
+    {
+        var desc = new IconDescricao(
+            "Icone de telefone",
+            new List<string> { "contato" },
+            "Filled",
+            "branco");
+
+        var section = desc.ToPromptSection();
+
+        section.Should().Contain("Color: branco");
+    }
+
+    [Fact]
+    public void ToPromptSection_WithoutCorPredominante_ShouldOmitColorLine()
+    {
+        var desc = new IconDescricao(
+            "Icone de casa",
+            new List<string> { "moradia" },
+            "Flat line",
+            "");
+
+        var section = desc.ToPromptSection();
+
+        section.Should().NotContain("Color:");
+    }
+
+    [Fact]
+    public void IconDescricao_ShouldSerializeCorPredominante()
+    {
+        var desc = new IconDescricao(
+            "Icone branco",
+            new List<string> { "teste" },
+            "Flat",
+            "branco");
+
+        var json = JsonSerializer.Serialize(desc, SnakeOptions);
+
+        json.Should().Contain("cor_predominante");
+        json.Should().Contain("branco");
+    }
+
+    [Fact]
+    public void IconDescricao_ShouldDeserializeCorPredominante()
+    {
+        var json = """
+        {
+            "descricao_geral": "Icone branco de casa",
+            "palavras_chave": ["moradia"],
+            "estilo": "Flat",
+            "cor_predominante": "branco"
+        }
+        """;
+
+        var desc = JsonSerializer.Deserialize<IconDescricao>(json, SnakeOptions);
+
+        desc.Should().NotBeNull();
+        desc!.CorPredominante.Should().Be("branco");
+    }
+
+    [Fact]
+    public void IconDescricao_ShouldDeserializeWithoutCorPredominante()
+    {
+        var json = """{"descricao_geral": "Basico"}""";
+
+        var desc = JsonSerializer.Deserialize<IconDescricao>(json, SnakeOptions);
+
+        desc.Should().NotBeNull();
+        desc!.CorPredominante.Should().Be("");
+    }
+
     private static readonly JsonSerializerOptions SnakeOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower

@@ -365,4 +365,126 @@ public class StepDiagramacaoEmailTests
         prompt.Should().Contain("Temas: Boas vindas, Financeiro");
         prompt.Should().NotContain("Tema: Boas vindas");
     }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithCoresHex_ShouldIncludeHexColors()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    CoresHex = new List<List<string>>
+                    {
+                        new() { "#784099" },
+                        new() { "#AB40D9" },
+                        new() { "#006B40" }
+                    }
+                }
+            }
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Cores hex da fase:");
+        prompt.Should().Contain("#784099");
+        prompt.Should().Contain("#AB40D9");
+        prompt.Should().Contain("#006B40");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithGradientes_ShouldIncludeGradientInfo()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    CoresHex = new List<List<string>>
+                    {
+                        new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56", "#006B40" },
+                        new() { "#784099" }
+                    }
+                }
+            }
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Gradientes da fase:");
+        prompt.Should().Contain("linear diagonal #006B40, #039E56, #006B40");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithDescricaoCor_ShouldIncludeSentimentoDaCor()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = new FaseEstrategia
+                {
+                    Fase = "pos-compra",
+                    CorPrincipal = "Roxo",
+                    DescricaoCor = "Confianca e clareza mental"
+                }
+            }
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Sentimento da cor: Confianca e clareza mental");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithEstrategia_ShouldIncludeContrastRules()
+    {
+        var context = CriarContexto();
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("Paleta e contraste");
+        prompt.Should().Contain("background-color");
+        prompt.Should().Contain("card BRANCO");
+        prompt.Should().Contain("Icones claros/brancos APENAS");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithoutEstrategia_ShouldNotIncludeContrastRules()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("Assunto", "Preheader", "Titulo", "<p>Corpo</p>", "CTA", "https://link"),
+            Estrategia = null
+        };
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().NotContain("Paleta e contraste");
+    }
 }
