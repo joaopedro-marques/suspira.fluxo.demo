@@ -136,7 +136,8 @@ public class StepImagemHeroTests
 
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual> { bannerAsset });
 
         _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
@@ -179,7 +180,8 @@ public class StepImagemHeroTests
 
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual> { banner1, banner2 });
 
         _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.Is<AssetVisual>(a => a.Nome == "agendar_vistoria"), It.IsAny<CancellationToken>()))
@@ -221,7 +223,8 @@ public class StepImagemHeroTests
     {
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual>
             {
                 new() { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "agendar_vistoria", Caminho = Path.GetTempFileName() }
@@ -270,7 +273,8 @@ public class StepImagemHeroTests
     {
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual>
             {
                 new() { Cliente = "mrv", Tipo = TipoAsset.Banner, Nome = "agendar_vistoria", Caminho = Path.GetTempFileName() }
@@ -322,7 +326,8 @@ public class StepImagemHeroTests
     {
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual>());
 
         _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
@@ -370,7 +375,8 @@ public class StepImagemHeroTests
 
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual> { bannerAsset });
 
         _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
@@ -414,7 +420,8 @@ public class StepImagemHeroTests
 
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()))
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
             .Returns(new List<AssetVisual> { bannerAsset });
 
         _bannerCacheMock.Setup(c => c.ObterDescricaoAsync(It.IsAny<AssetVisual>(), It.IsAny<CancellationToken>()))
@@ -526,7 +533,8 @@ public class StepImagemHeroTests
         _geradorMock.Verify(g => g.GerarImagemAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         _refsMock.Verify(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
-            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>()), Times.Never);
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
@@ -753,5 +761,61 @@ public class StepImagemHeroTests
     public void ConstruirInstrucaoRegua_WithNullEstrategia_ShouldReturnEmpty()
     {
         StepImagemHero.ConstruirInstrucaoRegua(null).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutTemaSelecionado_ShouldDeriveTemaFromOferta()
+    {
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.Is<string?>(t => t == "lancamento no bairro lourdes")))
+            .Returns(new List<AssetVisual>());
+
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A hero prompt");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "prospectar clientes",
+            Brief = new Brief("email", "prospectar", null, "lancamento no bairro lourdes", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = null
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.HeroSrc.Should().NotBeNull();
+        _refsMock.Verify(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            "lancamento no bairro lourdes"), Times.Once);
+    }
+
+    [Fact]
+    public void ConstruirDescricaoDefault_WithoutTemaSelecionado_ShouldUseOferta()
+    {
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "teste",
+            Brief = new Brief("email", "prospectar", null, "lancamento no bairro lourdes", null, null, new List<string>(), new List<ImagemBrief>()),
+            Estrategia = null
+        };
+
+        var descricao = StepImagemHero.ConstruirDescricaoDefault(context);
+
+        descricao.Should().Contain("theme: lancamento no bairro lourdes");
     }
 }

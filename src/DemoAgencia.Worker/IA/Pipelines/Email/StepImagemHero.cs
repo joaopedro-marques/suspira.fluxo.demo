@@ -63,9 +63,14 @@ public class StepImagemHero : IPipelineStep
                 ? _templateCatalogo.ObterSubJornadas(context.TemplateId)
                 : null;
 
+            var tema = context.Estrategia?.TemaSelecionado
+                ?? context.Brief.Tema
+                ?? context.Brief.Oferta
+                ?? context.Brief.Objetivo;
+
             var candidatos = _referencias.SelecionarBannersRanked(
                 cliente ?? "", fase, subJornada, templateSubJornadas, context.MensagemOriginal, MaxCandidatosBanner,
-                context.Estrategia?.TemaSelecionado);
+                tema);
 
             if (candidatos.Count > 0)
             {
@@ -90,11 +95,7 @@ public class StepImagemHero : IPipelineStep
 
                 bannerRejeitado = true;
             }
-            else if (!string.IsNullOrEmpty(context.Estrategia?.TemaSelecionado))
-            {
-                bannerRejeitado = true;
-            }
-            else if (!string.IsNullOrEmpty(context.Brief.Oferta))
+            else if (!string.IsNullOrEmpty(tema))
             {
                 bannerRejeitado = true;
             }
@@ -233,8 +234,12 @@ public class StepImagemHero : IPipelineStep
         var parts = new List<string> { $"Professional email marketing banner about {oferta}" };
         if (context.Estrategia?.Fase != null)
             parts.Add($"journey phase: {context.Estrategia.Fase}");
-        if (!string.IsNullOrEmpty(context.Estrategia?.TemaSelecionado))
-            parts.Add($"theme: {context.Estrategia.TemaSelecionado}");
+        var tema = context.Estrategia?.TemaSelecionado
+            ?? context.Brief.Tema
+            ?? context.Brief.Oferta
+            ?? context.Brief.Objetivo;
+        if (!string.IsNullOrEmpty(tema))
+            parts.Add($"theme: {tema}");
         else if (context.Estrategia?.FaseDados?.Temas.Count > 0)
             parts.Add($"themes: {string.Join(", ", context.Estrategia.FaseDados.Temas)}");
         return string.Join(", ", parts);
