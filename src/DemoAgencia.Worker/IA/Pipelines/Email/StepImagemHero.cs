@@ -379,15 +379,15 @@ public class StepImagemHero : IPipelineStep
 
         var instruction = "\n\n## Journey ruler (full-width header at the top of the image)\n";
         instruction += "Pin a horizontal journey ruler at the very top edge of the image, spanning the entire width like a header strip above the photograph.\n";
-        instruction += "It is a thin horizontal progress line with 5 equally spaced segments, one per stage, in this exact order:\n";
+        instruction += "It is a thin horizontal progress line with 5 equally spaced segments(not visible defined by other margins or lines), one per stage, in this exact order:\n";
         instruction += string.Join(" -> ", etapasRegua);
         instruction += $"\n\nThe current step to highlight (must be visually distinct from all others): \"{etapaDestacada}\".\n";
         instruction += "\n## Ruler styling rules (strict)\n";
-        instruction += "- Completed stages (BEFORE the current step): solid WHITE fill on the progress line segment.\n";
-        instruction += $"- Current step \"{etapaDestacada}\": solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator).\n";
+        instruction += "- Completed stages (BEFORE the current step): line WHITE fill on the progress line segment.\n";
+        instruction += $"- Current step \"{etapaDestacada}\": the name of the stage with a solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator).\n";
         instruction += "- Future stages (AFTER the current step): outline only, no fill, empty/vacant segments.\n";
-        instruction += "- Render the stage labels in Portuguese EXACTLY as written above, using a clean sans-serif typeface, small, legible.\n";
-        instruction += "- Flat design ONLY: NO drop shadows, NO gradients, NO transparency, NO glass effects, NO blurs, NO soft edges.\n";
+        instruction += "- Render the stage labels in Portuguese EXACTLY as written above with the same colors(white or yellow), using a clean sans-serif typeface, small, legible.\n";
+        instruction += "- Design : smooth drop shadows, NO gradients, some transparency, NO glass effects, NO blurs, soft edges.\n";
         instruction += "- The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable.\n";
 
         return instruction;
