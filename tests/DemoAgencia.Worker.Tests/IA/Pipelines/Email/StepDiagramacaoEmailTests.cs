@@ -468,7 +468,7 @@ public class StepDiagramacaoEmailTests
         prompt.Should().Contain("Paleta e contraste");
         prompt.Should().Contain("background-color");
         prompt.Should().Contain("card BRANCO");
-        prompt.Should().Contain("Icones claros/brancos APENAS");
+        prompt.Should().Contain("Assuma que TODOS os icones sao BRANCOS");
     }
 
     [Fact]

@@ -111,7 +111,7 @@ Use estes padroes para criar layout inovadores dentro das restricoes:
 - Use a paleta de cores informada no contexto para background-color de secoes/badges/divisores E para color dos textos. Nao use cores neutras padrao (#333, #f0f7ff etc) se a paleta da fase estiver disponivel
 - TODO texto DEVE ter color inline explicito com contraste contra o fundo da propria secao. Nunca deixe a cor do texto herdada do template
 - O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta
-- Icones claros/brancos APENAS sobre fundos escuros ou coloridos da paleta. Verifique a cor de cada icone na descricao antes de posiciona-lo
+- Assuma que TODOS os icones sao BRANCOS. Use-os APENAS sobre fundos escuros ou coloridos da paleta (nunca sobre fundo branco/claro). Se um icone estiver invisivel, NUNCA o remova — troque o background-color da secao para um tom escuro/colorido da paleta
 - Para gradientes: use bgcolor="#hex" + background-color solido como fallback + background-image: linear-gradient(...) por cima. Outlook ignora gradientes e usa o fallback solido
 - Priorize blocos visuais ao inves de texto corrido longo
 - NUNCA inclua botao/link de CTA no corpo — o template renderiza o botao oficial de CTA abaixo do corpo

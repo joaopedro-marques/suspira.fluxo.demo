@@ -119,7 +119,7 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             prompt += $"- Aplique as cores da paleta da fase em background-color de secoes/badges/divisores E em color dos textos\n";
             prompt += $"- Todo texto DEVE ter color inline explicito com contraste contra o fundo da propria secao\n";
             prompt += $"- O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta\n";
-            prompt += $"- Icones claros/brancos APENAS sobre fundos escuros ou coloridos da paleta (verifique a cor de cada icone na descricao)\n";
+            prompt += $"- Assuma que TODOS os icones sao BRANCOS. Use-os APENAS sobre fundos escuros ou coloridos da paleta (nunca sobre fundo branco/claro). Se um icone estiver invisivel, NUNCA o remova — troque o background-color da secao para um tom escuro/colorido da paleta\n";
             prompt += $"- Para gradientes: use bgcolor=\"#hex\" + background-color solido como fallback + background-image: linear-gradient(...) por cima. Outlook ignora gradientes e usa o fallback solido\n";
         }
 

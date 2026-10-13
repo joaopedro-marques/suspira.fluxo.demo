@@ -5,10 +5,9 @@ namespace DemoAgencia.Worker.IA;
 public record IconDescricao(
     string DescricaoGeral = "",
     List<string> PalavrasChave = null!,
-    string Estilo = "",
-    string CorPredominante = "")
+    string Estilo = "")
 {
-    public IconDescricao() : this("", new List<string>(), "", "") { }
+    public IconDescricao() : this("", new List<string>(), "") { }
 
     private static readonly JsonSerializerOptions SnakeOptions = new()
     {
@@ -43,7 +42,6 @@ public record IconDescricao(
         if (!string.IsNullOrEmpty(DescricaoGeral)) parts.Add($"Description: {DescricaoGeral}");
         if (PalavrasChave.Count > 0) parts.Add($"Keywords: {string.Join(", ", PalavrasChave)}");
         if (!string.IsNullOrEmpty(Estilo)) parts.Add($"Style: {Estilo}");
-        if (!string.IsNullOrEmpty(CorPredominante)) parts.Add($"Color: {CorPredominante}");
         return string.Join("\n", parts);
     }
 }
