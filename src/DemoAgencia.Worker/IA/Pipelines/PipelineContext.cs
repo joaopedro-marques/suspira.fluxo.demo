@@ -20,5 +20,7 @@ public class PipelineContext
     public bool QaAprovado { get; set; }
     public int Refacoes { get; set; }
 
+    public IReadOnlyList<string> FixedAssetRefs { get; set; } = Array.Empty<string>();
+
     public ResultadoPipeline Resultado { get; } = new();
 }

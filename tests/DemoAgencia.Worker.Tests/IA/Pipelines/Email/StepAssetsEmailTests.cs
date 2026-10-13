@@ -152,4 +152,51 @@ public class StepAssetsEmailTests : IDisposable
 
         await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithFixedAssetRefMissing_ShouldKeepTagAndLogError()
+    {
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(new List<AssetVisual>());
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Html = """<div><img src="assets/thumb-up.png"></div>""",
+            FixedAssetRefs = new List<string> { "thumb-up.png" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Resultado.AssetsAnexados.Should().BeEmpty();
+        context.Html.Should().Contain("thumb-up.png", "tag fixa do template nao deve ser removida");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithFixedAssetRefPresent_ShouldAttachNormally()
+    {
+        var logoPath = Path.Combine(_tempDir, "MRV_logo.png");
+        await File.WriteAllBytesAsync(logoPath, new byte[] { 1 });
+
+        var assets = new List<AssetVisual>
+        {
+            new() { Cliente = "mrv", Tipo = TipoAsset.Logo, Nome = "logo", Caminho = logoPath }
+        };
+        _refsMock.Setup(r => r.ListarAssets("mrv")).Returns(assets);
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Html = """<div><img src="assets/logo.png"></div>""",
+            FixedAssetRefs = new List<string> { "logo.png" }
+        };
+
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Resultado.AssetsAnexados.Should().HaveCount(1);
+        context.Resultado.AssetsAnexados[0].Legenda.Should().Be("logo.png");
+    }
 }

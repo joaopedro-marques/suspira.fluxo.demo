@@ -322,4 +322,49 @@ public class StepTemplateEmailTests
         ctx.Resultado.RespostaFinal.Should().Be(ctx.Html);
         ctx.Resultado.RespostaFinal.Should().Contain("<!DOCTYPE html>");
     }
+
+    [Fact]
+    public async Task ExecutarAsync_WithFixedAssets_PopulatesFixedAssetRefs()
+    {
+        const string templateWithFixedAssets = """
+            <html>
+            <body>
+            <img src="assets/thumb-up.png" alt="Like">
+            <img src="assets/thumb-down.png" alt="Dislike">
+            <img src="assets/instagram.png" alt="Instagram">
+            {{banner_section}}
+            {{hero_section}}
+            </body>
+            </html>
+            """;
+        var step = CriarStep(templateWithFixedAssets);
+        var ctx = CriarContexto();
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.FixedAssetRefs.Should().Contain("thumb-up.png");
+        ctx.FixedAssetRefs.Should().Contain("thumb-down.png");
+        ctx.FixedAssetRefs.Should().Contain("instagram.png");
+        ctx.FixedAssetRefs.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutFixedAssets_FixedAssetRefsIsEmpty()
+    {
+        const string templateWithoutAssets = """
+            <html>
+            <body>
+            <p>No assets here</p>
+            {{banner_section}}
+            {{hero_section}}
+            </body>
+            </html>
+            """;
+        var step = CriarStep(templateWithoutAssets);
+        var ctx = CriarContexto();
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.FixedAssetRefs.Should().BeEmpty();
+    }
 }

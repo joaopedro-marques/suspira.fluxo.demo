@@ -1,10 +1,11 @@
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
-public class StepTemplateEmail : IPipelineStep
+public partial class StepTemplateEmail : IPipelineStep
 {
     public string Nome => "template";
 
@@ -31,6 +32,8 @@ public class StepTemplateEmail : IPipelineStep
 
         if (string.IsNullOrEmpty(html))
             throw new InvalidOperationException("Template de email nao encontrado. Verifique se ha templates em Assets/referencias/templates/.");
+
+        context.FixedAssetRefs = ExtrairFixedAssetRefs(html);
 
         html = html.Replace("{{assunto}}", HtmlEncode(copy.Assunto));
         html = html.Replace("{{preheader}}", HtmlEncode(copy.Preheader));
@@ -66,8 +69,23 @@ public class StepTemplateEmail : IPipelineStep
         return Task.FromResult(context);
     }
 
+    internal static IReadOnlyList<string> ExtrairFixedAssetRefs(string templateHtml)
+    {
+        var matches = AssetsSrcRegex().Matches(templateHtml);
+        var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in matches)
+        {
+            if (match.Groups.Count > 1 && !string.IsNullOrEmpty(match.Groups[1].Value))
+                refs.Add(match.Groups[1].Value);
+        }
+        return refs.ToList();
+    }
+
     private static string HtmlEncode(string value)
     {
         return WebUtility.HtmlEncode(value);
     }
+
+    [GeneratedRegex(@"src=""assets/([^""]+)""", RegexOptions.Compiled)]
+    private static partial Regex AssetsSrcRegex();
 }
