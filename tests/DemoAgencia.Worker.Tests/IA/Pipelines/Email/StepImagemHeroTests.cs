@@ -741,6 +741,13 @@ public class StepImagemHeroTests
         instruction.Should().Contain("Vistoria");
         instruction.Should().Contain("Entrega das chaves");
         instruction.Should().Contain("\"Vistoria\"");
+        instruction.Should().Contain("full-width");
+        instruction.Should().Contain("WHITE");
+        instruction.Should().Contain("YELLOW");
+        instruction.Should().Contain("NO drop shadows");
+        instruction.Should().Contain("NO gradients");
+        instruction.Should().Contain("NO transparency");
+        instruction.Should().Contain("Flat design");
     }
 
     [Fact]
@@ -755,12 +762,81 @@ public class StepImagemHeroTests
         var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
 
         instruction.Should().Contain("\"Financiamento com o banco\"");
+        instruction.Should().Contain("YELLOW");
+        instruction.Should().Contain("top edge");
     }
 
     [Fact]
     public void ConstruirInstrucaoRegua_WithNullEstrategia_ShouldReturnEmpty()
     {
         StepImagemHero.ConstruirInstrucaoRegua(null).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ConstruirInstrucaoSemTexto_WithoutRuler_ShouldForbidAllText()
+    {
+        var instruction = StepImagemHero.ConstruirInstrucaoSemTexto(false);
+
+        instruction.Should().Contain("MUST NOT");
+        instruction.Should().Contain("typography");
+        instruction.Should().Contain("logos");
+        instruction.Should().Contain("watermarks");
+        instruction.Should().NotContain("ruler");
+    }
+
+    [Fact]
+    public void ConstruirInstrucaoSemTexto_WithRuler_ShouldAllowRulerLabelsOnly()
+    {
+        var instruction = StepImagemHero.ConstruirInstrucaoSemTexto(true);
+
+        instruction.Should().Contain("MUST NOT");
+        instruction.Should().Contain("journey ruler");
+        instruction.Should().Contain("labels");
+        instruction.Should().Contain("exception");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_ShouldAppendRulerAndNoTextConstraint_AfterDetailedPrompt()
+    {
+        _refsMock.Setup(r => r.SelecionarBannersRanked(
+            It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
+            It.IsAny<IReadOnlyList<string>?>(), It.IsAny<string?>(), It.IsAny<int>(),
+            It.IsAny<string?>()))
+            .Returns(new List<AssetVisual>());
+
+        _refsMock.Setup(r => r.ListarAssets(It.IsAny<string>())).Returns(new List<AssetVisual>());
+
+        string? capturedPrompt = null;
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("A clean hero visual");
+
+        _geradorMock.Setup(g => g.GerarImagemAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, CancellationToken>((_, prompt, _) => capturedPrompt = prompt)
+            .ReturnsAsync(new ResultadoImagem(new byte[] { 0x89, 0x50 }, null));
+
+        var context = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email sobre financiamento",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(),
+                new List<ImagemBrief> { new("hero", "A hero image") }),
+            Estrategia = new EstrategiaEmail { Fase = "pos-compra" }
+        };
+
+        await _step.ExecutarAsync(context, CancellationToken.None);
+
+        capturedPrompt.Should().NotBeNull();
+        capturedPrompt.Should().Contain("Journey ruler");
+        capturedPrompt.Should().Contain("WHITE");
+        capturedPrompt.Should().Contain("YELLOW");
+        capturedPrompt.Should().Contain("Strict text constraint");
+        capturedPrompt.Should().Contain("MUST NOT");
+        capturedPrompt.Should().Contain("journey ruler");
     }
 
     [Fact]

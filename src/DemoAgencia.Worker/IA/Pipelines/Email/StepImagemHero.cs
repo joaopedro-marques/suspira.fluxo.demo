@@ -124,8 +124,6 @@ public class StepImagemHero : IPipelineStep
 
         var promptBase = await ConstruirPromptBase(descricaoBase, context.Cliente, context.Estrategia, ct);
 
-        promptBase += ConstruirInstrucaoRegua(context.Estrategia);
-
         if (isHeroRefacao && !string.IsNullOrEmpty(context.QaFeedback))
         {
             promptBase += $"\n\n⚠️ REVISION REQUIRED (retry {context.Refacoes})\n";
@@ -134,6 +132,10 @@ public class StepImagemHero : IPipelineStep
         }
 
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);
+
+        var regua = ConstruirInstrucaoRegua(context.Estrategia);
+        var semTexto = ConstruirInstrucaoSemTexto(!string.IsNullOrEmpty(regua));
+        promptFinal += regua + semTexto;
 
         var resultado = await _geradorImagem.GerarImagemAsync(context.ChatId, promptFinal, ct);
         if (!resultado.Sucesso || resultado.Bytes == null)
@@ -231,7 +233,7 @@ public class StepImagemHero : IPipelineStep
     internal static string ConstruirDescricaoDefault(PipelineContext context)
     {
         var oferta = context.Brief.Oferta ?? context.Brief.Objetivo ?? "email marketing";
-        var parts = new List<string> { $"Professional email marketing banner about {oferta}" };
+        var parts = new List<string> { $"Clean, textless, professional hero image about {oferta}, purely visual art direction" };
         if (context.Estrategia?.Fase != null)
             parts.Add($"journey phase: {context.Estrategia.Fase}");
         var tema = context.Estrategia?.TemaSelecionado
@@ -375,12 +377,29 @@ public class StepImagemHero : IPipelineStep
 
         var etapaDestacada = DeterminarEtapaDestacada(estrategia, etapasRegua);
 
-        var instruction = "\n\n## Journey ruler (progress bar)\n";
-        instruction += "Include at the top of the banner a horizontal journey ruler (progress bar) showing these 5 steps in order:\n";
+        var instruction = "\n\n## Journey ruler (full-width header at the top of the image)\n";
+        instruction += "Pin a horizontal journey ruler at the very top edge of the image, spanning the entire width like a header strip above the photograph.\n";
+        instruction += "It is a thin horizontal progress line with 5 equally spaced segments, one per stage, in this exact order:\n";
         instruction += string.Join(" -> ", etapasRegua);
-        instruction += $"\n\nThe current step to highlight/emphasize is: \"{etapaDestacada}\". ";
-        instruction += "Render the labels in Portuguese exactly as shown above, with the current step visually highlighted (different color, larger, or bold). ";
-        instruction += "The ruler should be clean, professional, and integrated with the banner's visual style.\n";
+        instruction += $"\n\nThe current step to highlight (must be visually distinct from all others): \"{etapaDestacada}\".\n";
+        instruction += "\n## Ruler styling rules (strict)\n";
+        instruction += "- Completed stages (BEFORE the current step): solid WHITE fill on the progress line segment.\n";
+        instruction += $"- Current step \"{etapaDestacada}\": solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator).\n";
+        instruction += "- Future stages (AFTER the current step): outline only, no fill, empty/vacant segments.\n";
+        instruction += "- Render the stage labels in Portuguese EXACTLY as written above, using a clean sans-serif typeface, small, legible.\n";
+        instruction += "- Flat design ONLY: NO drop shadows, NO gradients, NO transparency, NO glass effects, NO blurs, NO soft edges.\n";
+        instruction += "- The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable.\n";
+
+        return instruction;
+    }
+
+    internal static string ConstruirInstrucaoSemTexto(bool hasRegua)
+    {
+        var instruction = "\n\n## Strict text constraint\n";
+        instruction += "The image MUST NOT contain any text, typography, words, letters, numbers, logos, signatures, captions, tags, stamps, or watermarks anywhere in the composition.\n";
+        if (hasRegua)
+            instruction += "Sole allowed exception: the Portuguese labels of the journey ruler at the top described above. Absolutely no other textual element is permitted.\n";
+        instruction += "The image must be purely visual, clean, and art-directed.\n";
 
         return instruction;
     }
