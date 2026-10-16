@@ -744,10 +744,10 @@ public class StepImagemHeroTests
         instruction.Should().Contain("full-width");
         instruction.Should().Contain("WHITE");
         instruction.Should().Contain("YELLOW");
-        instruction.Should().Contain("NO drop shadows");
+        instruction.Should().Contain("smooth drop shadows");
         instruction.Should().Contain("NO gradients");
-        instruction.Should().Contain("NO transparency");
-        instruction.Should().Contain("Flat design");
+        instruction.Should().Contain("some transparency");
+        instruction.Should().Contain("soft edges");
     }
 
     [Fact]
