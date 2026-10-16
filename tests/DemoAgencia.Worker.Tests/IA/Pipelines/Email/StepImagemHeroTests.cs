@@ -724,13 +724,47 @@ public class StepImagemHeroTests
             "Juros de Obra"), Times.Once);
     }
 
+    private static ReguaJornada CriarReguaTeste()
+    {
+        return new ReguaJornada
+        {
+            Etapas = new List<string>
+            {
+                "Assinatura do Contrato",
+                "Financiamento com o banco",
+                "Visita a Obra",
+                "Vistoria",
+                "Entrega das chaves"
+            },
+            EtapaDestacadaPorFase = new Dictionary<string, string>
+            {
+                ["pos-compra"] = "Financiamento com o banco",
+                ["pre-chaves"] = "Vistoria",
+                ["pos-chaves"] = "Entrega das chaves"
+            },
+            Estilo = new EstiloRegua
+            {
+                Concluida = "line WHITE fill on the progress line segment",
+                Atual = "solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator)",
+                Futura = "outline only, no fill, empty/vacant segments",
+                Diretrizes = new List<string>
+                {
+                    "Render the stage labels in Portuguese EXACTLY as written with the same colors (white or yellow), using a clean sans-serif typeface, small, legible",
+                    "Design: smooth drop shadows, NO gradients, some transparency, NO glass effects, NO blurs, soft edges",
+                    "The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable"
+                }
+            }
+        };
+    }
+
     [Fact]
     public void ConstruirInstrucaoRegua_WithFaseAndMarco_ShouldHighlightMatchingStep()
     {
         var estrategia = new EstrategiaEmail
         {
             Fase = "pre-chaves",
-            SubJornada = "Vistoria Antecipada"
+            SubJornada = "Vistoria Antecipada",
+            Regua = CriarReguaTeste()
         };
 
         var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
@@ -756,7 +790,8 @@ public class StepImagemHeroTests
         var estrategia = new EstrategiaEmail
         {
             Fase = "pos-compra",
-            SubJornada = null
+            SubJornada = null,
+            Regua = CriarReguaTeste()
         };
 
         var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
@@ -825,7 +860,11 @@ public class StepImagemHeroTests
             MensagemOriginal = "email sobre financiamento",
             Brief = new Brief("email", null, null, null, null, null, new List<string>(),
                 new List<ImagemBrief> { new("hero", "A hero image") }),
-            Estrategia = new EstrategiaEmail { Fase = "pos-compra" }
+            Estrategia = new EstrategiaEmail 
+            { 
+                Fase = "pos-compra",
+                Regua = CriarReguaTeste()
+            }
         };
 
         await _step.ExecutarAsync(context, CancellationToken.None);

@@ -4,6 +4,7 @@ using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.Router;
 using DemoAgencia.Worker.Referencias;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
@@ -98,7 +99,8 @@ public class StepTemplateEmailTests
         CopyEmailSlots? copy = null,
         string? logoSrc = null,
         string? heroSrc = null,
-        string? bannerSrc = null)
+        string? bannerSrc = null,
+        string? cliente = null)
     {
         copy ??= new CopyEmailSlots(
             "Assunto teste",
@@ -111,6 +113,7 @@ public class StepTemplateEmailTests
         return new PipelineContext
         {
             ChatId = 123,
+            Cliente = cliente,
             Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
             MensagemOriginal = "msg",
             Copy = copy,
@@ -120,16 +123,28 @@ public class StepTemplateEmailTests
         };
     }
 
-    private static StepTemplateEmail CriarStep(string? templateOverride = null)
+    private static StepTemplateEmail CriarStep(
+        string? templateOverride = null,
+        IReferenciasCliente? referencias = null)
     {
         var catalogo = new Mock<ITemplateCatalogo>();
         var template = templateOverride ?? Template;
         catalogo.Setup(c => c.Obter(It.IsAny<string>())).Returns(template);
         catalogo.Setup(c => c.Default).Returns(template);
+        
+        var referenciasMock = referencias != null 
+            ? Mock.Get(referencias)
+            : new Mock<IReferenciasCliente>();
+        
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var loggerMock = new Mock<ILogger<StepTemplateEmail>>();
+        
         return new StepTemplateEmail(
             catalogo.Object,
-            HeroTr,
-            BannerTr);
+            referenciasMock.Object,
+            loggerMock.Object);
     }
 
     [Fact]
@@ -366,5 +381,147 @@ public class StepTemplateEmailTests
         ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
 
         ctx.FixedAssetRefs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithFooterPlaceholder_InjectsFooterHtml()
+    {
+        const string templateWithFooter = """
+            <html>
+            <body>
+            <p>Content</p>
+            {{footer}}
+            </body>
+            </html>
+            """;
+        
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns("<footer>Default Footer</footer>");
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var step = CriarStep(templateWithFooter, referenciasMock.Object);
+        var ctx = CriarContexto(cliente: "acme");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("<footer>Default Footer</footer>");
+        ctx.Html.Should().NotContain("{{footer}}");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithNamedFooterPlaceholder_InjectsNamedFooterHtml()
+    {
+        const string templateWithNamedFooter = """
+            <html>
+            <body>
+            <p>Content</p>
+            {{footer:mrveco}}
+            </body>
+            </html>
+            """;
+        
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", "mrveco")).Returns("<footer>MRV&CO Footer</footer>");
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var step = CriarStep(templateWithNamedFooter, referenciasMock.Object);
+        var ctx = CriarContexto(cliente: "acme");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("<footer>MRV&CO Footer</footer>");
+        ctx.Html.Should().NotContain("{{footer:mrveco}}");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithMissingFooter_RemovesPlaceholder()
+    {
+        const string templateWithFooter = """
+            <html>
+            <body>
+            <p>Content</p>
+            {{footer}}
+            </body>
+            </html>
+            """;
+        
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns((string?)null);
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var step = CriarStep(templateWithFooter, referenciasMock.Object);
+        var ctx = CriarContexto(cliente: "acme");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().NotContain("{{footer}}");
+        ctx.Html.Should().NotContain("<footer>");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithMultipleNamedFooters_InjectsAll()
+    {
+        const string templateWithMultipleFooters = """
+            <html>
+            <body>
+            <p>Content</p>
+            {{footer:default}}
+            <div>Middle</div>
+            {{footer:special}}
+            </body>
+            </html>
+            """;
+        
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", "default")).Returns("<footer>Default</footer>");
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", "special")).Returns("<footer>Special</footer>");
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var step = CriarStep(templateWithMultipleFooters, referenciasMock.Object);
+        var ctx = CriarContexto(cliente: "acme");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("<footer>Default</footer>");
+        ctx.Html.Should().Contain("<footer>Special</footer>");
+        ctx.Html.Should().NotContain("{{footer:default}}");
+        ctx.Html.Should().NotContain("{{footer:special}}");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithFooterContainingAssets_IncludesInFixedAssetRefs()
+    {
+        const string templateWithFooter = """
+            <html>
+            <body>
+            <p>Content</p>
+            {{footer}}
+            </body>
+            </html>
+            """;
+        
+        const string footerWithAssets = """
+            <footer>
+            <img src="assets/instagram.png" alt="Instagram">
+            <img src="assets/facebook.png" alt="Facebook">
+            </footer>
+            """;
+        
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns(footerWithAssets);
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        
+        var step = CriarStep(templateWithFooter, referenciasMock.Object);
+        var ctx = CriarContexto(cliente: "acme");
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.FixedAssetRefs.Should().Contain("instagram.png");
+        ctx.FixedAssetRefs.Should().Contain("facebook.png");
     }
 }

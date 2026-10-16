@@ -19,8 +19,7 @@ public class PipelineEmail
     private readonly ILogger<StepDiagramacaoEmail> _diagramacaoLogger;
     private readonly ILogger<StepMapaEmocionalEmail> _mapaLogger;
     private readonly ILogger<StepAssetsEmail> _assetsLogger;
-    private readonly string _heroSectionTemplate;
-    private readonly string _bannerSectionTemplate;
+    private readonly ILogger<StepTemplateEmail> _templateLogger;
 
     public PipelineEmail(
         IServicoChat servicoChat,
@@ -36,8 +35,7 @@ public class PipelineEmail
         ILogger<StepDiagramacaoEmail> diagramacaoLogger,
         ILogger<StepMapaEmocionalEmail> mapaLogger,
         ILogger<StepAssetsEmail> assetsLogger,
-        string heroSectionTemplate,
-        string bannerSectionTemplate)
+        ILogger<StepTemplateEmail> templateLogger)
     {
         _servicoChat = servicoChat;
         _geradorImagem = geradorImagem;
@@ -52,8 +50,7 @@ public class PipelineEmail
         _diagramacaoLogger = diagramacaoLogger;
         _mapaLogger = mapaLogger;
         _assetsLogger = assetsLogger;
-        _heroSectionTemplate = heroSectionTemplate;
-        _bannerSectionTemplate = bannerSectionTemplate;
+        _templateLogger = templateLogger;
     }
 
     public virtual IReadOnlyList<IPipelineStep> CriarSteps()
@@ -66,7 +63,7 @@ public class PipelineEmail
             new StepCopyEmail(_catalogo.Obter("redator"), _servicoChat, _copyLogger),
             new StepDiagramacaoEmail(_catalogo.Obter("diagramador"), _servicoChat, _referencias, _iconCache, _diagramacaoLogger),
             new StepImagemHero(_catalogo.Obter("hero"), _catalogo.Obter("curador"), _servicoChat, _geradorImagem, _referencias, _analisadorImagem, _templateCatalogo, _bannerCache, _iconCache, _heroLogger),
-            new StepTemplateEmail(_templateCatalogo, _heroSectionTemplate, _bannerSectionTemplate),
+            new StepTemplateEmail(_templateCatalogo, _referencias, _templateLogger),
             new StepAssetsEmail(_referencias, _assetsLogger),
             new StepQaEmail(_catalogo.Obter("qa"), _servicoChat)
         };

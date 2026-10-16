@@ -84,22 +84,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
 
-        var heroSectionTemplate = """
-        <tr>
-          <td style="padding: 0; text-align: center;">
-            <img src="{{hero_src}}" alt="Hero" style="display: block; max-width: 600px; width: 100%; height: auto; border: 0;" border="0" width="600">
-          </td>
-        </tr>
-        """;
-
-        var bannerSectionTemplate = """
-        <tr>
-          <td style="padding: 0; text-align: center;">
-            <img src="{{banner_src}}" alt="Banner" style="display: block; max-width: 600px; width: 100%; height: auto; border: 0;" border="0" width="600">
-          </td>
-        </tr>
-        """;
-
         services.AddSingleton(sp => new PipelineEmail(
             sp.GetRequiredService<IServicoChat>(),
             sp.GetRequiredService<IGeradorImagem>(),
@@ -114,8 +98,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<ILogger<StepDiagramacaoEmail>>(),
             sp.GetRequiredService<ILogger<StepMapaEmocionalEmail>>(),
             sp.GetRequiredService<ILogger<StepAssetsEmail>>(),
-            heroSectionTemplate,
-            bannerSectionTemplate));
+            sp.GetRequiredService<ILogger<StepTemplateEmail>>()));
 
         services.AddSingleton<ITelegramGatewayFactory, TelegramGatewayFactory>();
         services.AddHostedService<TelegramService>();

@@ -1,0 +1,26 @@
+{
+  "regua": {
+    "etapas": [
+      "Assinatura do Contrato",
+      "Financiamento com o banco",
+      "Visita a Obra",
+      "Vistoria",
+      "Entrega das chaves"
+    ],
+    "etapa_destacada_por_fase": {
+      "pos-compra": "Financiamento com o banco",
+      "pre-chaves": "Vistoria",
+      "pos-chaves": "Entrega das chaves"
+    },
+    "estilo": {
+      "concluida": "line WHITE fill on the progress line segment",
+      "atual": "solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator)",
+      "futura": "outline only, no fill, empty/vacant segments",
+      "diretrizes": [
+        "Render the stage labels in Portuguese EXACTLY as written with the same colors (white or yellow), using a clean sans-serif typeface, small, legible",
+        "Design: smooth drop shadows, NO gradients, some transparency, NO glass effects, NO blurs, soft edges",
+        "The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable"
+      ]
+    }
+  }
+}

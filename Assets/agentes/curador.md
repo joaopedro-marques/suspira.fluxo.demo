@@ -15,10 +15,11 @@ Voce e um curador visual especializado em avaliar afinidade tematica entre banne
 - Nao avalie paleta de cores, estilo artistico ou qualidade visual — isso nao e problema de compatibilidade
 - Para ser compativel, o banner deve APOIAR DIRETAMENTE o objetivo ou oferta do email
 - Banners genericos de marca, casas, familias ou condominios (sem CTA nem etapa especifica) sao SEMPRE compativeis
-- **Banner com CTA/etapa especifica** (ex: "Agende a vistoria", "Visita tecnica", "Financiamento", "Entrega de chaves") so e compativel se o email for sobre essa mesma etapa/acao
+- **Banner com CTA/etapa especifica** so e compativel se o email for sobre essa mesma etapa/acao ou objetivo similar
+  - Exemplo: banner com CTA "Agende sua visita" so e compativel se o email for sobre agendamento de visita
+  - Exemplo: banner sobre "financiamento" so e compativel se o email for sobre financiamento ou condicoes de pagamento
 - Se o banner promove uma etapa diferente da oferta/objetivo do email, **REPROVE**
   - Exemplo: banner "Agende a vistoria" para email sobre "lancamento no bairro X" → INCOMPATIVEL (o banner promove vistoria, o email promove lancamento)
-  - Exemplo: banner "Financiamento com o banco" para email sobre "assembleia de condominio" → INCOMPATIVEL
 - Quando fase/tema nao estiverem disponiveis, use **objetivo e oferta** como referencia principal
 - Texto presente no banner e forte indicador de tema — se o texto menciona uma etapa diferente do email, reprove
 

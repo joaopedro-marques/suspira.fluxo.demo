@@ -19,6 +19,7 @@ public class TelegramService : BackgroundService
     private readonly ILogger<TelegramService> _logger;
     private readonly TelegramOptions _options;
     private readonly ConcorrenciaOptions _concorrencia;
+    private readonly PreFlightOptions _preFlightOptions;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
@@ -36,6 +37,7 @@ public class TelegramService : BackgroundService
         ILogger<TelegramService> logger,
         IOptions<TelegramOptions> options,
         IOptions<ConcorrenciaOptions> concorrencia,
+        IOptions<PreFlightOptions> preFlightOptions,
         IAnalisadorImagem analisadorImagem,
         RateLimiterService rateLimiter,
         ITelegramGatewayFactory gatewayFactory,
@@ -49,6 +51,7 @@ public class TelegramService : BackgroundService
         _logger = logger;
         _options = options.Value;
         _concorrencia = concorrencia.Value;
+        _preFlightOptions = preFlightOptions.Value;
         _analisadorImagem = analisadorImagem;
         _rateLimiter = rateLimiter;
         _gatewayFactory = gatewayFactory;
@@ -189,13 +192,19 @@ public class TelegramService : BackgroundService
 
         if (command == "/help")
         {
-            var help = """
+            var clientesTexto = _preFlightOptions.ClientesPermitidos.Count > 0
+                ? string.Join(", ", _preFlightOptions.ClientesPermitidos)
+                : "os clientes configurados";
+            var exemploCliente = _preFlightOptions.ClientesPermitidos.Count > 0 
+                ? _preFlightOptions.ClientesPermitidos[0] 
+                : "CLIENTE";
+            var help = $"""
                 Comandos:
                 /start - Inicia o bot
                 /help - Mostra esta ajuda
 
-                Envie uma mensagem livre para criar um email marketing para o cliente MRV.
-                Exemplo: "Crie um email para a MRV sobre pos-compra"
+                Envie uma mensagem livre para criar um email marketing para {clientesTexto}.
+                Exemplo: "Crie um email para a {exemploCliente} sobre pos-compra"
                 """;
             await _gateway!.SendMessageAsync(message.Chat.Id, help, ct);
             return;
@@ -290,14 +299,17 @@ public class TelegramService : BackgroundService
         switch (resultado.Tipo)
         {
             case "fora_contexto":
+                var clientesTexto = _preFlightOptions.ClientesPermitidos.Count > 0
+                    ? string.Join(", ", _preFlightOptions.ClientesPermitidos)
+                    : "os clientes configurados";
                 var msgFora = resultado.Motivo switch
                 {
                     RouterResultado.Motivos.ClienteNaoPermitido =>
-                        "Atendo apenas pedidos de email marketing para o cliente MRV. Esse cliente esta fora do meu escopo.",
+                        $"Atendo apenas pedidos de email marketing para {clientesTexto}. Esse cliente esta fora do meu escopo.",
                     RouterResultado.Motivos.CanalNaoPermitido =>
                         "Atendo apenas email marketing. Esse canal ainda nao e suportado.",
                     _ =>
-                        "Esse assunto esta fora do meu escopo. Atendo apenas pedidos de email marketing para o cliente MRV."
+                        $"Esse assunto esta fora do meu escopo. Atendo apenas pedidos de email marketing para {clientesTexto}."
                 };
                 await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, msgFora, ct);
                 return;

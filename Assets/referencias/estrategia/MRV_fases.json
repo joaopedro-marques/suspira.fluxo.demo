@@ -1,0 +1,13 @@
+{
+  "fases": {
+    "pos-compra": {
+      "sinonimos": ["pos-compras", "pós-compra", "pós-compras"]
+    },
+    "pre-chaves": {
+      "sinonimos": ["pré-chaves"]
+    },
+    "pos-chaves": {
+      "sinonimos": ["pós-chaves", "morador", "jornada-do-produto-morador"]
+    }
+  }
+}
