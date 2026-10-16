@@ -34,11 +34,12 @@ jobs:
       run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       if: always()
       with:
         files: '**/coverage.cobertura.xml'
         fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   docker-build:
     name: Docker Build
