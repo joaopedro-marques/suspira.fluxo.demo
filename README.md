@@ -42,7 +42,7 @@ Mensagem → TelegramService (long polling não-bloqueante):
               │     ├── StepImagemHero (retrieval banner + LLM visão + API: imagem opcional)
               │     ├── StepTemplateEmail (HTML table-based com slots)
               │     ├── StepAssetsEmail (resolução de assets referenciados)
-              │     └── StepQaEmail (LLM: aprovado/reprovado, max 2 refações)
+              │     └── StepQaEmail (LLM: aprovado/reprovado, max 4 refações)
               └── fora_contexto (canal/cliente fora do escopo configurável)
   → Entrega: zip com HTML + assets + imagens
 ```
@@ -50,7 +50,7 @@ Mensagem → TelegramService (long polling não-bloqueante):
 - **Router**: Classifica mensagens (conversa/esclarecimento/produção/fora_contexto), estrutura brief com campos (objetivo, público, canal, oferta, etc.)
 - **PipelineEmail**: Steps ordenados deterministicamente, cada um recebe contexto mínimo
 - **Steps**: Retrieval (estratégia, marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
-- **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/diagramacao/hero), max 2 refações. Entrega só ocorre após aprovação; caso contrário, feedback é enviado como mensagem
+- **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/diagramacao/hero), max 4 refações. Entrega só ocorre após aprovação; caso contrário, feedback é enviado como mensagem
 - **Fallback de modelos em 429**: Polly re-tenta no mesmo modelo respeitando Retry-After; se 429 persiste, troca para próximo modelo da cadeia configurável com backoff exponencial
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
 - **Descrições de ícones**: Ícones são descritos via visão (IconDescricaoCache com sidecar JSON) e injetados no prompt do diagramador para escolha semântica

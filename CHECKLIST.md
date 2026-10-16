@@ -62,12 +62,12 @@
 - [ ] StepImagemHero - Deriva tema de TemaSelecionado ?? Brief.Tema ?? Brief.Oferta ?? Brief.Objetivo; seleciona banner cujo nome contém palavras do tema (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate com o tema, retorna vazio (sem fallback fraco) e gera hero via IA com régua full-width no topo (header da foto, etapas já passadas em branco, etapa atual em amarelo, flat design sem sombra/transparência) + diretriz estrita de imagem sem textos (única exceção: labels da régua); se há candidatos, valida compatibilidade via curador (regras de alinhamento: banner deve apoiar diretamente o objetivo/oferta); em refação hero sem heroBrief, gera imagem via IA com feedback do QA
 - [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px, {{banner_section}} e {{hero_section}} condicionais; extrai refs assets/ do template cru para FixedAssetRefs
 - [ ] StepAssetsEmail - Resolve referências assets/ no HTML e empacota assets correspondentes; refs fixas do template ausentes geram erro de configuração sem remover tag; refs do corpo alucinadas são removidas
-- [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 2 refações)
+- [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 4 refações)
 
 #### QA com Retry
 - [ ] QA aprova na primeira tentativa - Pipeline completa normalmente
 - [ ] QA reprova com feedback "copy muito longa" - Volta ao StepCopyEmail, refaz com feedback
-- [ ] QA reprova 2x - Retorna mensagem de falha com feedback do QA
+- [ ] QA reprova 4x - Retorna mensagem de falha com feedback do QA
 
 #### Entrega
 - [ ] Pipeline completa - Zip enviado com HTML + imagens + assets

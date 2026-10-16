@@ -396,7 +396,7 @@ public class TelegramService : BackgroundService
             Cliente = resultado.Cliente
         };
 
-        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, ct);
     }
 
     internal async Task IniciarOnboardingAsync(long chatId, string cliente, string mensagemOriginal, CancellationToken ct)
@@ -554,7 +554,7 @@ public class TelegramService : BackgroundService
             Cliente = cliente
         };
 
-        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, ct);
+        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, ct);
     }
 
     private async Task EnviarPerguntaOnboardingAsync(long chatId, PerguntaOnboarding pergunta, CancellationToken ct)

@@ -78,7 +78,7 @@ public class PipelineRunnerTests
         var context = CriarContexto();
         context.Resultado.RespostaFinal = "<html>email</html>";
 
-        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, CancellationToken.None);
+        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, CancellationToken.None);
 
         result.QaAprovado.Should().BeTrue();
         result.RespostaFinal.Should().Be("<html>email</html>");
@@ -102,7 +102,7 @@ public class PipelineRunnerTests
         var context = CriarContexto();
         context.Resultado.RespostaFinal = "<html>email</html>";
 
-        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, CancellationToken.None);
+        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, CancellationToken.None);
 
         result.QaAprovado.Should().BeTrue();
         copyStep.ExecCount.Should().Be(2);
@@ -125,7 +125,7 @@ public class PipelineRunnerTests
         var context = CriarContexto();
         context.Resultado.RespostaFinal = "<html>last good html</html>";
 
-        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, CancellationToken.None);
+        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, CancellationToken.None);
 
         result.QaAprovado.Should().BeFalse();
         result.QaFeedbackFinal.Should().Be("QA feedback text");
@@ -147,7 +147,7 @@ public class PipelineRunnerTests
         var context = CriarContexto();
         context.Resultado.RespostaFinal = "<html>email</html>";
 
-        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 2, CancellationToken.None);
+        var result = await _runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, CancellationToken.None);
 
         result.QaAprovado.Should().BeTrue();
         copyStep.ExecCount.Should().Be(2);

@@ -215,7 +215,7 @@ sequenceDiagram
     
     alt aprovado
         SQ-->>PR: context.QaAprovado = true
-    else reprovado (max 2 refações)
+    else reprovado (max 4 refações)
         SQ-->>PR: context.QaAprovado = false
         PR->>PR: Voltar ao step alvo (copy/hero)
         Note over PR,SQ: Loop até aprovação ou max refações
@@ -346,7 +346,7 @@ public class PipelineRunner
     {
         // Executa steps em ordem
         // Se QA reprova, volta ao step alvo (copy/hero)
-        // Max refações = maxRefacoesQa (default 2)
+        // Max refações = maxRefacoesQa (default 4)
         // Retorna ResultadoPipeline (HTML + imagens + assets)
     }
 }
@@ -380,7 +380,7 @@ O sistema implementa retry em camadas para erros HTTP, com tratamento específic
 | **1 — HTTP (Polly)** | `Microsoft.Extensions.Http.Resilience` | Cliente "OpenRouter" | Retenta 408/429/5xx + erros transitórios; backoff exponencial 5s→60s; respeita header `Retry-After` |
 | **2 — Fallback de modelo** | Loop em `OpenRouterService` | `ChamarAgenteAsync`, `GerarImagemAsync` | 429 persistente após Polly: troca para próximo modelo da cadeia com backoff 2s→30s |
 | **3 — Semântico** | `RouterService` | Router (JSON inválido) | 1 retry automático com prompt reforçado |
-| **4 — Negócio** | `PipelineRunner` | QA | Max 2 refações no step alvo (copy/hero) |
+| **4 — Negócio** | `PipelineRunner` | QA | Max 4 refações no step alvo (copy/hero) |
 | **5 — Reconexão** | `TelegramService` | Polling loop | Backoff exponencial 1s→30s em perda de conexão |
 
 ### Fluxo 429
