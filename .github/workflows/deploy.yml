@@ -5,6 +5,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
 env:
   DOTNET_VERSION: '10.0.x'
 
@@ -39,27 +43,40 @@ jobs:
     steps:
     - name: Deploy via SSH
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        DEPLOY_BRANCH: ${{ github.ref_name }}
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT || 22 }}
+        envs: DEPLOY_BRANCH
         script: |
           set -e
-          
-          echo "=== Deploy DemoAgencia ==="
+
+          case "$DEPLOY_BRANCH" in
+            main|develop) ;;
+            *)
+              echo "Branch nao permitida para deploy: $DEPLOY_BRANCH"
+              exit 1
+              ;;
+          esac
+
+          echo "=== Deploy DemoAgencia (branch: $DEPLOY_BRANCH) ==="
           echo "Timestamp: $(date)"
           
           cd ~/demoagencia
           
           if [ ! -d ".git" ]; then
             echo "Primeiro deploy - clonando repositorio..."
-            git clone ${{ github.server_url }}/${{ github.repository }}.git .
+            git clone --branch "$DEPLOY_BRANCH" ${{ github.server_url }}/${{ github.repository }}.git .
           else
-            echo "Atualizando codigo..."
+            echo "Atualizando codigo da branch $DEPLOY_BRANCH..."
             git fetch origin
-            git reset --hard origin/main
+            git reset --hard "origin/$DEPLOY_BRANCH"
           fi
+
+          echo "Commit deployado: $(git rev-parse --short HEAD)"
           
           echo "Gerando arquivo .env..."
           cat > .env << 'EOF'
@@ -100,14 +117,20 @@ jobs:
 
     - name: Verify deployment
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        DEPLOY_BRANCH: ${{ github.ref_name }}
       with:
         host: ${{ secrets.SSH_HOST }}
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_KEY }}
         port: ${{ secrets.SSH_PORT || 22 }}
+        envs: DEPLOY_BRANCH
         script: |
           cd ~/demoagencia
-          
+
+          echo "Branch: $DEPLOY_BRANCH"
+          echo "Commit: $(git rev-parse --short HEAD)"
+
           if docker compose ps | grep -q "Up"; then
             echo "Container esta rodando"
           else
