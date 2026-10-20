@@ -70,6 +70,7 @@ public class TelegramServiceOnboardingTests
         _loggerMock.Object,
         TestOptions.Create(_telegramOptions),
         TestOptions.Create(new ConcorrenciaOptions()),
+        TestOptions.Create(new PreFlightOptions()),
         _analisadorImagemMock.Object,
         _rateLimiterMock.Object,
         _gatewayFactoryMock.Object,
@@ -375,8 +376,7 @@ public class TelegramServiceOnboardingTests
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
             Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
             Mock.Of<ILogger<StepAssetsEmail>>(),
-            "",
-            "");
+            Mock.Of<ILogger<StepTemplateEmail>>());
         pipelineMock.Setup(p => p.CriarSteps()).Returns(new List<IPipelineStep>());
 
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner)))

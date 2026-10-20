@@ -10,6 +10,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private readonly Dictionary<string, List<string>> _referenciasPorCliente = new();
     private readonly Dictionary<string, List<AssetVisual>> _assetsPorCliente = new();
     private readonly Dictionary<string, EstrategiaCliente> _estrategiaPorCliente = new();
+    private readonly Dictionary<string, Dictionary<string, string>> _footersPorCliente = new(StringComparer.OrdinalIgnoreCase);
+    private string? _heroSectionTemplate;
+    private string? _bannerSectionTemplate;
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -71,8 +74,12 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         _logger.LogInformation("Carregando referencias de: {Path}", assetsPath);
 
         foreach (var file in Directory.EnumerateFiles(assetsPath, "*", SearchOption.AllDirectories)
-            .Where(f => !Path.GetDirectoryName(f)?.Replace(Path.DirectorySeparatorChar, '/')
-                .Contains("/estrategia", StringComparison.OrdinalIgnoreCase) ?? true)
+            .Where(f =>
+            {
+                var dir = Path.GetDirectoryName(f)?.Replace(Path.DirectorySeparatorChar, '/') ?? "";
+                return !dir.Contains("/estrategia", StringComparison.OrdinalIgnoreCase)
+                    && !dir.Contains("/footer", StringComparison.OrdinalIgnoreCase);
+            })
             .Where(f => !f.EndsWith(".desc.json", StringComparison.OrdinalIgnoreCase)))
         {
             try
@@ -127,12 +134,15 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
 
         CarregarEstrategias(assetsPath);
+        CarregarFooters(assetsPath);
+        CarregarComponentes(assetsPath);
 
-        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Assets} assets, {Estrategias} estrategias",
-            _referenciasPorCliente.Keys.Union(_assetsPorCliente.Keys).Union(_estrategiaPorCliente.Keys).Count(),
+        _logger.LogInformation("Referencias carregadas: {Clientes} clientes, {Textos} arquivos texto, {Assets} assets, {Estrategias} estrategias, {Footers} footers",
+            _referenciasPorCliente.Keys.Union(_assetsPorCliente.Keys).Union(_estrategiaPorCliente.Keys).Union(_footersPorCliente.Keys).Count(),
             _referenciasPorCliente.Values.Sum(v => v.Count),
             _assetsPorCliente.Values.Sum(v => v.Count),
-            _estrategiaPorCliente.Count);
+            _estrategiaPorCliente.Count,
+            _footersPorCliente.Values.Sum(v => v.Count));
 
         return Task.CompletedTask;
     }
@@ -177,6 +187,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         var todos = _referenciasPorCliente.Keys
             .Union(_assetsPorCliente.Keys)
             .Union(_estrategiaPorCliente.Keys)
+            .Union(_footersPorCliente.Keys)
             .Select(c => c.ToLowerInvariant())
             .Distinct()
             .OrderBy(c => c, StringComparer.Ordinal)
@@ -191,6 +202,35 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             return null;
 
         return estrategia;
+    }
+
+    public virtual string? ObterFooterHtml(string cliente, string? nome = null)
+    {
+        if (string.IsNullOrEmpty(cliente))
+            return null;
+
+        var clienteKey = cliente.ToLowerInvariant();
+        if (!_footersPorCliente.TryGetValue(clienteKey, out var footers))
+            return null;
+
+        // If a specific name is requested, only return that exact footer (no fallback)
+        if (!string.IsNullOrEmpty(nome))
+        {
+            return footers.TryGetValue(nome.ToLowerInvariant(), out var namedFooter) ? namedFooter : null;
+        }
+
+        // If no name is specified, return the default footer
+        return footers.TryGetValue("", out var defaultFooter) ? defaultFooter : null;
+    }
+
+    public virtual string? ObterHeroSectionTemplate()
+    {
+        return _heroSectionTemplate;
+    }
+
+    public virtual string? ObterBannerSectionTemplate()
+    {
+        return _bannerSectionTemplate;
     }
 
     private void CarregarEstrategias(string assetsPath)
@@ -252,9 +292,98 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
     }
 
+    private void CarregarFooters(string assetsPath)
+    {
+        var footerPath = Path.Combine(assetsPath, "footer");
+        if (!Directory.Exists(footerPath))
+        {
+            _logger.LogDebug("Subpasta footer/ nao encontrada em: {Path}", assetsPath);
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(footerPath, "*.html")
+            .Concat(Directory.GetFiles(footerPath, "*.htm")))
+        {
+            try
+            {
+                var fileName = Path.GetFileName(file);
+                var idxPrimeiroUnderscore = fileName.IndexOf('_');
+                if (idxPrimeiroUnderscore <= 0)
+                {
+                    _logger.LogWarning("Arquivo de footer sem sufixo de cliente ignorado: {File}", fileName);
+                    continue;
+                }
+
+                var cliente = fileName.Substring(0, idxPrimeiroUnderscore).ToLowerInvariant();
+                var restante = Path.GetFileNameWithoutExtension(fileName.Substring(idxPrimeiroUnderscore + 1));
+
+                // Parse nome do footer: "footer" = default, "footer_nome" = nomeado
+                string nome;
+                if (restante.Equals("footer", StringComparison.OrdinalIgnoreCase))
+                {
+                    nome = "";
+                }
+                else if (restante.StartsWith("footer_", StringComparison.OrdinalIgnoreCase))
+                {
+                    nome = restante.Substring("footer_".Length).ToLowerInvariant();
+                }
+                else
+                {
+                    _logger.LogWarning("Arquivo de footer com nome inesperado ignorado: {File}", fileName);
+                    continue;
+                }
+
+                var html = File.ReadAllText(file);
+
+                if (!_footersPorCliente.ContainsKey(cliente))
+                    _footersPorCliente[cliente] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                _footersPorCliente[cliente][nome] = html;
+                _logger.LogDebug("Footer carregado para cliente {Cliente}: {Nome}",
+                    cliente, string.IsNullOrEmpty(nome) ? "default" : nome);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao carregar footer de {File}", file);
+            }
+        }
+
+        _logger.LogInformation("Footers carregados: {Clientes} clientes, {Total} footers",
+            _footersPorCliente.Count,
+            _footersPorCliente.Values.Sum(v => v.Count));
+    }
+
+    private void CarregarComponentes(string assetsPath)
+    {
+        var componentsPath = Path.Combine(assetsPath, "components");
+        if (!Directory.Exists(componentsPath))
+        {
+            _logger.LogDebug("Subpasta components/ nao encontrada em: {Path}", assetsPath);
+            return;
+        }
+
+        var heroFile = Path.Combine(componentsPath, "hero_section.html");
+        if (File.Exists(heroFile))
+        {
+            _heroSectionTemplate = File.ReadAllText(heroFile);
+            _logger.LogDebug("Template hero_section.html carregado");
+        }
+
+        var bannerFile = Path.Combine(componentsPath, "banner_section.html");
+        if (File.Exists(bannerFile))
+        {
+            _bannerSectionTemplate = File.ReadAllText(bannerFile);
+            _logger.LogDebug("Template banner_section.html carregado");
+        }
+    }
+
     private static string NormalizarTipoEstrategia(string nomeArquivo)
     {
         var lower = nomeArquivo.ToLowerInvariant();
+        if (lower.Contains("fases"))
+            return "fases";
+        if (lower.Contains("regua"))
+            return "regua";
         if (lower.Contains("paleta") || lower.Contains("cor"))
             return "paleta";
         if (lower.Contains("tema"))
@@ -270,6 +399,16 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     {
         var estrategia = new EstrategiaCliente { Cliente = cliente };
 
+        // Processar fases PRIMEIRO para ter o vocabulário disponível
+        if (tipos.TryGetValue("fases", out var fasesJson))
+            ProcessarFases(estrategia, fasesJson);
+
+        // Se não há configuração de fases, criar uma padrão baseada nas fases encontradas
+        if (estrategia.ConfiguracaoFases == null)
+        {
+            estrategia.ConfiguracaoFases = CriarConfiguracaoFasesPadrao(tipos);
+        }
+
         if (tipos.TryGetValue("paleta", out var paletaJson))
             ProcessarPaleta(estrategia, paletaJson);
 
@@ -282,9 +421,80 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         if (tipos.TryGetValue("mapa", out var mapaJson))
             ProcessarMapa(estrategia, mapaJson);
 
-        return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0
+        if (tipos.TryGetValue("regua", out var reguaJson))
+            ProcessarRegua(estrategia, reguaJson);
+
+        return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Regua != null || estrategia.ConfiguracaoFases != null
             ? estrategia
             : null;
+    }
+
+    private static FasesConfig CriarConfiguracaoFasesPadrao(Dictionary<string, string> tipos)
+    {
+        var config = new FasesConfig();
+        var fasesEncontradas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Extrair fases do arquivo de paleta
+        if (tipos.TryGetValue("paleta", out var paletaJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(paletaJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("paleta_de_cores", out var paletaArr) && paletaArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in paletaArr.EnumerateArray())
+                    {
+                        var etapa = item.TryGetProperty("etapa", out var et) ? et.GetString() : null;
+                        if (!string.IsNullOrEmpty(etapa))
+                        {
+                            // Usar FaseJornada.Normalizar para extrair a fase padrão
+                            var faseNormalizada = FaseJornada.Normalizar(etapa);
+                            if (!string.IsNullOrEmpty(faseNormalizada))
+                            {
+                                fasesEncontradas.Add(faseNormalizada);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Extrair fases do arquivo de temas
+        if (tipos.TryGetValue("temas", out var temasJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(temasJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("fases", out var fasesArr) && fasesArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in fasesArr.EnumerateArray())
+                    {
+                        var nome = item.TryGetProperty("nome", out var n) ? n.GetString() : null;
+                        if (!string.IsNullOrEmpty(nome))
+                        {
+                            // Usar FaseJornada.Normalizar para extrair a fase padrão
+                            var faseNormalizada = FaseJornada.Normalizar(nome);
+                            if (!string.IsNullOrEmpty(faseNormalizada))
+                            {
+                                fasesEncontradas.Add(faseNormalizada);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // Criar FaseDefinicao para cada fase encontrada
+        foreach (var fase in fasesEncontradas)
+        {
+            config.Fases[fase] = new FaseDefinicao { FaseKey = fase };
+        }
+
+        return config.Fases.Count > 0 ? config : new FasesConfig();
     }
 
     private static void ProcessarPaleta(EstrategiaCliente estrategia, string json)
@@ -300,7 +510,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             var corPrincipal = item.TryGetProperty("cor_principal", out var cp) ? cp.GetString() : null;
             var etapaRaw = item.TryGetProperty("etapa", out var et) ? et.GetString() : null;
             var descricao = item.TryGetProperty("descricao", out var desc) ? desc.GetString() : null;
-            var fase = FaseJornada.Normalizar(etapaRaw);
+            var fase = estrategia.NormalizarFase(etapaRaw);
             if (string.IsNullOrEmpty(fase))
                 continue;
 
@@ -338,7 +548,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         foreach (var item in fasesArr.EnumerateArray())
         {
             var nome = item.TryGetProperty("nome", out var n) ? n.GetString() : null;
-            var fase = FaseJornada.Normalizar(nome);
+            var fase = estrategia.NormalizarFase(nome);
             if (string.IsNullOrEmpty(fase))
                 continue;
 
@@ -371,7 +581,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                     continue;
 
                 var subJornadaNome = subJornadaProp.Name;
-                var faseDestino = InferirFaseDeSubJornada(subJornadaNome);
+                var faseDestino = InferirFaseDeSubJornada(subJornadaNome, estrategia);
 
                 if (string.IsNullOrEmpty(faseDestino))
                     continue;
@@ -390,16 +600,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
     }
 
-    private static string? InferirFaseDeSubJornada(string nomeSubJornada)
+    private static string? InferirFaseDeSubJornada(string nomeSubJornada, EstrategiaCliente estrategia)
     {
-        var lower = nomeSubJornada.ToLowerInvariant();
-        if (lower.Contains("pos-compra") || lower.Contains("pós-compra"))
-            return FaseJornada.PosCompra;
-        if (lower.Contains("pre-chaves") || lower.Contains("pré-chaves"))
-            return FaseJornada.PreChaves;
-        if (lower.Contains("pos-chaves") || lower.Contains("pós-chaves") || lower.Contains("morador"))
-            return FaseJornada.PosChaves;
-        return null;
+        return estrategia.NormalizarFase(nomeSubJornada);
     }
 
     private static void ProcessarMapa(EstrategiaCliente estrategia, string json)
@@ -435,6 +638,105 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
             estrategia.MapaEmocional.Add(emocional);
         }
+    }
+
+    private static void ProcessarRegua(EstrategiaCliente estrategia, string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("regua", out var reguaObj))
+            return;
+
+        var regua = new ReguaJornada();
+
+        // Extrair etapas
+        if (reguaObj.TryGetProperty("etapas", out var etapasArr) && etapasArr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var etapa in etapasArr.EnumerateArray())
+            {
+                var etapaStr = etapa.GetString();
+                if (!string.IsNullOrEmpty(etapaStr))
+                    regua.Etapas.Add(etapaStr);
+            }
+        }
+
+        // Extrair mapa de fase para etapa destacada
+        if (reguaObj.TryGetProperty("etapa_destacada_por_fase", out var mapaObj) && mapaObj.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in mapaObj.EnumerateObject())
+            {
+                var etapaDestacada = prop.Value.GetString();
+                if (!string.IsNullOrEmpty(etapaDestacada))
+                    regua.EtapaDestacadaPorFase[prop.Name] = etapaDestacada;
+            }
+        }
+
+        // Extrair estilo
+        if (reguaObj.TryGetProperty("estilo", out var estiloObj))
+        {
+            var estilo = new EstiloRegua();
+
+            if (estiloObj.TryGetProperty("concluida", out var concluida))
+                estilo.Concluida = concluida.GetString() ?? estilo.Concluida;
+
+            if (estiloObj.TryGetProperty("atual", out var atual))
+                estilo.Atual = atual.GetString() ?? estilo.Atual;
+
+            if (estiloObj.TryGetProperty("futura", out var futura))
+                estilo.Futura = futura.GetString() ?? estilo.Futura;
+
+            if (estiloObj.TryGetProperty("diretrizes", out var diretrizesArr) && diretrizesArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var diretriz in diretrizesArr.EnumerateArray())
+                {
+                    var diretrizStr = diretriz.GetString();
+                    if (!string.IsNullOrEmpty(diretrizStr))
+                        estilo.Diretrizes.Add(diretrizStr);
+                }
+            }
+
+            regua.Estilo = estilo;
+        }
+
+        estrategia.Regua = regua;
+    }
+
+    private static void ProcessarFases(EstrategiaCliente estrategia, string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        if (!root.TryGetProperty("fases", out var fasesObj) || fasesObj.ValueKind != JsonValueKind.Object)
+            return;
+
+        var config = new FasesConfig();
+
+        foreach (var faseProp in fasesObj.EnumerateObject())
+        {
+            var faseKey = faseProp.Name;
+            var definicao = new FaseDefinicao { FaseKey = faseKey };
+
+            if (faseProp.Value.TryGetProperty("sinonimos", out var sinonimosArr) && sinonimosArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sinonimo in sinonimosArr.EnumerateArray())
+                {
+                    var sinStr = sinonimo.GetString();
+                    if (!string.IsNullOrEmpty(sinStr))
+                        definicao.Sinonimos.Add(sinStr);
+                }
+            }
+
+            config.Fases[faseKey] = definicao;
+            
+            // Também criar entrada em estrategia.Fases se ainda não existir
+            if (!estrategia.Fases.ContainsKey(faseKey))
+            {
+                estrategia.Fases[faseKey] = new FaseEstrategia { Fase = faseKey };
+            }
+        }
+
+        estrategia.ConfiguracaoFases = config;
     }
 
     private static FaseEstrategia ObterOuCriarFase(EstrategiaCliente estrategia, string fase)
@@ -528,7 +830,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
             foreach (var stageName in faseStageNames)
             {
-                var stageNorm = FaseJornada.Normalizar(stageName) ?? "";
+                var stageNorm = estrategia?.NormalizarFase(stageName) ?? FaseJornada.NormalizarTexto(stageName);
                 if (string.IsNullOrEmpty(stageNorm)) continue;
                 var keywords = stageNorm.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries);
                 foreach (var kw in keywords)

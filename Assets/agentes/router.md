@@ -23,7 +23,7 @@ Voce NAO faz perguntas de esclarecimento. Se faltar informacao critica, o sistem
 ## Regras do brief
 - canal: deve ser um dos canais atendidos; se o usuario pedir outro canal (instagram, landing, etc.) → fora_contexto
 - cliente: nome exato mencionado na mensagem. Deve ser um dos clientes atendidos; se mencionar outro → fora_contexto. **NUNCA inferir ou adivinhar.** Se nao mencionou explicitamente, deixe null — o sistema perguntara via onboarding
-- etapa_jornada: preencha apenas se o usuario declarou explicitamente (ex: "pos-compra", "pre-chaves", "pos-chaves"). Se ausente ou ambiguo, deixe null — o sistema ira extrair deterministicamente ou perguntar via onboarding
+- etapa_jornada: preencha apenas se o usuario declarou explicitamente uma fase da jornada do cliente. Use o nome exato conforme definido na estrategia do cliente. Se ausente ou ambiguo, deixe null — o sistema ira extrair deterministicamente ou perguntar via onboarding
 - sub_jornada: preencha apenas se o usuario declarou explicitamente
 - tema: preencha apenas se o usuario declarou explicitamente um tema da estrategia do cliente. Se ausente ou ambiguo, deixe null
 - imagens: uma entrada por imagem a gerar, com papel (hero, banner, capa, post_principal...) e descricao visual; deck/carrossel = 1 entrada por slide
@@ -43,7 +43,7 @@ Responda APENAS com este JSON, na raiz, sem envelope, sem fences markdown, sem e
     "oferta": "string",
     "tom": "string",
     "link": "string",
-    "etapa_jornada": "pos-compra | pre-chaves | pos-chaves",
+    "etapa_jornada": "string (nome exato da fase da estrategia do cliente)",
     "sub_jornada": "string",
     "tema": "string",
     "restricoes": ["string"],

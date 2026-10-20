@@ -13,7 +13,7 @@ public class BriefExtractor
             return new CamposExtraidos();
 
         var mensagemLower = mensagem.ToLowerInvariant();
-        var etapa = ExtrairEtapa(mensagemLower);
+        var etapa = ExtrairEtapa(mensagemLower, estrategia);
         var marco = etapa != null && estrategia != null ? ExtrairMarco(mensagemLower, estrategia, etapa) : null;
         var tema = etapa != null && estrategia != null ? ExtrairTema(mensagemLower, estrategia, etapa) : null;
         var objetivo = ExtrairObjetivo(mensagemLower);
@@ -25,18 +25,18 @@ public class BriefExtractor
             Objetivo: objetivo);
     }
 
-    private string? ExtrairEtapa(string mensagemLower)
+    private string? ExtrairEtapa(string mensagemLower, EstrategiaCliente? estrategia)
     {
-        if (mensagemLower.Contains("pós-compra") || mensagemLower.Contains("pos-compra") || mensagemLower.Contains("pós compra") || mensagemLower.Contains("pos compra"))
-            return "pos-compra";
-
-        if (mensagemLower.Contains("pré-chaves") || mensagemLower.Contains("pre-chaves") || mensagemLower.Contains("pré chaves") || mensagemLower.Contains("pre chaves"))
-            return "pre-chaves";
-
-        if (mensagemLower.Contains("pós-chaves") || mensagemLower.Contains("pos-chaves") || mensagemLower.Contains("pós chaves") || mensagemLower.Contains("pos chaves"))
-            return "pos-chaves";
-
-        return null;
+        if (estrategia != null)
+        {
+            // Usar vocabulário do cliente se disponível
+            var faseNormalizada = estrategia.NormalizarFase(mensagemLower);
+            if (!string.IsNullOrEmpty(faseNormalizada))
+                return faseNormalizada;
+        }
+        
+        // Fallback para normalização padrão quando não há configuração de fases
+        return FaseJornada.Normalizar(mensagemLower);
     }
 
     private string? ExtrairMarco(string mensagemLower, EstrategiaCliente estrategia, string etapa)

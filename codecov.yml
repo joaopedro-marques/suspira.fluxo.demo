@@ -1,0 +1,42 @@
+# Configuracao do Codecov
+# Referencia: https://docs.codecov.com/docs/codecovyml-reference
+# Validar com: https://api.codecov.io/validate
+#
+# Objetivo: reduzir o volume de e-mails do Codecov.
+#
+# As notificacoes do Codecov sao comentarios de Pull Request. O GitHub envia
+# e-mail aos inscritos do PR apenas quando um comentario NOVO e publicado
+# (editar um comentario existente NAO gera e-mail). Por isso a configuracao
+# abaixo prioriza atualizar o comentario existente e so comentar quando a
+# cobertura realmente cair.
+
+codecov:
+  notify:
+    # Espera o CI terminar antes de publicar status/comentario,
+    # evitando uma notificacao intermediaria a cada push.
+    wait_for_ci: true
+    # O pipeline envia apenas 1 relatorio por commit,
+    # entao notifica assim que esse relatorio for processado.
+    after_n_builds: 1
+
+comment:
+  # "default" atualiza o comentario existente; so publica um novo quando
+  # ainda nao existe (publicar um novo e o que dispara o e-mail).
+  behavior: default
+  # Comenta (e portanto notifica) apenas quando a cobertura cair.
+  # Para silenciar os comentarios por completo, troque todo este bloco por:
+  #   comment: false
+  require_changes: "coverage_drop"
+  require_base: false
+  require_head: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+        threshold: 1%

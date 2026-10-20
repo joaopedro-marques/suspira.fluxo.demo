@@ -15,7 +15,7 @@ public static class RouterParser
         "email", "instagram", "landing"
     };
 
-    public static RouterResultado? TentarExtrair(string texto)
+    public static RouterResultado? TentarExtrair(string texto, EstrategiaCliente? estrategia = null)
     {
         if (string.IsNullOrWhiteSpace(texto))
             return null;
@@ -51,7 +51,7 @@ public static class RouterParser
             Brief? brief = null;
             if (root.TryGetProperty("brief", out var briefEl) && briefEl.ValueKind == JsonValueKind.Object)
             {
-                brief = ExtrairBrief(briefEl);
+                brief = ExtrairBrief(briefEl, estrategia);
                 if (brief == null)
                     return null;
             }
@@ -67,7 +67,7 @@ public static class RouterParser
         }
     }
 
-    private static Brief? ExtrairBrief(JsonElement el)
+    private static Brief? ExtrairBrief(JsonElement el, EstrategiaCliente? estrategia)
     {
         var canal = el.TryGetProperty("canal", out var canalEl) ? canalEl.GetString() : null;
         if (string.IsNullOrEmpty(canal) || !CanaisValidos.Contains(canal))
@@ -80,7 +80,20 @@ public static class RouterParser
         var link = el.TryGetProperty("link", out var linkEl) ? linkEl.GetString() : null;
 
         var etapaJornadaRaw = el.TryGetProperty("etapa_jornada", out var etEl) ? etEl.GetString() : null;
-        var etapaJornada = FaseJornada.Normalizar(etapaJornadaRaw);
+        string? etapaJornada = null;
+        
+        if (!string.IsNullOrWhiteSpace(etapaJornadaRaw))
+        {
+            if (estrategia != null)
+            {
+                etapaJornada = estrategia.NormalizarFase(etapaJornadaRaw);
+            }
+            else
+            {
+                // Fallback para normalização padrão quando não há estratégia
+                etapaJornada = FaseJornada.Normalizar(etapaJornadaRaw);
+            }
+        }
         var subJornada = el.TryGetProperty("sub_jornada", out var sjEl) ? sjEl.GetString() : null;
         var tema = el.TryGetProperty("tema", out var temaEl) ? temaEl.GetString() : null;
 

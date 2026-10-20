@@ -11,4 +11,5 @@ public class EstrategiaEmail
     public string? TemaSelecionado { get; init; }
     public string? EtapaMapaEmocional { get; set; }
     public string? FatorDecisao { get; set; }
+    public ReguaJornada? Regua { get; init; }
 }

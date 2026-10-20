@@ -65,7 +65,8 @@ public class RouterService
             maxTokens: router.MaxTokens,
             ct: ct);
 
-        var resultado = RouterParser.TentarExtrair(resposta);
+        var estrategia = !string.IsNullOrEmpty(estado.Cliente) ? _referencias.ObterEstrategia(estado.Cliente) : null;
+        var resultado = RouterParser.TentarExtrair(resposta, estrategia);
         if (resultado != null)
         {
             var tratado = TratarResultado(estado, resultado);
@@ -91,7 +92,7 @@ public class RouterService
             maxTokens: router.MaxTokens,
             ct: ct);
 
-        resultado = RouterParser.TentarExtrair(retryResposta);
+        resultado = RouterParser.TentarExtrair(retryResposta, estrategia);
         if (resultado != null)
         {
             var tratado = TratarResultado(estado, resultado);

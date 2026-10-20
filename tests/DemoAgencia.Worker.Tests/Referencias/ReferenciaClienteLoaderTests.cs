@@ -400,6 +400,50 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task ObterEstrategia_WithFasesJson_ShouldLoadFasesConfig()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        
+        var fasesJson = """
+        {
+          "fases": {
+            "pos-compra": {
+              "sinonimos": ["pos-compras", "pós-compra", "pós-compras"]
+            },
+            "pre-chaves": {
+              "sinonimos": ["pré-chaves"]
+            },
+            "pos-chaves": {
+              "sinonimos": ["pós-chaves", "morador"]
+            }
+          }
+        }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_fases.json"), fasesJson);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.ConfiguracaoFases.Should().NotBeNull();
+        estrategia.ConfiguracaoFases!.Fases.Should().ContainKey("pos-compra");
+        estrategia.ConfiguracaoFases.Fases.Should().ContainKey("pre-chaves");
+        estrategia.ConfiguracaoFases.Fases.Should().ContainKey("pos-chaves");
+        
+        var posCompra = estrategia.ConfiguracaoFases.Fases["pos-compra"];
+        posCompra.Sinonimos.Should().Contain("pos-compras");
+        posCompra.Sinonimos.Should().Contain("pós-compra");
+        
+        estrategia.NormalizarFase("pós-compra").Should().Be("pos-compra");
+        estrategia.NormalizarFase("pos-compras").Should().Be("pos-compra");
+        estrategia.NormalizarFase("pré-chaves").Should().Be("pre-chaves");
+        estrategia.NormalizarFase("morador").Should().Be("pos-chaves");
+    }
+
+    [Fact]
     public async Task FaseEstrategia_ShouldMergeSubJornadasFromJornadaCliente()
     {
         var estrategiaDir = Path.Combine(_tempDir, "estrategia");
@@ -749,5 +793,172 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Icon && a.Nome == "casa");
         assets.Should().ContainSingle(a => a.Tipo == TipoAsset.Icon && a.Nome == "telefone");
+    }
+
+    [Fact]
+    public async Task CarregarFooters_WithDefaultFooter_ShouldLoad()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer.html"), "<footer>MRV Default</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var footer = loader.ObterFooterHtml("mrv");
+
+        footer.Should().Be("<footer>MRV Default</footer>");
+    }
+
+    [Fact]
+    public async Task CarregarFooters_WithNamedFooter_ShouldLoad()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer_mrveco.html"), "<footer>MRV&CO</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var footer = loader.ObterFooterHtml("mrv", "mrveco");
+
+        footer.Should().Be("<footer>MRV&CO</footer>");
+    }
+
+    [Fact]
+    public async Task CarregarFooters_WithMultipleFooters_ShouldLoadAll()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer.html"), "<footer>Default</footer>");
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer_mrveco.html"), "<footer>MRV&CO</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var defaultFooter = loader.ObterFooterHtml("mrv");
+        var namedFooter = loader.ObterFooterHtml("mrv", "mrveco");
+
+        defaultFooter.Should().Be("<footer>Default</footer>");
+        namedFooter.Should().Be("<footer>MRV&CO</footer>");
+    }
+
+    [Fact]
+    public async Task ObterFooterHtml_WithNonExistentClient_ShouldReturnNull()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer.html"), "<footer>MRV</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var footer = loader.ObterFooterHtml("acme");
+
+        footer.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObterFooterHtml_WithNonExistentName_ShouldReturnNull()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "MRV_footer.html"), "<footer>Default</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var footer = loader.ObterFooterHtml("mrv", "nonexistent");
+
+        footer.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListarClientes_WithFooterOnly_ShouldIncludeClient()
+    {
+        var footerDir = Path.Combine(_tempDir, "footer");
+        Directory.CreateDirectory(footerDir);
+
+        await File.WriteAllTextAsync(Path.Combine(footerDir, "ACME_footer.html"), "<footer>ACME</footer>");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var clientes = loader.ListarClientes();
+
+        clientes.Should().Contain("acme");
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_WithReguaJson_ShouldLoadRegua()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var regua = """
+        {
+          "regua": {
+            "etapas": [
+              "Assinatura do Contrato",
+              "Financiamento com o banco",
+              "Visita a Obra",
+              "Vistoria",
+              "Entrega das chaves"
+            ],
+            "etapa_destacada_por_fase": {
+              "pos-compra": "Financiamento com o banco",
+              "pre-chaves": "Vistoria",
+              "pos-chaves": "Entrega das chaves"
+            },
+            "estilo": {
+              "concluida": "line WHITE fill on the progress line segment",
+              "atual": "solid YELLOW highlight",
+              "futura": "outline only, no fill",
+              "diretrizes": [
+                "Render the stage labels in Portuguese EXACTLY as written",
+                "Design: smooth drop shadows, NO gradients"
+              ]
+            }
+          }
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_regua_jornada.json"), regua);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Regua.Should().NotBeNull();
+        estrategia.Regua!.Etapas.Should().HaveCount(5);
+        estrategia.Regua.Etapas.Should().Contain("Assinatura do Contrato");
+        estrategia.Regua.Etapas.Should().Contain("Vistoria");
+        estrategia.Regua.EtapaDestacadaPorFase.Should().ContainKey("pos-compra");
+        estrategia.Regua.EtapaDestacadaPorFase["pos-compra"].Should().Be("Financiamento com o banco");
+        estrategia.Regua.EtapaDestacadaPorFase["pre-chaves"].Should().Be("Vistoria");
+        estrategia.Regua.Estilo.Should().NotBeNull();
+        estrategia.Regua.Estilo.Concluida.Should().Contain("WHITE");
+        estrategia.Regua.Estilo.Atual.Should().Contain("YELLOW");
+        estrategia.Regua.Estilo.Diretrizes.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_WithoutReguaJson_ShouldHaveNullRegua()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme");
+
+        estrategia.Should().BeNull();
     }
 }

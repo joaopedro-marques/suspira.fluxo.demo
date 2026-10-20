@@ -8,6 +8,28 @@ public class EstrategiaCliente
     public string Cliente { get; init; } = string.Empty;
     public Dictionary<string, FaseEstrategia> Fases { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public List<EtapaEmocional> MapaEmocional { get; init; } = new();
+    public ReguaJornada? Regua { get; set; }
+    public FasesConfig? ConfiguracaoFases { get; set; }
+    
+    public string? NormalizarFase(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return null;
+
+        if (ConfiguracaoFases == null || ConfiguracaoFases.Fases.Count == 0)
+            return null;
+
+        var inputNormalized = FaseJornada.NormalizarTexto(input);
+
+        foreach (var kvp in ConfiguracaoFases.Fases)
+        {
+            kvp.Value.FaseKey = kvp.Key;
+            if (kvp.Value.Matches(inputNormalized))
+                return kvp.Key;
+        }
+
+        return null;
+    }
 }
 
 [ExcludeFromCodeCoverage]

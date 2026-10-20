@@ -8,4 +8,7 @@ public interface IReferenciasCliente
     EstrategiaCliente? ObterEstrategia(string cliente);
     AssetVisual? SelecionarBanner(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, string? tema = null);
     IReadOnlyList<AssetVisual> SelecionarBannersRanked(string cliente, string? fase, string? subJornada, IReadOnlyList<string>? templateSubJornadas, string? texto, int max, string? tema = null);
+    string? ObterFooterHtml(string cliente, string? nome = null);
+    string? ObterHeroSectionTemplate();
+    string? ObterBannerSectionTemplate();
 }

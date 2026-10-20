@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using DemoAgencia.Worker.Referencias;
+using Microsoft.Extensions.Logging;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
@@ -10,14 +11,14 @@ public partial class StepTemplateEmail : IPipelineStep
     public string Nome => "template";
 
     private readonly ITemplateCatalogo _catalogo;
-    private readonly string _heroSectionTemplate;
-    private readonly string _bannerSectionTemplate;
+    private readonly IReferenciasCliente _referencias;
+    private readonly ILogger<StepTemplateEmail> _logger;
 
-    public StepTemplateEmail(ITemplateCatalogo catalogo, string heroSectionTemplate, string bannerSectionTemplate)
+    public StepTemplateEmail(ITemplateCatalogo catalogo, IReferenciasCliente referencias, ILogger<StepTemplateEmail> logger)
     {
         _catalogo = catalogo;
-        _heroSectionTemplate = heroSectionTemplate;
-        _bannerSectionTemplate = bannerSectionTemplate;
+        _referencias = referencias;
+        _logger = logger;
     }
 
     public virtual Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
@@ -33,6 +34,9 @@ public partial class StepTemplateEmail : IPipelineStep
         if (string.IsNullOrEmpty(html))
             throw new InvalidOperationException("Template de email nao encontrado. Verifique se ha templates em Assets/referencias/templates/.");
 
+        // Inject footers before extracting FixedAssetRefs so footer images are included
+        html = InjectFooters(html, context.Cliente);
+
         context.FixedAssetRefs = ExtrairFixedAssetRefs(html);
 
         html = html.Replace("{{assunto}}", HtmlEncode(copy.Assunto));
@@ -43,9 +47,10 @@ public partial class StepTemplateEmail : IPipelineStep
         html = html.Replace("{{cta_texto}}", HtmlEncode(copy.CtaTexto));
         html = html.Replace("{{logo_src}}", HtmlEncode(context.LogoSrc ?? ""));
 
-        if (!string.IsNullOrEmpty(context.HeroSrc))
+        var heroSectionTemplate = _referencias.ObterHeroSectionTemplate();
+        if (!string.IsNullOrEmpty(context.HeroSrc) && !string.IsNullOrEmpty(heroSectionTemplate))
         {
-            var heroHtml = _heroSectionTemplate.Replace("{{hero_src}}", HtmlEncode(context.HeroSrc));
+            var heroHtml = heroSectionTemplate.Replace("{{hero_src}}", HtmlEncode(context.HeroSrc));
             html = html.Replace("{{hero_section}}", heroHtml);
         }
         else
@@ -53,9 +58,10 @@ public partial class StepTemplateEmail : IPipelineStep
             html = html.Replace("{{hero_section}}", "");
         }
 
-        if (!string.IsNullOrEmpty(context.BannerSrc))
+        var bannerSectionTemplate = _referencias.ObterBannerSectionTemplate();
+        if (!string.IsNullOrEmpty(context.BannerSrc) && !string.IsNullOrEmpty(bannerSectionTemplate))
         {
-            var bannerHtml = _bannerSectionTemplate.Replace("{{banner_src}}", HtmlEncode(context.BannerSrc));
+            var bannerHtml = bannerSectionTemplate.Replace("{{banner_src}}", HtmlEncode(context.BannerSrc));
             html = html.Replace("{{banner_section}}", bannerHtml);
         }
         else
@@ -67,6 +73,33 @@ public partial class StepTemplateEmail : IPipelineStep
         context.Resultado.RespostaFinal = html;
 
         return Task.FromResult(context);
+    }
+
+    internal string InjectFooters(string html, string? cliente)
+    {
+        if (string.IsNullOrEmpty(cliente))
+        {
+            // Remove all footer placeholders if no client
+            html = FooterPlaceholderRegex().Replace(html, "");
+            return html;
+        }
+
+        html = FooterPlaceholderRegex().Replace(html, match =>
+        {
+            var nome = match.Groups["nome"].Value;
+            var footerHtml = _referencias.ObterFooterHtml(cliente, string.IsNullOrEmpty(nome) ? null : nome);
+            
+            if (footerHtml == null)
+            {
+                var footerId = string.IsNullOrEmpty(nome) ? "default" : nome;
+                _logger.LogWarning("Footer '{FooterId}' not found for client '{Cliente}'. Removing placeholder.", footerId, cliente);
+                return "";
+            }
+            
+            return footerHtml;
+        });
+
+        return html;
     }
 
     internal static IReadOnlyList<string> ExtrairFixedAssetRefs(string templateHtml)
@@ -85,6 +118,9 @@ public partial class StepTemplateEmail : IPipelineStep
     {
         return WebUtility.HtmlEncode(value);
     }
+
+    [GeneratedRegex(@"{{footer(?::(?<nome>[a-zA-Z0-9_]+))?}}", RegexOptions.Compiled)]
+    private static partial Regex FooterPlaceholderRegex();
 
     [GeneratedRegex(@"src=""assets/([^""]+)""", RegexOptions.Compiled)]
     private static partial Regex AssetsSrcRegex();

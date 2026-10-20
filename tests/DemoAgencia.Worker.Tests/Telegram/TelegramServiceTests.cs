@@ -73,10 +73,13 @@ public class TelegramServiceTests
         _serviceProviderMock = new Mock<IServiceProvider>();
     }
 
-    private TelegramService CriarService() => new(
+    private TelegramService CriarService() => CriarService(new PreFlightOptions());
+
+    private TelegramService CriarService(PreFlightOptions preFlightOptions) => new(
         _loggerMock.Object,
         TestOptions.Create(_telegramOptions),
         TestOptions.Create(new ConcorrenciaOptions()),
+        TestOptions.Create(preFlightOptions),
         _analisadorImagemMock.Object,
         _rateLimiterMock.Object,
         _gatewayFactoryMock.Object,
@@ -221,8 +224,7 @@ public class TelegramServiceTests
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
             Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
             Mock.Of<ILogger<StepAssetsEmail>>(),
-            "<tr></tr>",
-            "<tr></tr>");
+            Mock.Of<ILogger<StepTemplateEmail>>());
 
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
@@ -354,8 +356,7 @@ public class TelegramServiceTests
             Mock.Of<ILogger<StepDiagramacaoEmail>>(),
             Mock.Of<ILogger<StepMapaEmocionalEmail>>(),
             Mock.Of<ILogger<StepAssetsEmail>>(),
-            "<tr></tr>",
-            "<tr></tr>");
+            Mock.Of<ILogger<StepTemplateEmail>>());
 
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineEmail))).Returns(pipelineEmail);
         _serviceProviderMock.Setup(sp => sp.GetService(typeof(PipelineRunner))).Returns(runnerMock.Object);
@@ -369,5 +370,97 @@ public class TelegramServiceTests
 
         gatewayMock.Verify(g => g.SendDocumentAsync(It.IsAny<long>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         editCalls.Should().Contain(m => m.Contains("QA nao aprovou"));
+    }
+
+    [Fact]
+    public async Task HandleCommand_Help_WithClientesPermitidos_ShouldUseDynamicList()
+    {
+        var preFlightOptions = new PreFlightOptions
+        {
+            ClientesPermitidos = new List<string> { "acme", "beta" }
+        };
+        var service = CriarService(preFlightOptions);
+
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(It.IsAny<string>())).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var sentMessages = new List<string>();
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, CancellationToken>((_, text, _) => sentMessages.Add(text))
+            .ReturnsAsync(new Message { Id = 1 });
+
+        var message = new Message
+        {
+            Id = 1,
+            Chat = new Chat { Id = 123, Type = ChatType.Private },
+            Text = "/help"
+        };
+        var update = new Update { Id = 42, Message = message };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { update });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(500);
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
+
+        sentMessages.Should().ContainSingle(m => m.Contains("acme, beta") && m.Contains("Crie um email para a acme"));
+    }
+
+    [Fact]
+    public async Task HandleCommand_Help_WithEmptyClientesPermitidos_ShouldUseGenericMessage()
+    {
+        var preFlightOptions = new PreFlightOptions
+        {
+            ClientesPermitidos = new List<string>()
+        };
+        var service = CriarService(preFlightOptions);
+
+        var gatewayMock = new Mock<ITelegramGateway>();
+        _gatewayFactoryMock.Setup(f => f.Create(It.IsAny<string>())).Returns(gatewayMock.Object);
+        gatewayMock.Setup(g => g.GetMeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new User { Id = 1, Username = "bot" });
+
+        var sentMessages = new List<string>();
+        gatewayMock.Setup(g => g.SendMessageAsync(It.IsAny<long>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<long, string, CancellationToken>((_, text, _) => sentMessages.Add(text))
+            .ReturnsAsync(new Message { Id = 1 });
+
+        var message = new Message
+        {
+            Id = 1,
+            Chat = new Chat { Id = 123, Type = ChatType.Private },
+            Text = "/help"
+        };
+        var update = new Update { Id = 42, Message = message };
+
+        var cts = new CancellationTokenSource();
+        var pollCalls = 0;
+        gatewayMock.Setup(g => g.GetUpdatesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref pollCalls) == 1)
+                    return Task.FromResult(new[] { update });
+                cts.Cancel();
+                return Task.FromCanceled<Update[]>(cts.Token);
+            });
+
+        await service.StartAsync(cts.Token);
+        await Task.Delay(500);
+        cts.Cancel();
+        await service.StopAsync(CancellationToken.None);
+
+        sentMessages.Should().ContainSingle(m => m.Contains("os clientes configurados") && m.Contains("Crie um email para a CLIENTE"));
     }
 }

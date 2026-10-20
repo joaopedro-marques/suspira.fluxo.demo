@@ -363,32 +363,30 @@ public class StepImagemHero : IPipelineStep
 
     internal static string ConstruirInstrucaoRegua(EstrategiaEmail? estrategia)
     {
-        if (estrategia == null || string.IsNullOrEmpty(estrategia.Fase))
+        if (estrategia?.Regua == null || estrategia.Regua.Etapas.Count == 0)
             return string.Empty;
 
-        var etapasRegua = new[]
-        {
-            "Assinatura do Contrato",
-            "Financiamento com o banco",
-            "Visita a Obra",
-            "Vistoria",
-            "Entrega das chaves"
-        };
+        if (string.IsNullOrEmpty(estrategia.Fase))
+            return string.Empty;
 
-        var etapaDestacada = DeterminarEtapaDestacada(estrategia, etapasRegua);
+        var regua = estrategia.Regua;
+        var etapasRegua = regua.Etapas.ToArray();
+        var etapaDestacada = DeterminarEtapaDestacada(estrategia, regua);
 
         var instruction = "\n\n## Journey ruler (full-width header at the top of the image)\n";
         instruction += "Pin a horizontal journey ruler at the very top edge of the image, spanning the entire width like a header strip above the photograph.\n";
-        instruction += "It is a thin horizontal progress line with 5 equally spaced segments(not visible defined by other margins or lines), one per stage, in this exact order:\n";
+        instruction += $"It is a thin horizontal progress line with {etapasRegua.Length} equally spaced segments(not visible defined by other margins or lines), one per stage, in this exact order:\n";
         instruction += string.Join(" -> ", etapasRegua);
         instruction += $"\n\nThe current step to highlight (must be visually distinct from all others): \"{etapaDestacada}\".\n";
         instruction += "\n## Ruler styling rules (strict)\n";
-        instruction += "- Completed stages (BEFORE the current step): line WHITE fill on the progress line segment.\n";
-        instruction += $"- Current step \"{etapaDestacada}\": the name of the stage with a solid YELLOW highlight (yellow fill, yellow marker, or yellow circle indicator).\n";
-        instruction += "- Future stages (AFTER the current step): outline only, no fill, empty/vacant segments.\n";
-        instruction += "- Render the stage labels in Portuguese EXACTLY as written above with the same colors(white or yellow), using a clean sans-serif typeface, small, legible.\n";
-        instruction += "- Design : smooth drop shadows, NO gradients, some transparency, NO glass effects, NO blurs, soft edges.\n";
-        instruction += "- The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable.\n";
+        instruction += $"- Completed stages (BEFORE the current step): {regua.Estilo.Concluida}.\n";
+        instruction += $"- Current step \"{etapaDestacada}\": {regua.Estilo.Atual}.\n";
+        instruction += $"- Future stages (AFTER the current step): {regua.Estilo.Futura}.\n";
+
+        foreach (var diretriz in regua.Estilo.Diretrizes)
+        {
+            instruction += $"- {diretriz}\n";
+        }
 
         return instruction;
     }
@@ -404,14 +402,14 @@ public class StepImagemHero : IPipelineStep
         return instruction;
     }
 
-    internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, string[] etapasRegua)
+    internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, ReguaJornada regua)
     {
         var marco = estrategia.SubJornada;
         if (!string.IsNullOrEmpty(marco))
         {
             var marcoNorm = NormalizarTexto(marco);
 
-            foreach (var etapa in etapasRegua)
+            foreach (var etapa in regua.Etapas)
             {
                 var etapaNorm = NormalizarTexto(etapa);
                 foreach (var palavra in etapaNorm.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries))
@@ -422,13 +420,15 @@ public class StepImagemHero : IPipelineStep
             }
         }
 
-        return estrategia.Fase switch
+        // Use the config-based phase-to-stage mapping
+        if (!string.IsNullOrEmpty(estrategia.Fase) &&
+            regua.EtapaDestacadaPorFase.TryGetValue(estrategia.Fase, out var etapaDestacada))
         {
-            "pos-compra" => "Financiamento com o banco",
-            "pre-chaves" => "Vistoria",
-            "pos-chaves" => "Entrega das chaves",
-            _ => "Assinatura do Contrato"
-        };
+            return etapaDestacada;
+        }
+
+        // Generic fallback: first stage in the list
+        return regua.Etapas.Count > 0 ? regua.Etapas[0] : string.Empty;
     }
 
     private static string NormalizarTexto(string texto)
