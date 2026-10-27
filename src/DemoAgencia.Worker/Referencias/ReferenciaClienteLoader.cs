@@ -13,6 +13,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private readonly Dictionary<string, Dictionary<string, string>> _footersPorCliente = new(StringComparer.OrdinalIgnoreCase);
     private string? _heroSectionTemplate;
     private string? _bannerSectionTemplate;
+    private string? _headerSectionTemplate;
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -233,6 +234,11 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return _bannerSectionTemplate;
     }
 
+    public virtual string? ObterHeaderSectionTemplate()
+    {
+        return _headerSectionTemplate;
+    }
+
     private void CarregarEstrategias(string assetsPath)
     {
         var estrategiaPath = Path.Combine(assetsPath, "estrategia");
@@ -374,6 +380,13 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         {
             _bannerSectionTemplate = File.ReadAllText(bannerFile);
             _logger.LogDebug("Template banner_section.html carregado");
+        }
+
+        var headerFile = Path.Combine(componentsPath, "header_section.html");
+        if (File.Exists(headerFile))
+        {
+            _headerSectionTemplate = File.ReadAllText(headerFile);
+            _logger.LogDebug("Template header_section.html carregado");
         }
     }
 
@@ -697,6 +710,29 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             }
 
             regua.Estilo = estilo;
+        }
+
+        // Extrair cores da regua renderizada em HTML no header do email
+        if (reguaObj.TryGetProperty("estilo_html", out var estiloHtmlObj))
+        {
+            var estiloHtml = new EstiloReguaHtml();
+
+            if (estiloHtmlObj.TryGetProperty("cor_concluida", out var corConcluida))
+                estiloHtml.CorConcluida = corConcluida.GetString() ?? estiloHtml.CorConcluida;
+
+            if (estiloHtmlObj.TryGetProperty("cor_atual", out var corAtual))
+                estiloHtml.CorAtual = corAtual.GetString() ?? estiloHtml.CorAtual;
+
+            if (estiloHtmlObj.TryGetProperty("cor_futura", out var corFutura))
+                estiloHtml.CorFutura = corFutura.GetString() ?? estiloHtml.CorFutura;
+
+            if (estiloHtmlObj.TryGetProperty("cor_label", out var corLabel))
+                estiloHtml.CorLabel = corLabel.GetString() ?? estiloHtml.CorLabel;
+
+            if (estiloHtmlObj.TryGetProperty("cor_label_atual", out var corLabelAtual))
+                estiloHtml.CorLabelAtual = corLabelAtual.GetString() ?? estiloHtml.CorLabelAtual;
+
+            regua.EstiloHtml = estiloHtml;
         }
 
         estrategia.Regua = regua;

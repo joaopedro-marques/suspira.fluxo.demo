@@ -153,6 +153,13 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             prompt += $"{context.QaFeedback}\n";
         }
 
+        if (!string.IsNullOrEmpty(context.FeedbackAjuste))
+        {
+            prompt += $"\n## Ajuste solicitado pelo cliente (entrega anterior)\n";
+            prompt += $"{context.FeedbackAjuste}\n";
+            prompt += $"Altere APENAS o que foi pedido. Preserve o restante do layout, os textos e a paleta.\n";
+        }
+
         return prompt;
     }
 

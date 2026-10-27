@@ -95,6 +95,24 @@ public class StepTemplateEmailTests
         </tr>
         """;
 
+    private const string HeaderTr = """
+        <tr>
+        <td width="600" style="{{header_bg}} {{header_clip}}">
+        {{regua_html}}
+        <table role="presentation" width="100%"><tr>{{header_coluna_1}}{{header_coluna_2}}</tr></table>
+        </td>
+        </tr>
+        """;
+
+    private const string TemplateComHeader = """
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <body>
+        <table width="600">{{banner_section}}{{header_section}}</table>
+        </body>
+        </html>
+        """;
+
     private static PipelineContext CriarContexto(
         CopyEmailSlots? copy = null,
         string? logoSrc = null,
@@ -138,6 +156,7 @@ public class StepTemplateEmailTests
         
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var loggerMock = new Mock<ILogger<StepTemplateEmail>>();
         
@@ -399,6 +418,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns("<footer>Default Footer</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -425,6 +445,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", "mrveco")).Returns("<footer>MRV&CO Footer</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var step = CriarStep(templateWithNamedFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -451,6 +472,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns((string?)null);
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -480,6 +502,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", "special")).Returns("<footer>Special</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var step = CriarStep(templateWithMultipleFooters, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -515,6 +538,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns(footerWithAssets);
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -523,5 +547,148 @@ public class StepTemplateEmailTests
 
         ctx.FixedAssetRefs.Should().Contain("instagram.png");
         ctx.FixedAssetRefs.Should().Contain("facebook.png");
+    }
+
+    private static PipelineContext CriarContextoComHeader(string? heroSrc = "imagens/gerada_1.png")
+    {
+        var ctx = CriarContexto(logoSrc: "assets/logo.png", heroSrc: heroSrc);
+        ctx.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = new FaseEstrategia
+            {
+                Fase = "pos-compra",
+                CorPrincipal = "Roxo",
+                CoresHex = new List<List<string>>
+                {
+                    new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56", "#006B40" },
+                    new() { "gradiente", "linear", "diagonal", "#F48421", "#FFB719" },
+                    new() { "#784099" },
+                    new() { "#AB40D9" },
+                    new() { "#AB40D9" }
+                }
+            },
+            Regua = new ReguaJornada
+            {
+                Etapas = new List<string>
+                {
+                    "Assinatura do Contrato",
+                    "Financiamento com o banco",
+                    "Visita a Obra",
+                    "Vistoria",
+                    "Entrega das chaves"
+                },
+                EtapaDestacadaPorFase = new Dictionary<string, string>
+                {
+                    ["pos-compra"] = "Financiamento com o banco",
+                    ["pre-chaves"] = "Vistoria",
+                    ["pos-chaves"] = "Entrega das chaves"
+                }
+            }
+        };
+        return ctx;
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithHeaderSlotAndHero_RendersHtmlHeader()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader();
+        ctx.HeaderLayoutInvertido = false;
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("background-color: #784099");
+        ctx.Html.Should().Contain("linear-gradient(135deg, #784099 0%, #AB40D9 100%)");
+        ctx.Html.Should().Contain(HeaderEmailBuilder.ClipPathPadrao);
+        ctx.Html.Should().Contain("Assinatura do Contrato");
+        ctx.Html.Should().Contain("Financiamento com o banco");
+        ctx.Html.Should().Contain("Vistoria");
+        ctx.Html.Should().Contain("Entrega das chaves");
+        ctx.Html.Should().Contain("background-color: #FFDD02", "a etapa atual deve aparecer no amarelo da regua");
+        ctx.Html.Should().Contain("Titulo teste");
+        ctx.Html.Should().Contain("color: #FFFFFF");
+        ctx.Html.Should().Contain("src=\"imagens/gerada_1.png\"");
+        ctx.Html.Should().Contain("width=\"240\"", "o hero deve ser menor que o background de 600px");
+        ctx.Html.Should().NotContain("{{header_section}}");
+        ctx.Html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithHeaderSlotWithoutHero_HeaderIsEmpty()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader(heroSrc: null);
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().NotContain("clip-path");
+        ctx.Html.Should().NotContain("<img");
+        ctx.Html.Should().NotContain("{{header_section}}");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithDefaultHeaderLayout_TitleComesBeforeImage()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader();
+        ctx.HeaderLayoutInvertido = false;
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        var tituloIndex = ctx.Html!.IndexOf("Titulo teste", StringComparison.Ordinal);
+        var imgIndex = ctx.Html.IndexOf("<img", StringComparison.Ordinal);
+        tituloIndex.Should().BeGreaterThan(0);
+        tituloIndex.Should().BeLessThan(imgIndex, "no layout padrao o titulo fica a esquerda");
+        ctx.Html.Should().Contain("align=\"left\"");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithInvertedHeaderLayout_ImageComesBeforeTitle()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader();
+        ctx.HeaderLayoutInvertido = true;
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        var imgIndex = ctx.Html!.IndexOf("<img", StringComparison.Ordinal);
+        var tituloIndex = ctx.Html.IndexOf("Titulo teste", StringComparison.Ordinal);
+        imgIndex.Should().BeGreaterThan(0);
+        imgIndex.Should().BeLessThan(tituloIndex, "no layout invertido a imagem fica a esquerda");
+        ctx.Html.Should().Contain("align=\"right\"");
+        ctx.Html.Should().Contain(HeaderEmailBuilder.ClipPathInvertido);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_HeaderLayout_IsAssignedOnce()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader();
+        ctx.HeaderLayoutInvertido.Should().BeNull();
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.HeaderLayoutInvertido.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithHeaderAndHeroSlots_DoesNotDuplicateHero()
+    {
+        const string templateComAmbosSlots = """
+            <html>
+            <body>
+            <table>{{header_section}}{{hero_section}}</table>
+            </body>
+            </html>
+            """;
+        var step = CriarStep(templateComAmbosSlots);
+        var ctx = CriarContextoComHeader();
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        var ocorrencias = System.Text.RegularExpressions.Regex.Matches(
+            ctx.Html!, "src=\"imagens/gerada_1.png\"").Count;
+        ocorrencias.Should().Be(1);
     }
 }

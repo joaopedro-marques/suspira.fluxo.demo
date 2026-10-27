@@ -758,80 +758,21 @@ public class StepImagemHeroTests
     }
 
     [Fact]
-    public void ConstruirInstrucaoRegua_WithFaseAndMarco_ShouldHighlightMatchingStep()
+    public void ConstruirInstrucaoSemTexto_ShouldForbidAllTextAndRulers()
     {
-        var estrategia = new EstrategiaEmail
-        {
-            Fase = "pre-chaves",
-            SubJornada = "Vistoria Antecipada",
-            Regua = CriarReguaTeste()
-        };
-
-        var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
-
-        instruction.Should().Contain("Assinatura do Contrato");
-        instruction.Should().Contain("Financiamento com o banco");
-        instruction.Should().Contain("Visita a Obra");
-        instruction.Should().Contain("Vistoria");
-        instruction.Should().Contain("Entrega das chaves");
-        instruction.Should().Contain("\"Vistoria\"");
-        instruction.Should().Contain("full-width");
-        instruction.Should().Contain("WHITE");
-        instruction.Should().Contain("YELLOW");
-        instruction.Should().Contain("smooth drop shadows");
-        instruction.Should().Contain("NO gradients");
-        instruction.Should().Contain("some transparency");
-        instruction.Should().Contain("soft edges");
-    }
-
-    [Fact]
-    public void ConstruirInstrucaoRegua_WithFaseOnly_ShouldFallbackToPhaseStep()
-    {
-        var estrategia = new EstrategiaEmail
-        {
-            Fase = "pos-compra",
-            SubJornada = null,
-            Regua = CriarReguaTeste()
-        };
-
-        var instruction = StepImagemHero.ConstruirInstrucaoRegua(estrategia);
-
-        instruction.Should().Contain("\"Financiamento com o banco\"");
-        instruction.Should().Contain("YELLOW");
-        instruction.Should().Contain("top edge");
-    }
-
-    [Fact]
-    public void ConstruirInstrucaoRegua_WithNullEstrategia_ShouldReturnEmpty()
-    {
-        StepImagemHero.ConstruirInstrucaoRegua(null).Should().BeEmpty();
-    }
-
-    [Fact]
-    public void ConstruirInstrucaoSemTexto_WithoutRuler_ShouldForbidAllText()
-    {
-        var instruction = StepImagemHero.ConstruirInstrucaoSemTexto(false);
+        var instruction = StepImagemHero.ConstruirInstrucaoSemTexto();
 
         instruction.Should().Contain("MUST NOT");
         instruction.Should().Contain("typography");
         instruction.Should().Contain("logos");
         instruction.Should().Contain("watermarks");
-        instruction.Should().NotContain("ruler");
+        instruction.Should().Contain("Do not draw journey rulers");
+        instruction.Should().Contain("rendered outside the image");
+        instruction.Should().NotContain("allowed exception");
     }
 
     [Fact]
-    public void ConstruirInstrucaoSemTexto_WithRuler_ShouldAllowRulerLabelsOnly()
-    {
-        var instruction = StepImagemHero.ConstruirInstrucaoSemTexto(true);
-
-        instruction.Should().Contain("MUST NOT");
-        instruction.Should().Contain("journey ruler");
-        instruction.Should().Contain("labels");
-        instruction.Should().Contain("exception");
-    }
-
-    [Fact]
-    public async Task ExecutarAsync_ShouldAppendRulerAndNoTextConstraint_AfterDetailedPrompt()
+    public async Task ExecutarAsync_ShouldNotEmbedRulerInImagePrompt()
     {
         _refsMock.Setup(r => r.SelecionarBannersRanked(
             It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(),
@@ -870,12 +811,12 @@ public class StepImagemHeroTests
         await _step.ExecutarAsync(context, CancellationToken.None);
 
         capturedPrompt.Should().NotBeNull();
-        capturedPrompt.Should().Contain("Journey ruler");
-        capturedPrompt.Should().Contain("WHITE");
-        capturedPrompt.Should().Contain("YELLOW");
+        capturedPrompt.Should().NotContain("Journey ruler");
+        capturedPrompt.Should().NotContain("full-width header at the top");
+        capturedPrompt.Should().NotContain("YELLOW");
         capturedPrompt.Should().Contain("Strict text constraint");
         capturedPrompt.Should().Contain("MUST NOT");
-        capturedPrompt.Should().Contain("journey ruler");
+        capturedPrompt.Should().Contain("Do not draw journey rulers");
     }
 
     [Fact]

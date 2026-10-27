@@ -81,7 +81,7 @@ public partial class StepQaEmail : IPipelineStep
         if (!string.IsNullOrEmpty(brief.Tom))
             prompt += $"Tom desejado: {brief.Tom}\n";
         if (!string.IsNullOrEmpty(brief.Link))
-            prompt += $"Link do CTA: {brief.Link}\n";
+            prompt += $"Link do CTA (fornecido pelo cliente — considerar SEMPRE correto): {brief.Link}\n";
         if (brief.Restricoes.Count > 0)
             prompt += $"Restricoes: {string.Join(", ", brief.Restricoes)}\n";
 
@@ -92,6 +92,13 @@ public partial class StepQaEmail : IPipelineStep
             prompt += $"Preheader: {copy.Preheader}\n";
             prompt += $"Titulo: {copy.Titulo}\n";
             prompt += $"CTA: {copy.CtaTexto} → {copy.CtaLink}\n";
+        }
+
+        if (!string.IsNullOrEmpty(brief.Link))
+        {
+            prompt += $"\n## Link do cliente (regra obrigatoria)\n";
+            prompt += $"O link do CTA foi enviado pelo cliente ({brief.Link}). Link enviado pelo cliente e SEMPRE considerado correto.\n";
+            prompt += $"NAO reprove o email por link invalido, inacessivel, sem protocolo, diferente do esperado ou que voce nao consegue verificar. Avalie apenas se o texto do CTA e claro e acionavel.\n";
         }
 
         if (!string.IsNullOrEmpty(html))
@@ -190,19 +197,7 @@ public partial class StepQaEmail : IPipelineStep
 
     private static string NormalizarStepAlvo(string? stepAlvo)
     {
-        if (string.IsNullOrWhiteSpace(stepAlvo))
-            return "copy";
-
-        var normalized = stepAlvo.Trim().ToLowerInvariant();
-
-        if (normalized.Contains("hero") || normalized.Contains("imagem"))
-            return "hero";
-        if (normalized.Contains("diagramacao") || normalized.Contains("diagram"))
-            return "diagramacao";
-        if (normalized.Contains("copy") || normalized.Contains("texto"))
-            return "copy";
-
-        return "copy";
+        return StepAlvoNormalizer.NormalizarQa(stepAlvo);
     }
 
     internal static IReadOnlyList<string> ExtrairPlaceholders(string html)

@@ -59,8 +59,8 @@
 - [ ] StepMapaEmocionalEmail - LLM associa o email a uma etapa do mapa emocional; define fator E/R para tom verbal/visual
 - [ ] StepMarcaEmail - Carrega logo, cores, tom de voz do cliente (se referências existem)
 - [ ] StepCopyEmail - Gera: assunto, preheader, título, saudação, corpo, CTA, rodapé
-- [ ] StepImagemHero - Deriva tema de TemaSelecionado ?? Brief.Tema ?? Brief.Oferta ?? Brief.Objetivo; seleciona banner cujo nome contém palavras do tema (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate com o tema, retorna vazio (sem fallback fraco) e gera hero via IA com régua full-width no topo (header da foto, etapas já passadas em branco, etapa atual em amarelo, flat design sem sombra/transparência) + diretriz estrita de imagem sem textos (única exceção: labels da régua); se há candidatos, valida compatibilidade via curador (regras de alinhamento: banner deve apoiar diretamente o objetivo/oferta); em refação hero sem heroBrief, gera imagem via IA com feedback do QA
-- [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px, {{banner_section}} e {{hero_section}} condicionais; extrai refs assets/ do template cru para FixedAssetRefs
+- [ ] StepImagemHero - Deriva tema de TemaSelecionado ?? Brief.Tema ?? Brief.Oferta ?? Brief.Objetivo; seleciona banner cujo nome contém palavras do tema (ex.: "Juros de Obra" → `juros_fase_de_obra`); se nenhum nome bate com o tema, retorna vazio (sem fallback fraco) e gera hero via IA com imagem limpa, sem textos e sem régua desenhada (a régua é renderizada em HTML no header); se há candidatos, valida compatibilidade via curador (regras de alinhamento: banner deve apoiar diretamente o objetivo/oferta); em refação hero sem heroBrief, gera imagem via IA com feedback do QA
+- [ ] StepTemplateEmail - HTML table-based, CSS inline, ghost tables, max-width 600px; monta o header MRV no slot {{header_section}} (fundo gradiente na cor da etapa, régua de jornada em HTML no topo, título branco ao lado do hero menor que o background e margem inferior triangular arredondada com lado sorteado por entrega); {{banner_section}} e {{hero_section}} legados continuam condicionais; extrai refs assets/ do template cru para FixedAssetRefs
 - [ ] StepAssetsEmail - Resolve referências assets/ no HTML e empacota assets correspondentes; refs fixas do template ausentes geram erro de configuração sem remover tag; refs do corpo alucinadas são removidas
 - [ ] StepQaEmail - Avalia entregável, aprova ou reprova (max 4 refações)
 
@@ -76,6 +76,23 @@
 - [ ] Zip contém `assets/banner_{nome}.png` (se banner afim à etapa selecionado)
 - [ ] Zip contém `assets/logo.png` (se cliente tem logo)
 - [ ] Zip contém `assets/logoMRVCO.png`, ícones sociais (se referenciados no template)
+
+#### Ajustes Pós-Entrega
+
+- [ ] Após o zip, bot envia menu com "✅ Aprovar" e "🔧 Pedir ajustes"
+- [ ] Clicar em "Aprovar" - bot confirma e a entrega é marcada como aprovada
+- [ ] Clicar em "Pedir ajustes" - bot pede a descrição do que não ficou legal
+- [ ] Enviar "o título está muito formal" - refinador classifica como `copy` e mostra o plano com botões Aplicar/Cancelar
+- [ ] Enviar "a imagem não tem a ver com o tema" - refinador classifica como `hero`
+- [ ] Enviar "troque o fundo das seções" - refinador classifica como `diagramacao`
+- [ ] Aplicar ajuste de copy - pipeline re-executa de copy em diante; zip v2 chega com a imagem hero preservada
+- [ ] Aplicar ajuste de hero - nova imagem gerada; imagens antigas não são duplicadas no zip
+- [ ] Cancelar ajuste - nenhuma chamada de pipeline; entrega vigente continua valendo
+- [ ] Feedback ambíguo - bot pede para detalhar e mantém o estado de espera de feedback
+- [ ] QA reprova após ajuste - bot informa e mantém a versão anterior
+- [ ] Atingir o limite de rodadas (`Ajustes__MaxRodadas`) - bot recusa novo ajuste e orienta aprovar ou enviar novo pedido
+- [ ] Enviar texto livre sem clicar nos botões - tratado como novo pedido pelo router
+- [ ] Deixar a entrega expirar (`Ajustes__TtlHorasEntrega`) - bot informa que não há entrega recente
 
 ### Multimodal (Análise de Fotos)
 - [ ] Enviar foto sem legenda - Bot descreve a imagem
@@ -95,6 +112,7 @@
 - [ ] Verificar trace `email_hero_prompt` (etapaNome="email_hero_prompt")
 - [ ] Verificar trace `email_hero_imagem` (etapaNome="email_hero_imagem")
 - [ ] Verificar trace `email_qa` (etapaNome="email_qa")
+- [ ] Verificar trace `email_refinador` (etapaNome="email_refinador", ajuste pós-entrega)
 - [ ] Verificar métricas: tokens, latência, modelo usado por step
 - [ ] Verificar traces de análise de imagem (etapaNome="image-analysis")
 

@@ -233,8 +233,8 @@ sequenceDiagram
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé. Prompt inclui Tom do brief (extraído pelo router) e hex codes da fase da paleta JSON |
 | `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis (nomes exatos) e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido. Prompt reforçado: usa APENAS nomes exatos de ícones listados, nunca inventa |
-| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com imagem limpa sem textos (diretriz estrita), régua full-width no topo (header da foto, etapas passadas em branco, etapa atual em amarelo, flat sem sombra/transparência, labels em português) e direção de arte das referências (paleta da fase, tom emocional, identidade visual do cliente); extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
-| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
+| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com imagem limpa, sem nenhum texto e sem régua desenhada (a régua de jornada é renderizada em HTML no header), com diretriz de composição para uso ao lado do título no header e direção de arte das referências (paleta da fase, tom emocional, identidade visual do cliente); extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
+| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots; quando o template tem `{{header_section}}` e há hero, monta o header MRV (fundo gradiente na cor da etapa, régua de jornada em HTML no topo, título branco ao lado do hero menor que o background e margem inferior triangular arredondada) com o lado sorteado uma única vez por entrega (`PipelineContext.HeaderLayoutInvertido`) |
 | `StepAssetsEmail` | Retrieval determinístico + sanitização | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota; **remove tags `<img>` com referências não resolvidas** (sanitização determinística contra alucinações do LLM) |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
@@ -250,7 +250,7 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 | `StepCopyEmail` | Brief fields (incl. Tom) + Estrategia (cores/temas/hex/mapa/E-R) | Marca, outros steps, histórico |
 | `StepDiagramacaoEmail` | Copy + Estrategia (cores/temas) + ícones disponíveis | Outros steps, histórico |
 | `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) + BannerDescricaoCache | Outros steps |
-| `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca | Brief, outros steps |
+| `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca + Estrategia (fase/régua/cores) | Brief, outros steps |
 | `StepAssetsEmail` | HTML final + banco de referências | Brief, outros steps |
 | `StepQaEmail` | Brief original + HTML final + Estrategia + Banner src | Few-shots, outros steps |
 
@@ -266,7 +266,7 @@ Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) co
 <!-- Estrutura principal -->
 <table width="600">
   <tr><td>{{banner_section}}</td></tr>  <!-- Condicional: banner de referência da etapa ou vazio -->
-  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA (quando sem banner) -->
+  {{header_section}}  <!-- Condicional: header MRV (gradiente da etapa + régua + título + hero) -->
   <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
   <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
   <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
@@ -298,7 +298,8 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 
 ### Placeholders
 
-- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`
+- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`, `{{header_section}}`
+- **Componente header_section** (preenchidos por `HeaderEmailBuilder`/`ReguaHtmlBuilder`): `{{header_bg}}` (gradiente da fase), `{{header_clip}}` (margem inferior triangular), `{{regua_html}}` (régua em HTML), `{{header_coluna_1}}` e `{{header_coluna_2}}` (título branco e imagem hero, na ordem do layout sorteado)
 - **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
 
 ### Características do Template
@@ -310,13 +311,14 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 - **Max-width 600px**: Padrão de email marketing
 - **CTA bulletproof**: Botão como tabela, não `<a>` com background
 - **Hero section**: Condicional (`{{hero_section}}` preenchido ou vazio)
+- **Header section**: Condicional (`{{header_section}}` montado quando há hero e o template declara o slot; inclui gradiente da etapa, régua em HTML, título branco e hero menor que o background; `clip-path`/gradiente degradam para retângulo com a cor sólida da fase em clientes sem suporte, como Outlook desktop)
 - **Banner section**: Condicional (`{{banner_section}}` preenchido com banner da etapa ou vazio; quando presente, hero é suprimido)
 - **Empacotamento de assets**: `StepAssetsEmail` resolve referências `assets/...` no HTML contra o banco de referências e as inclui no zip final
 - **HTML escaping**: Slots de texto escapados via `WebUtility.HtmlEncode`
 
 ### Testes HTML (TDD)
 
-O `StepTemplateEmail` tem 11 testes unitários cobrindo:
+O `StepTemplateEmail` tem testes unitários cobrindo:
 
 1. **Preenchimento de slots**: Todos os placeholders substituídos
 2. **Estrutura table**: Zero `<div>`, apenas `<table>`
@@ -326,9 +328,10 @@ O `StepTemplateEmail` tem 11 testes unitários cobrindo:
 6. **Max-width**: `max-width: 600px`
 7. **CTA bulletproof**: Tabela ao redor do link
 8. **Hero condicional**: Presente quando `hero_src` definido, ausente quando nulo
-9. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
-10. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
-11. **Logo**: `logo_src` preenchido corretamente
+9. **Header section condicional**: header montado com gradiente da fase, régua em HTML, título branco e hero; slot removido quando não há hero
+10. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
+11. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
+12. **Logo**: `logo_src` preenchido corretamente
 
 ## PipelineRunner
 
@@ -349,6 +352,19 @@ public class PipelineRunner
         // Max refações = maxRefacoesQa (default 4)
         // Retorna ResultadoPipeline (HTML + imagens + assets)
     }
+
+    public async Task<ResultadoPipeline> ExecutarAjusteAsync(
+        PipelineContext context,
+        IReadOnlyList<IPipelineStep> steps,
+        string stepAlvo,
+        int maxRefacoesQa,
+        CancellationToken ct)
+    {
+        // Re-executa apenas do step alvo em diante (ajuste pos-entrega)
+        // Reaproveita retrieval anterior (estrategia, marca, logo)
+        // Preserva hero/banner quando o alvo nao e "hero"
+        // QA interno continua valendo (max refacoes)
+    }
 }
 ```
 
@@ -368,6 +384,56 @@ graph TD
     I -->|Não| D[Re-executar hero]
     H -->|Não| J[Retornar com feedback]
 ```
+
+## Loop de Ajuste Pós-Entrega
+
+Depois de entregar o zip, o contexto final da pipeline é guardado em memória (`EntregaStore`) para permitir ajustes pontuais sem refazer o email inteiro.
+
+```mermaid
+sequenceDiagram
+    participant U as Cliente
+    participant T as TelegramService
+    participant R as RefinadorService
+    participant PR as PipelineRunner
+    participant S as EntregaStore
+
+    T->>S: Guardar contexto da entrega (v1)
+    T-->>U: Zip v1 + [Aprovar] [Pedir ajustes]
+    U->>T: Pedir ajustes
+    T-->>U: "O que nao ficou legal?"
+    U->>T: "o titulo esta muito formal"
+    T->>R: Classificar(feedback, contexto)
+    R-->>T: { step_alvo: copy, instrucoes }
+    T-->>U: Plano + [Aplicar ajuste] [Cancelar]
+    U->>T: Aplicar ajuste
+    T->>PR: ExecutarAjusteAsync(clone, copy, feedback)
+    PR->>PR: copy -> diagramacao -> template -> assets -> QA
+    Note over PR: hero/banner preservados (PreservarHero)
+    PR-->>T: ResultadoPipeline (QA aprovado)
+    T->>S: Atualizar entrega (v2, rodadas + 1)
+    T-->>U: Zip v2 + menu de aprovacao
+```
+
+### Regras
+
+| Regra | Comportamento |
+|-------|---------------|
+| Etapas alvo | `copy`, `diagramacao`, `hero`, `template` (normalizacao deterministica; desconhecido cai em `copy`) |
+| Aprovacao do plano | O ajuste so executa depois que o cliente confirma, evitando gasto de LLM/imagem |
+| Aprovacao do resultado | A nova versao volta com `[Aprovar] [Pedir ajustes]`; aprovar fecha o ciclo |
+| Hero/banner | Preservados em ajustes de copy/diagramacao/template (`PipelineContext.PreservarHero`); recriados quando o alvo e `hero` |
+| Template | Ajuste pode trocar o template; `template_id` e validado contra o catalogo do cliente |
+| Versao anterior | O contexto e clonado antes de executar; se o QA reprovar, a versao vigente nao e corrompida |
+| Limite de rodadas | `Ajustes__MaxRodadas` por entrega; atingido o limite, e preciso aprovar ou pedir um novo email |
+| Expiracao | `Ajustes__TtlHorasEntrega`, em memoria (restart do worker perde a entrega ativa) |
+
+### Configuracao
+
+| Variavel | Default | Descricao |
+|----------|---------|-----------|
+| `Ajustes__TtlHorasEntrega` | `24` | Tempo que a ultima entrega fica disponivel para ajustes |
+| `Ajustes__MaxRodadas` | `3` | Rodadas de ajuste por entrega |
+| `Ajustes__MaxRefacoesQa` | `4` | Refacoes internas do QA dentro de uma rodada de ajuste |
 
 ## Resiliência HTTP e Tratamento de 429
 
@@ -475,6 +541,8 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | `email_banner_check` | Validação de compatibilidade temática banner×email | `deepseek/deepseek-v3.2` |
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
+| `email_refinador` | Classificação do feedback pós-entrega (step alvo) | `deepseek/deepseek-v3.2` |
+| `email_refinador_retry` | Retry do refinador (JSON inválido) | `deepseek/deepseek-v3.2` |
 | `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
 | `banner-analysis` | Análise estruturada de banner (BannerDescricao) | `qwen/qwen2.5-vl-72b-instruct` |
 | `image-generation` | Geração de imagem via API | `qwen/qwen-image-3-pro` |
@@ -517,6 +585,12 @@ src/DemoAgencia.Worker/
 │   └── TelegramTextFormatter.cs        # Formatação de texto
 │
 ├── IA/
+    │   ├── Ajustes/
+    │   │   ├── AjusteCallbacks.cs          # Callbacks pos-entrega/ajuste
+    │   │   ├── EntregaStore.cs             # Ultima entrega por chat (contexto + versao + TTL)
+    │   │   ├── EstadoEntrega.cs            # Fase do dialogo, versao, rodadas, plano
+    │   │   ├── PlanoAjuste.cs              # Step alvo + instrucoes + template opcional
+    │   │   └── RefinadorService.cs         # Classifica feedback → etapa a refazer
     │   ├── Router/
     │   │   ├── RouterService.cs            # Intake + classificação
     │   │   ├── RouterParser.cs             # Parse JSON do router
@@ -632,8 +706,10 @@ public class PipelineContext
     public string? QaStepAlvo { get; set; }
     public bool QaAprovado { get; set; }
     public int Refacoes { get; set; }
-    
-    public ResultadoPipeline Resultado { get; } = new();
+
+    public string? FeedbackAjuste { get; set; }   // instrucoes do ajuste pos-entrega
+    public bool PreservarHero { get; set; }       // reaproveita hero/banner da entrega
+    public ResultadoPipeline Resultado { get; set; }
 }
 ```
 
@@ -649,6 +725,7 @@ public class PipelineContext
 | Single Router (ao invés de Refinador + Montador) | Uma única LLM call classifica + estrutura brief | Duas LLM calls (refinador + montador) |
 | Polly + fallback de modelos (ao invés de retry infinito no mesmo modelo) | 429 persistente troca de modelo; Polly honra Retry-After | Retry infinito no mesmo modelo rate-limited |
 | Modelo ator por chat (ao invés de processamento totalmente paralelo) | Garante ordem no PreFlight; evita race conditions por conversa | Paralelismo ingênuo (quebra máquina de estados) |
+| Ajuste pós-entrega com aprovação do plano (ao invés de refazer o email inteiro) | Corrige pontualmente, controla custo de LLM/imagem e preserva o que o cliente aprovou | Re-rodar a pipeline completa a cada feedback |
 | Limite global de pipelines via SemaphoreSlim | Protege RAM (1GB) e rate limit OpenRouter; default 3 para VM E2 Micro | Sem limite (crash por OOM ou storm de 429) |
 
 ## Trade-offs

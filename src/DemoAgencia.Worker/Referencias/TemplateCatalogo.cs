@@ -75,6 +75,17 @@ public class TemplateCatalogo : IHostedService, ITemplateCatalogo
         return Array.Empty<string>();
     }
 
+    public IReadOnlyList<string> ListarIds(string? cliente)
+    {
+        return _templates.Values
+            .Where(t => string.IsNullOrEmpty(cliente) ||
+                        string.IsNullOrEmpty(t.Cliente) ||
+                        t.Cliente.Equals(cliente, StringComparison.OrdinalIgnoreCase))
+            .Select(t => t.Id)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public string? Default
     {
         get

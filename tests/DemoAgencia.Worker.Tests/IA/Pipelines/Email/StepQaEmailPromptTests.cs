@@ -237,6 +237,44 @@ public class StepQaEmailPromptTests
         prompt.Should().NotContain("Placeholders do briefing");
     }
 
+    [Fact]
+    public void MontarPromptQa_WithClientLink_ShouldInstructNotToRejectLink()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email com link",
+            Brief = new Brief("email", null, null, null, null, "https://cliente.com/agendar", new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "Agendar", "https://cliente.com/agendar"),
+            Html = "<a href=\"https://cliente.com/agendar\">Agendar</a>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().Contain("fornecido pelo cliente");
+        prompt.Should().Contain("SEMPRE considerado correto");
+        prompt.Should().Contain("NAO reprove");
+    }
+
+    [Fact]
+    public void MontarPromptQa_WithoutClientLink_ShouldNotIncludeClientLinkRule()
+    {
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            Cliente = "mrv",
+            MensagemOriginal = "email sem link",
+            Brief = new Brief("email", null, null, null, null, null, new List<string>(), new List<ImagemBrief>()),
+            Copy = new CopyEmailSlots("assunto", "pre", "titulo", "corpo", "cta", "https://link.com"),
+            Html = "<p>Sem link do cliente</p>"
+        };
+
+        var prompt = StepQaEmail.MontarPromptQa(contexto);
+
+        prompt.Should().NotContain("Link do cliente (regra obrigatoria)");
+    }
+
     [Theory]
     [InlineData("<p>Ola, %%NOME%%!</p>", 1)]
     [InlineData("<p>Ola, %%NOME%%!</p><p>Ola, %%NOME%%!</p>", 2)]

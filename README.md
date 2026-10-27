@@ -1,7 +1,7 @@
 # DemoAgencia - PoC Telegram + IA
 
 ![CI/CD](https://github.com/SEU_USUARIO/DemoAgencia/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-517-green)
+![Tests](https://img.shields.io/badge/tests-564-green)
 ![.NET](https://img.shields.io/badge/.NET-10-purple)
 
 Sistema de automação de marketing via Telegram com pipeline de email marketing gerada por IA. **Arquitetura agnóstica de cliente**: adicione novos clientes apenas com configuração, sem alterar código.
@@ -47,7 +47,8 @@ O sistema segue uma arquitetura de **2 camadas** que separa claramente:
   │   └── {CLIENTE}_html_*.json             # Sidecars
   ├── components/           # Componentes genéricos
   │   ├── hero_section.html
-  │   └── banner_section.html
+  │   ├── banner_section.html
+  │   └── header_section.html
   └── imagens/              # Assets visuais
       ├── logos/
       ├── icons/
@@ -84,12 +85,20 @@ Mensagem → TelegramService (long polling não-bloqueante):
               │     └── StepQaEmail (LLM: aprovado/reprovado, max 4 refações)
               └── fora_contexto (canal/cliente fora do escopo configurável)
   → Entrega: zip com HTML + assets + imagens
+  → Pós-entrega (inline keyboard):
+        ├── Aprovar → fecha o ciclo
+        └── Pedir ajustes → bot pergunta o que não ficou legal
+              → RefinadorService classifica o feedback (copy | diagramacao | hero | template)
+              → Mostra plano + pede aprovação (nenhuma chamada pesada antes de confirmar)
+              → PipelineRunner.ExecutarAjusteAsync re-executa só do step alvo em diante
+              → Nova entrega versionada (v2, v3...) com o mesmo menu
 ```
 
 - **Router**: Classifica mensagens (conversa/esclarecimento/produção/fora_contexto), estrutura brief com campos (objetivo, público, canal, oferta, etc.)
 - **PipelineEmail**: Steps ordenados deterministicamente, cada um recebe contexto mínimo
 - **Steps**: Retrieval (estratégia, marca), LLM (copy, QA, prompt imagem), Template (HTML slots), API (gerar imagem)
 - **QA com retry**: StepQaEmail avalia entregável; se reprovar, volta ao step alvo (copy/diagramacao/hero), max 4 refações. Entrega só ocorre após aprovação; caso contrário, feedback é enviado como mensagem
+- **Ajuste pós-entrega com aprovação**: após a entrega, o cliente pode aprovar ou pedir ajustes. O bot pede o feedback, o `RefinadorService` classifica a menor etapa a refazer (copy/diagramacao/hero/template), mostra o plano e só executa após aprovação. A re-execução parte do step alvo (retrieval de estratégia/marca é reaproveitado), preserva hero/banner quando o ajuste é de copy/diagramação e gera nova versão do zip. Entrega vigente fica em memória por TTL configurável, com limite de rodadas
 - **Fallback de modelos em 429**: Polly re-tenta no mesmo modelo respeitando Retry-After; se 429 persiste, troca para próximo modelo da cadeia configurável com backoff exponencial
 - **Template HTML**: Table-based, CSS inline, ghost tables para Outlook, max-width 600px, CTA bulletproof
 - **Descrições de ícones**: Ícones são descritos via visão (IconDescricaoCache com sidecar JSON) e injetados no prompt do diagramador para escolha semântica
@@ -103,6 +112,7 @@ src/DemoAgencia.Worker/
   ├── IA/                    # Router + Pipelines + OpenRouterService
   │   ├── Router/            # RouterService, RouterParser, Brief
   │   ├── PreFlight/         # ConversaPendenteStore, EstadoPreFlight
+  │   ├── Ajustes/           # EntregaStore, RefinadorService, PlanoAjuste, callbacks
   │   └── Pipelines/         # PipelineRunner, IPipelineStep
   │   │       └── Email/         # StepEstrategiaEmail, StepMapaEmocionalEmail, StepMarcaEmail, StepCopyEmail,
     │                          # StepDiagramacaoEmail, StepImagemHero, StepTemplateEmail,
@@ -123,13 +133,13 @@ src/DemoAgencia.Worker/
   └── Contracts/             # LangfuseTrace, LangfuseTraceContext
 
 Assets/
-  ├── agentes/               # Agentes em markdown (router.md, redator.md, diagramador.md, hero.md, qa.md, curador.md)
+  ├── agentes/               # Agentes em markdown (router.md, redator.md, diagramador.md, hero.md, qa.md, curador.md, refinador.md, mapa.md)
   └── referencias/
       ├── estrategia/        # {cliente}_{tipo}.json (fases, paleta, temas, jornada, régua, mapa)
       ├── footer/            # {cliente}_footer.html (footer padrão)
       │                      # {cliente}_footer_{nome}.html (footers nomeados)
-      ├── templates/         # Modelos base de email (com slots {{header}}, {{footer}}, etc.)
-      ├── components/        # Componentes genéricos (hero_section.html, banner_section.html)
+      ├── templates/         # Modelos base de email (com slots {{header_section}}, {{banner_section}}, {{footer}}, etc.)
+      ├── components/        # Componentes genéricos (hero_section.html, banner_section.html, header_section.html)
       └── imagens/           # {cliente}_{tipo}_{nome}.ext (logos/, icons/, banners/)
                              # Banners: classificados pelo diretório banners/, nome descritivo
                              # da etapa da jornada para seleção por afinidade
@@ -215,7 +225,7 @@ dotnet test
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-**515 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepMapaEmocionalEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail, StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, UpdateDispatcher, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo, BannerDescricaoCache, IconDescricaoCache, TomEmocional.
+**564 testes** cobrindo: RouterParser, RouterService, StepEstrategiaEmail, StepMapaEmocionalEmail, StepCopyEmail, StepImagemHero, StepTemplateEmail, StepQaEmail, OpenRouterService, OpenRouterPrivacyHandler, OpenRouterReasoningHandler, LangfuseInterceptor, TelegramService, UpdateDispatcher, AnonimizadorService, RateLimiterService, ReferenciaClienteLoader, ConversaPendenteStore, EntregaStore, RefinadorService, PipelineRunner (ajuste pontual), PipelineContextCloner, TelegramMessageSplitter, TelegramTextFormatter, AgentesLoader, TemplateCatalogo, BannerDescricaoCache, IconDescricaoCache, TomEmocional.
 
 ## CI/CD
 

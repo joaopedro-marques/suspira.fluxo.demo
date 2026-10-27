@@ -6,4 +6,5 @@ public interface ITemplateCatalogo : IHostedService
     string? Obter(string id);
     string? Default { get; }
     IReadOnlyList<string> ObterSubJornadas(string id);
+    IReadOnlyList<string> ListarIds(string? cliente);
 }

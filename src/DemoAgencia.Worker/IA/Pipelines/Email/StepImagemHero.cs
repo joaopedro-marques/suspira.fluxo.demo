@@ -48,6 +48,12 @@ public class StepImagemHero : IPipelineStep
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
+        if (context.PreservarHero)
+        {
+            _logger.LogInformation("Ajuste pontual: preservando hero/banner da entrega anterior.");
+            return context;
+        }
+
         var isHeroRefacao = context.Refacoes > 0 &&
             context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -131,11 +137,20 @@ public class StepImagemHero : IPipelineStep
             promptBase += $"{context.QaFeedback}\n";
         }
 
+        if (!string.IsNullOrEmpty(context.FeedbackAjuste))
+        {
+            promptBase += $"\n\n## Client requested adjustment\n";
+            promptBase += $"The client asked to change the previous delivery. Apply this adjustment to the new image:\n";
+            promptBase += $"{context.FeedbackAjuste}\n";
+            promptBase += $"Keep the client visual identity and the journey context; change only what was requested.\n";
+        }
+
+        promptBase += "\n\n## Planned placement\n";
+        promptBase += "This image will be embedded in an email header card, displayed beside a white headline on a colored gradient background. Keep the main subject centered and the edges clean.\n";
+
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);
 
-        var regua = ConstruirInstrucaoRegua(context.Estrategia);
-        var semTexto = ConstruirInstrucaoSemTexto(!string.IsNullOrEmpty(regua));
-        promptFinal += regua + semTexto;
+        promptFinal += ConstruirInstrucaoSemTexto();
 
         var resultado = await _geradorImagem.GerarImagemAsync(context.ChatId, promptFinal, ct);
         if (!resultado.Sucesso || resultado.Bytes == null)
@@ -361,82 +376,13 @@ public class StepImagemHero : IPipelineStep
         return resposta?.Trim() ?? promptBase;
     }
 
-    internal static string ConstruirInstrucaoRegua(EstrategiaEmail? estrategia)
-    {
-        if (estrategia?.Regua == null || estrategia.Regua.Etapas.Count == 0)
-            return string.Empty;
-
-        if (string.IsNullOrEmpty(estrategia.Fase))
-            return string.Empty;
-
-        var regua = estrategia.Regua;
-        var etapasRegua = regua.Etapas.ToArray();
-        var etapaDestacada = DeterminarEtapaDestacada(estrategia, regua);
-
-        var instruction = "\n\n## Journey ruler (full-width header at the top of the image)\n";
-        instruction += "Pin a horizontal journey ruler at the very top edge of the image, spanning the entire width like a header strip above the photograph.\n";
-        instruction += $"It is a thin horizontal progress line with {etapasRegua.Length} equally spaced segments(not visible defined by other margins or lines), one per stage, in this exact order:\n";
-        instruction += string.Join(" -> ", etapasRegua);
-        instruction += $"\n\nThe current step to highlight (must be visually distinct from all others): \"{etapaDestacada}\".\n";
-        instruction += "\n## Ruler styling rules (strict)\n";
-        instruction += $"- Completed stages (BEFORE the current step): {regua.Estilo.Concluida}.\n";
-        instruction += $"- Current step \"{etapaDestacada}\": {regua.Estilo.Atual}.\n";
-        instruction += $"- Future stages (AFTER the current step): {regua.Estilo.Futura}.\n";
-
-        foreach (var diretriz in regua.Estilo.Diretrizes)
-        {
-            instruction += $"- {diretriz}\n";
-        }
-
-        return instruction;
-    }
-
-    internal static string ConstruirInstrucaoSemTexto(bool hasRegua)
+    internal static string ConstruirInstrucaoSemTexto()
     {
         var instruction = "\n\n## Strict text constraint\n";
         instruction += "The image MUST NOT contain any text, typography, words, letters, numbers, logos, signatures, captions, tags, stamps, or watermarks anywhere in the composition.\n";
-        if (hasRegua)
-            instruction += "Sole allowed exception: the Portuguese labels of the journey ruler at the top described above. Absolutely no other textual element is permitted.\n";
+        instruction += "Do not draw journey rulers, timelines, progress bars, steppers, or any graphical UI overlay: the journey ruler is rendered outside the image, in the email HTML layout.\n";
         instruction += "The image must be purely visual, clean, and art-directed.\n";
 
         return instruction;
-    }
-
-    internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, ReguaJornada regua)
-    {
-        var marco = estrategia.SubJornada;
-        if (!string.IsNullOrEmpty(marco))
-        {
-            var marcoNorm = NormalizarTexto(marco);
-
-            foreach (var etapa in regua.Etapas)
-            {
-                var etapaNorm = NormalizarTexto(etapa);
-                foreach (var palavra in etapaNorm.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries))
-                {
-                    if (palavra.Length > 2 && marcoNorm.Contains(palavra))
-                        return etapa;
-                }
-            }
-        }
-
-        // Use the config-based phase-to-stage mapping
-        if (!string.IsNullOrEmpty(estrategia.Fase) &&
-            regua.EtapaDestacadaPorFase.TryGetValue(estrategia.Fase, out var etapaDestacada))
-        {
-            return etapaDestacada;
-        }
-
-        // Generic fallback: first stage in the list
-        return regua.Etapas.Count > 0 ? regua.Etapas[0] : string.Empty;
-    }
-
-    private static string NormalizarTexto(string texto)
-    {
-        return texto.ToLowerInvariant()
-            .Replace("á", "a").Replace("é", "e").Replace("ê", "e")
-            .Replace("í", "i").Replace("ó", "o").Replace("ô", "o")
-            .Replace("ú", "u").Replace("ã", "a").Replace("õ", "o")
-            .Replace("ç", "c");
     }
 }

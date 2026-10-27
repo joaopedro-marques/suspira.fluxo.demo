@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Ajustes;
 using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
@@ -20,6 +21,7 @@ public class TelegramService : BackgroundService
     private readonly TelegramOptions _options;
     private readonly ConcorrenciaOptions _concorrencia;
     private readonly PreFlightOptions _preFlightOptions;
+    private readonly AjustesOptions _ajustesOptions;
     private readonly IAnalisadorImagem _analisadorImagem;
     private readonly RateLimiterService _rateLimiter;
     private readonly ITelegramGatewayFactory _gatewayFactory;
@@ -27,6 +29,8 @@ public class TelegramService : BackgroundService
     private readonly ConversaPendenteStore _pendencias;
     private readonly OnboardingService _onboarding;
     private readonly OnboardingStore _onboardingStore;
+    private readonly EntregaStore _entregas;
+    private readonly RefinadorService _refinador;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<UpdateDispatcher> _dispatcherLogger;
     private ITelegramGateway? _gateway;
@@ -45,6 +49,9 @@ public class TelegramService : BackgroundService
         ConversaPendenteStore pendencias,
         OnboardingService onboarding,
         OnboardingStore onboardingStore,
+        EntregaStore entregas,
+        RefinadorService refinador,
+        IOptions<AjustesOptions> ajustesOptions,
         IServiceProvider serviceProvider,
         ILogger<UpdateDispatcher> dispatcherLogger)
     {
@@ -59,6 +66,9 @@ public class TelegramService : BackgroundService
         _pendencias = pendencias;
         _onboarding = onboarding;
         _onboardingStore = onboardingStore;
+        _entregas = entregas;
+        _refinador = refinador;
+        _ajustesOptions = ajustesOptions.Value;
         _serviceProvider = serviceProvider;
         _dispatcherLogger = dispatcherLogger;
     }
@@ -100,7 +110,7 @@ public class TelegramService : BackgroundService
                 {
                     offset = update.Id + 1;
 
-                    var chatId = update.Message?.Chat.Id;
+                    var chatId = update.Message?.Chat.Id ?? update.CallbackQuery?.Message?.Chat.Id;
                     if (chatId.HasValue && _dispatcher!.TemFilaPendente(chatId.Value))
                     {
                         try
@@ -216,6 +226,23 @@ public class TelegramService : BackgroundService
 
     private async Task HandleTextMessage(Message message, string text, CancellationToken ct)
     {
+        var entrega = _entregas.Obter(message.Chat.Id);
+        if (entrega != null)
+        {
+            if (entrega.Fase == FaseAjuste.AguardandoFeedback)
+            {
+                await ProcessarFeedbackAjusteAsync(message.Chat.Id, text, ct);
+                return;
+            }
+
+            if (entrega.Fase == FaseAjuste.AguardandoConfirmacao)
+            {
+                await _gateway!.SendMessageAsync(message.Chat.Id,
+                    "Use os botões acima para aplicar ou cancelar o ajuste.", ct);
+                return;
+            }
+        }
+
         var onboardingAtivo = _onboardingStore.Obter(message.Chat.Id);
         if (onboardingAtivo != null)
         {
@@ -362,21 +389,20 @@ public class TelegramService : BackgroundService
                     await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, "🚀 Produzindo... (aguardando vaga)", ct);
 
                 await _pipelineLimiter!.WaitAsync(ct);
-                ResultadoPipeline resultadoPipeline;
+                (PipelineContext Contexto, ResultadoPipeline Resultado) execucao;
                 try
                 {
-                    resultadoPipeline = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
+                    execucao = await ExecutarPipelineEmail(chatId, resultado, mensagemOriginal, ct);
                 }
                 finally
                 {
                     _pipelineLimiter.Release();
                 }
 
+                var resultadoPipeline = execucao.Resultado;
                 if (!resultadoPipeline.QaAprovado)
                 {
-                    var feedbackMsg = $"⚠️ QA nao aprovou o email apos refacoes.";
-                    if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
-                        feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
+                    var feedbackMsg = "⚠️ QA nao aprovou o email apos refacoes.";
                     try
                     {
                         await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, feedbackMsg, ct);
@@ -389,12 +415,16 @@ public class TelegramService : BackgroundService
                     return;
                 }
 
-                await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
+                await EntregarAsync(chatId, execucao.Contexto, resultadoPipeline, ct);
                 return;
         }
     }
 
-    private async Task<ResultadoPipeline> ExecutarPipelineEmail(long chatId, RouterResultado resultado, string mensagemOriginal, CancellationToken ct)
+    private async Task<(PipelineContext Contexto, ResultadoPipeline Resultado)> ExecutarPipelineEmail(
+        long chatId,
+        RouterResultado resultado,
+        string mensagemOriginal,
+        CancellationToken ct)
     {
         var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
         var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
@@ -408,7 +438,8 @@ public class TelegramService : BackgroundService
             Cliente = resultado.Cliente
         };
 
-        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, ct);
+        var resultadoPipeline = await runner.ExecutarAsync(context, steps, maxRefacoesQa: _ajustesOptions.MaxRefacoesQa, ct);
+        return (context, resultadoPipeline);
     }
 
     internal async Task IniciarOnboardingAsync(long chatId, string cliente, string mensagemOriginal, CancellationToken ct)
@@ -475,6 +506,12 @@ public class TelegramService : BackgroundService
         {
             await _gateway!.AnswerCallbackQueryAsync(callback.Id!, ct);
 
+            if (AjusteCallbacks.EhCallback(callback.Data, out var acaoAjuste))
+            {
+                await HandleCallbackEntregaAsync(chatId.Value, callback.Message!.MessageId, acaoAjuste, ct);
+                return;
+            }
+
             if (OnboardingCallbacks.EhAcaoEspecial(callback.Data, out var acao) && acao == "confirmar")
             {
                 await ConfirmarOnboardingAsync(chatId.Value, callback.Message!.MessageId, ct);
@@ -522,21 +559,20 @@ public class TelegramService : BackgroundService
             await _gateway!.EditMessageTextAsync(chatId, messageId, "🚀 Produzindo... (aguardando vaga)", ct);
 
         await _pipelineLimiter!.WaitAsync(ct);
-        ResultadoPipeline resultadoPipeline;
+        (PipelineContext Contexto, ResultadoPipeline Resultado) execucao;
         try
         {
-            resultadoPipeline = await ExecutarPipelineEmailOnboarding(chatId, brief, cliente, mensagemOriginal, ct);
+            execucao = await ExecutarPipelineEmailOnboarding(chatId, brief, cliente, mensagemOriginal, ct);
         }
         finally
         {
             _pipelineLimiter.Release();
         }
 
+        var resultadoPipeline = execucao.Resultado;
         if (!resultadoPipeline.QaAprovado)
         {
             var feedbackMsg = "⚠️ QA nao aprovou o email apos refacoes.";
-            if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
-                feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
             try
             {
                 await _gateway!.EditMessageTextAsync(chatId, messageId, feedbackMsg, ct);
@@ -549,10 +585,15 @@ public class TelegramService : BackgroundService
             return;
         }
 
-        await EnviarHtmlZipAsync(chatId, resultadoPipeline, ct);
+        await EntregarAsync(chatId, execucao.Contexto, resultadoPipeline, ct);
     }
 
-    internal virtual async Task<ResultadoPipeline> ExecutarPipelineEmailOnboarding(long chatId, Brief brief, string cliente, string mensagemOriginal, CancellationToken ct)
+    internal virtual async Task<(PipelineContext Contexto, ResultadoPipeline Resultado)> ExecutarPipelineEmailOnboarding(
+        long chatId,
+        Brief brief,
+        string cliente,
+        string mensagemOriginal,
+        CancellationToken ct)
     {
         var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
         var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
@@ -566,7 +607,8 @@ public class TelegramService : BackgroundService
             Cliente = cliente
         };
 
-        return await runner.ExecutarAsync(context, steps, maxRefacoesQa: 4, ct);
+        var resultadoPipeline = await runner.ExecutarAsync(context, steps, maxRefacoesQa: _ajustesOptions.MaxRefacoesQa, ct);
+        return (context, resultadoPipeline);
     }
 
     private async Task EnviarPerguntaOnboardingAsync(long chatId, PerguntaOnboarding pergunta, CancellationToken ct)
@@ -604,7 +646,309 @@ public class TelegramService : BackgroundService
         }
     }
 
-    private async Task EnviarHtmlZipAsync(long chatId, ResultadoPipeline resultado, CancellationToken ct)
+    private async Task EntregarAsync(
+        long chatId,
+        PipelineContext contexto,
+        ResultadoPipeline resultado,
+        CancellationToken ct)
+    {
+        contexto.Resultado = resultado;
+
+        var entrega = new EstadoEntrega
+        {
+            Contexto = contexto,
+            Versao = 1,
+            Fase = FaseAjuste.AposEntrega
+        };
+        _entregas.Guardar(chatId, entrega);
+
+        await EnviarHtmlZipAsync(chatId, resultado, entrega.Versao, ct);
+        await EnviarMenuEntregaAsync(chatId, entrega.Versao, ct);
+    }
+
+    private async Task EnviarMenuEntregaAsync(long chatId, int versao, CancellationToken ct)
+    {
+        var texto =
+            $"✅ Email entregue (v{versao}).\n\n" +
+            "Quer aprovar ou pedir ajustes pontuais?\n" +
+            "Se pedir ajustes, eu pergunto o que não ficou legal e refaço só a etapa necessária.";
+        await _gateway!.SendMessageAsync(chatId, texto, CriarKeyboardEntrega(), ct);
+    }
+
+    private static InlineKeyboardMarkup CriarKeyboardEntrega()
+    {
+        return new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Aprovar", AjusteCallbacks.AprovarEntrega) },
+            new[] { InlineKeyboardButton.WithCallbackData("🔧 Pedir ajustes", AjusteCallbacks.PedirAjustes) }
+        });
+    }
+
+    private static InlineKeyboardMarkup CriarKeyboardPlano()
+    {
+        return new InlineKeyboardMarkup(new[]
+        {
+            new[] { InlineKeyboardButton.WithCallbackData("✅ Aplicar ajuste", AjusteCallbacks.AplicarAjuste) },
+            new[] { InlineKeyboardButton.WithCallbackData("✋ Cancelar", AjusteCallbacks.CancelarAjuste) }
+        });
+    }
+
+    private async Task HandleCallbackEntregaAsync(long chatId, int messageId, string acao, CancellationToken ct)
+    {
+        if (acao == AjusteCallbacks.AprovarEntrega)
+        {
+            await AprovarEntregaAsync(chatId, messageId, ct);
+            return;
+        }
+
+        if (acao == AjusteCallbacks.PedirAjustes)
+        {
+            await IniciarColetaFeedbackAsync(chatId, messageId, ct);
+            return;
+        }
+
+        if (acao == AjusteCallbacks.AplicarAjuste)
+        {
+            await AplicarAjusteAsync(chatId, messageId, ct);
+            return;
+        }
+
+        if (acao == AjusteCallbacks.CancelarAjuste)
+        {
+            await CancelarAjusteAsync(chatId, messageId, ct);
+            return;
+        }
+
+        _logger.LogWarning("Callback de entrega desconhecido: {Callback}", acao);
+    }
+
+    private async Task AprovarEntregaAsync(long chatId, int messageId, CancellationToken ct)
+    {
+        var entrega = _entregas.Obter(chatId);
+        if (entrega == null)
+        {
+            await EditarOuEnviarAsync(chatId, messageId,
+                "Não encontrei uma entrega recente para aprovar. Envie um novo pedido.", null, ct);
+            return;
+        }
+
+        entrega.Aprovada = true;
+        entrega.Fase = FaseAjuste.AposEntrega;
+        entrega.Plano = null;
+        _entregas.Guardar(chatId, entrega);
+
+        await EditarOuEnviarAsync(chatId, messageId,
+            $"✅ Entrega v{entrega.Versao} aprovada! Se quiser um novo email, é só enviar um novo pedido.",
+            null, ct);
+    }
+
+    private async Task IniciarColetaFeedbackAsync(long chatId, int messageId, CancellationToken ct)
+    {
+        var entrega = _entregas.Obter(chatId);
+        if (entrega == null)
+        {
+            await EditarOuEnviarAsync(chatId, messageId,
+                "Não encontrei uma entrega recente para ajustar. Envie um novo pedido.", null, ct);
+            return;
+        }
+
+        if (entrega.RodadasAjuste >= _ajustesOptions.MaxRodadas)
+        {
+            await EditarOuEnviarAsync(chatId, messageId,
+                $"Esta entrega já teve {entrega.RodadasAjuste} rodada(s) de ajuste, o limite configurado. " +
+                "Aprove a versão atual ou envie um novo pedido.", null, ct);
+            return;
+        }
+
+        entrega.Fase = FaseAjuste.AguardandoFeedback;
+        entrega.Plano = null;
+        entrega.Aprovada = false;
+        _entregas.Guardar(chatId, entrega);
+
+        await EditarOuEnviarAsync(chatId, messageId,
+            $"🔧 Certo! Descreva em uma mensagem o que não ficou legal no email v{entrega.Versao}.\n" +
+            "Diga o que deve mudar e onde (ex.: assunto, textos, cores, layout, imagem).\n\n" +
+            "A versão atual continua valendo até você confirmar o ajuste.",
+            null, ct);
+    }
+
+    private async Task ProcessarFeedbackAjusteAsync(long chatId, string texto, CancellationToken ct)
+    {
+        var entrega = _entregas.Obter(chatId);
+        if (entrega == null || entrega.Fase != FaseAjuste.AguardandoFeedback)
+            return;
+
+        int mensagemProgressoId;
+        try
+        {
+            var mensagem = await _gateway!.SendMessageAsync(chatId, "🧠 Analisando o ajuste...", ct);
+            mensagemProgressoId = mensagem.MessageId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao enviar mensagem de progresso do ajuste (chat {ChatId})", chatId);
+            return;
+        }
+
+        try
+        {
+            var plano = await _refinador.ClassificarAsync(entrega.Contexto, texto, ct);
+
+            if (plano == null)
+            {
+                await EditarOuEnviarAsync(chatId, mensagemProgressoId,
+                    "Não consegui identificar o que ajustar. Descreva com mais detalhe o que deve mudar " +
+                    "e onde (ex.: \"o título está muito formal\", \"a imagem não tem a ver com o tema\").",
+                    null, ct);
+                return;
+            }
+
+            entrega.Plano = plano;
+            entrega.Fase = FaseAjuste.AguardandoConfirmacao;
+            _entregas.Guardar(chatId, entrega);
+
+            var mensagemPlano =
+                $"🔧 Ajuste identificado — etapa: {RotuloEtapa(plano.StepAlvo)}\n\n" +
+                $"{plano.Instrucoes}\n\n" +
+                $"Posso aplicar? A nova versão substitui a entrega v{entrega.Versao}.";
+            await EditarOuEnviarAsync(chatId, mensagemProgressoId, mensagemPlano, CriarKeyboardPlano(), ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao classificar ajuste (chat {ChatId})", chatId);
+            await NotificarErroAsync(chatId, mensagemProgressoId, ct);
+        }
+    }
+
+    private async Task CancelarAjusteAsync(long chatId, int messageId, CancellationToken ct)
+    {
+        var entrega = _entregas.Obter(chatId);
+        if (entrega == null)
+        {
+            await EditarOuEnviarAsync(chatId, messageId,
+                "Não encontrei uma entrega recente. Envie um novo pedido.", null, ct);
+            return;
+        }
+
+        entrega.Plano = null;
+        entrega.Fase = FaseAjuste.AposEntrega;
+        _entregas.Guardar(chatId, entrega);
+
+        await EditarOuEnviarAsync(chatId, messageId,
+            $"✋ Ajuste cancelado. A entrega v{entrega.Versao} continua valendo.",
+            CriarKeyboardEntrega(), ct);
+    }
+
+    private async Task AplicarAjusteAsync(long chatId, int messageId, CancellationToken ct)
+    {
+        var entrega = _entregas.Obter(chatId);
+        if (entrega?.Plano == null || entrega.Fase != FaseAjuste.AguardandoConfirmacao)
+        {
+            await EditarOuEnviarAsync(chatId, messageId,
+                "Esse ajuste expirou. Clique em Pedir ajustes para recomeçar.", null, ct);
+            return;
+        }
+
+        var plano = entrega.Plano;
+        await EditarOuEnviarAsync(chatId, messageId,
+            $"🛠️ Aplicando ajuste em {RotuloEtapa(plano.StepAlvo)}...", null, ct);
+
+        PipelineContext clone;
+        ResultadoPipeline resultado;
+        await _pipelineLimiter!.WaitAsync(ct);
+        try
+        {
+            var pipeline = _serviceProvider.GetRequiredService<PipelineEmail>();
+            var runner = _serviceProvider.GetRequiredService<PipelineRunner>();
+
+            clone = PipelineContextCloner.Clonar(entrega.Contexto);
+            clone.FeedbackAjuste =
+                $"Pedido do cliente: {plano.FeedbackCliente}\nInstrucoes: {plano.Instrucoes}";
+            if (plano.StepAlvo.Equals("template", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(plano.TemplateId))
+            {
+                clone.TemplateId = plano.TemplateId;
+            }
+
+            resultado = await runner.ExecutarAjusteAsync(
+                clone,
+                pipeline.CriarSteps(),
+                plano.StepAlvo,
+                _ajustesOptions.MaxRefacoesQa,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erro ao aplicar ajuste (chat {ChatId})", chatId);
+            entrega.Fase = FaseAjuste.AposEntrega;
+            entrega.Plano = null;
+            _entregas.Guardar(chatId, entrega);
+            await EditarOuEnviarAsync(chatId, messageId,
+                "Desculpe, ocorreu um erro ao aplicar o ajuste. A versão anterior continua valendo.",
+                CriarKeyboardEntrega(), ct);
+            return;
+        }
+        finally
+        {
+            _pipelineLimiter.Release();
+        }
+
+        if (!resultado.QaAprovado)
+        {
+            entrega.Fase = FaseAjuste.AposEntrega;
+            entrega.Plano = null;
+            _entregas.Guardar(chatId, entrega);
+
+            var feedbackMsg =
+                $"⚠️ O ajuste não passou na revisão de qualidade. A entrega v{entrega.Versao} continua valendo.";
+            await EditarOuEnviarAsync(chatId, messageId, feedbackMsg, CriarKeyboardEntrega(), ct);
+            return;
+        }
+
+        clone.Resultado = resultado;
+        entrega.Contexto = clone;
+        entrega.Versao++;
+        entrega.RodadasAjuste++;
+        entrega.Fase = FaseAjuste.AposEntrega;
+        entrega.Plano = null;
+        entrega.Aprovada = false;
+        _entregas.Guardar(chatId, entrega);
+
+        await EnviarHtmlZipAsync(chatId, resultado, entrega.Versao, ct);
+        await EnviarMenuEntregaAsync(chatId, entrega.Versao, ct);
+    }
+
+    private async Task EditarOuEnviarAsync(
+        long chatId,
+        int messageId,
+        string texto,
+        InlineKeyboardMarkup? keyboard,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _gateway!.EditMessageTextAsync(chatId, messageId, texto, keyboard, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao editar mensagem (chat {ChatId}), enviando como nova mensagem", chatId);
+            await _gateway!.SendMessageAsync(chatId, texto, keyboard, ct);
+        }
+    }
+
+    private static string RotuloEtapa(string stepAlvo)
+    {
+        return stepAlvo switch
+        {
+            "copy" => "textos (copy)",
+            "diagramacao" => "layout do corpo (diagramação)",
+            "hero" => "imagem principal (hero)",
+            "template" => "template do email",
+            _ => stepAlvo
+        };
+    }
+
+    private async Task EnviarHtmlZipAsync(long chatId, ResultadoPipeline resultado, int versao, CancellationToken ct)
     {
         using var memoryStream = new MemoryStream();
         using (var archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
@@ -641,6 +985,7 @@ public class TelegramService : BackgroundService
         }
 
         memoryStream.Position = 0;
-        await _gateway!.SendDocumentAsync(chatId, memoryStream, "entregavel.zip", "Entregavel HTML completo com assets", ct);
+        await _gateway!.SendDocumentAsync(chatId, memoryStream, $"entregavel_v{versao}.zip",
+            $"Entregavel HTML completo com assets (v{versao})", ct);
     }
 }
