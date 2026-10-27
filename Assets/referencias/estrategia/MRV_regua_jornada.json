@@ -28,6 +28,29 @@
       "cor_futura": "rgba(255, 255, 255, 0.35)",
       "cor_label": "#FFFFFF",
       "cor_label_atual": "#FFDD02"
+    },
+    "estilo_html_por_fase": {
+      "pos-compra": {
+        "cor_concluida": "#FFFFFF",
+        "cor_atual": "#FFDD02",
+        "cor_futura": "rgba(255, 255, 255, 0.35)",
+        "cor_label": "#FFFFFF",
+        "cor_label_atual": "#FFDD02"
+      },
+      "pre-chaves": {
+        "cor_concluida": "#FFFFFF",
+        "cor_atual": "#2B1B00",
+        "cor_futura": "rgba(255, 255, 255, 0.35)",
+        "cor_label": "#FFFFFF",
+        "cor_label_atual": "#2B1B00"
+      },
+      "pos-chaves": {
+        "cor_concluida": "#2B1B00",
+        "cor_atual": "#784099",
+        "cor_futura": "rgba(0, 0, 0, 0.25)",
+        "cor_label": "#2B1B00",
+        "cor_label_atual": "#784099"
+      }
     }
   }
 }

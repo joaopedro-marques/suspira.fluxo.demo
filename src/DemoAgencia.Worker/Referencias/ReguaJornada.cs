@@ -6,6 +6,12 @@ public class ReguaJornada
     public Dictionary<string, string> EtapaDestacadaPorFase { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public EstiloRegua Estilo { get; set; } = new();
     public EstiloReguaHtml EstiloHtml { get; set; } = new();
+
+    /// <summary>
+    /// Overrides de cor por fase. A regua fica sobre o header, cujo fundo muda a cada fase,
+    /// entao as cores precisam ser declaradas por fase para nao sumirem no fundo.
+    /// </summary>
+    public Dictionary<string, EstiloReguaHtml> EstiloHtmlPorFase { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class EstiloRegua

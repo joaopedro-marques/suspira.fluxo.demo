@@ -1,14 +1,19 @@
 using System.Net;
+using System.Text;
 using DemoAgencia.Worker.Referencias;
 
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
 /// <summary>
-/// Monta o header MRV em HTML: fundo gradiente na cor da etapa, regua de jornada no topo,
-/// titulo branco ao lado do hero e margem inferior triangular arredondada (assimetrica).
+/// Preenche o componente de header do cliente. O markup e os estilos vivem no asset
+/// (components/header_section.html); aqui so entram os valores de runtime e a ordem
+/// das colunas, para que adicionar elementos seja edicao de asset e nao de codigo.
 /// </summary>
 internal static class HeaderEmailBuilder
 {
+    internal const string BlocoInicio = "<!--#bloco ";
+    internal const string BlocoFim = "<!--#/bloco-->";
+
     internal const string ClipPathPadrao =
         "clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 7px) 100%, 0 calc(100% - 34px));";
 
@@ -17,22 +22,108 @@ internal static class HeaderEmailBuilder
 
     internal static string Construir(string componente, PipelineContext context, bool invertido)
     {
-        var html = componente;
-        html = html.Replace("{{header_bg}}", ConstruirFundo(context.Estrategia?.FaseDados));
+        var fase = context.Estrategia?.FaseDados;
+        var coresFundo = CoresGradiente(fase);
+        var corTitulo = CorTitulo(fase, coresFundo);
+        var corMoldura = CorMoldura(fase, coresFundo);
+        var alinhamento = invertido ? "right" : "left";
+
+        var blocos = ExtrairBlocos(componente, out var layout);
+
+        var html = layout;
+        html = html.Replace("{{header_colunas}}", MontarColunas(blocos, invertido));
+        html = html.Replace("{{header_bg}}", ConstruirFundo(fase));
         html = html.Replace("{{header_clip}}", invertido ? ClipPathInvertido : ClipPathPadrao);
-        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia));
-        html = html.Replace("{{header_coluna_1}}", invertido
-            ? ConstruirCelulaImagem(context.HeroSrc)
-            : ConstruirCelulaTitulo(context.Copy?.Titulo, "left"));
-        html = html.Replace("{{header_coluna_2}}", invertido
-            ? ConstruirCelulaTitulo(context.Copy?.Titulo, "right")
-            : ConstruirCelulaImagem(context.HeroSrc));
+        html = html.Replace("{{header_titulo}}", WebUtility.HtmlEncode(context.Copy?.Titulo ?? string.Empty));
+        html = html.Replace("{{header_titulo_cor}}", corTitulo);
+        html = html.Replace("{{header_titulo_align}}", alinhamento);
+        html = html.Replace("{{header_titulo_padding}}",
+            alinhamento == "right" ? "padding: 0 0 0 22px;" : "padding: 0 22px 0 0;");
+        html = html.Replace("{{header_hero_src}}", WebUtility.HtmlEncode(context.HeroSrc ?? string.Empty));
+        html = html.Replace("{{header_moldura_cor}}", corMoldura);
+        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia, coresFundo));
         return html;
+    }
+
+    /// <summary>
+    /// Extrai os blocos declarados no asset com <c>&lt;!--#bloco nome--&gt; ... &lt;!--#/bloco--&gt;</c>.
+    /// O layout devolvido nao contem os blocos, apenas o restante do componente.
+    /// </summary>
+    internal static IReadOnlyDictionary<string, string> ExtrairBlocos(string componente, out string layout)
+    {
+        var blocos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var restante = new StringBuilder();
+        var posicao = 0;
+
+        while (posicao < componente.Length)
+        {
+            var inicio = componente.IndexOf(BlocoInicio, posicao, StringComparison.Ordinal);
+            if (inicio < 0)
+            {
+                restante.Append(componente, posicao, componente.Length - posicao);
+                break;
+            }
+
+            restante.Append(componente, posicao, inicio - posicao);
+
+            var fimNome = componente.IndexOf("-->", inicio, StringComparison.Ordinal);
+            if (fimNome < 0)
+            {
+                restante.Append(componente, inicio, componente.Length - inicio);
+                break;
+            }
+
+            var nome = componente[(inicio + BlocoInicio.Length)..fimNome].Trim();
+            var inicioConteudo = fimNome + "-->".Length;
+            var fimBloco = componente.IndexOf(BlocoFim, inicioConteudo, StringComparison.Ordinal);
+            if (fimBloco < 0)
+            {
+                restante.Append(componente, inicio, componente.Length - inicio);
+                break;
+            }
+
+            if (nome.Length > 0)
+                blocos[nome] = componente[inicioConteudo..fimBloco].Trim();
+
+            posicao = fimBloco + BlocoFim.Length;
+        }
+
+        layout = restante.ToString();
+        return blocos;
+    }
+
+    /// <summary>Colunas na ordem sorteada para a entrega; bloco ausente e ignorado.</summary>
+    internal static string MontarColunas(IReadOnlyDictionary<string, string> blocos, bool invertido)
+    {
+        var ordem = invertido ? new[] { "hero", "titulo" } : new[] { "titulo", "hero" };
+        var sb = new StringBuilder();
+
+        foreach (var nome in ordem)
+        {
+            if (blocos.TryGetValue(nome, out var bloco))
+                sb.Append(bloco);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>Cor do titulo do header: declarada na fase ou escolhida por contraste.</summary>
+    internal static string CorTitulo(FaseEstrategia? fase, IReadOnlyCollection<string>? coresFundo = null)
+    {
+        return CorHex.EscolherTexto(coresFundo ?? CoresGradiente(fase), fase?.CorTextoHeader);
+    }
+
+    /// <summary>Cor da moldura atras do hero: declarada na fase ou branco validado por contraste.</summary>
+    internal static string CorMoldura(FaseEstrategia? fase, IReadOnlyCollection<string>? coresFundo = null)
+    {
+        return CorHex.EscolherVisivel(
+            coresFundo ?? CoresGradiente(fase),
+            fase?.CorMolduraHeader ?? CorHex.MolduraPadrao);
     }
 
     internal static string ConstruirFundo(FaseEstrategia? fase)
     {
-        var cores = ExtrairCoresFase(fase);
+        var cores = CoresGradiente(fase);
         if (cores.Count == 0)
             return string.Empty;
 
@@ -42,49 +133,12 @@ internal static class HeaderEmailBuilder
         return css;
     }
 
+    /// <summary>Cores efetivamente usadas no gradiente (no maximo os dois primeiros stops).</summary>
+    internal static IReadOnlyList<string> CoresGradiente(FaseEstrategia? fase) => CoresFase.Gradiente(fase);
+
     /// <summary>
     /// Extrai as cores de identidade da fase (linhas que nao sao os gradientes fixos da marca).
-    /// Se a fase nao tiver cores proprias, usa qualquer hex da matriz como fallback.
+    /// Mantido como API do builder; a regra vive em <see cref="CoresFase"/>.
     /// </summary>
-    internal static IReadOnlyList<string> ExtrairCoresFase(FaseEstrategia? fase)
-    {
-        if (fase?.CoresHex == null || fase.CoresHex.Count == 0)
-            return Array.Empty<string>();
-
-        var identidade = fase.CoresHex
-            .Where(linha => !linha.Any(token => token.Equals("gradiente", StringComparison.OrdinalIgnoreCase)))
-            .SelectMany(linha => linha)
-            .Where(cor => cor.StartsWith('#'))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (identidade.Count > 0)
-            return identidade;
-
-        return fase.CoresHex
-            .SelectMany(linha => linha)
-            .Where(cor => cor.StartsWith('#'))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    internal static string ConstruirCelulaTitulo(string? titulo, string alinhamento)
-    {
-        var padding = alinhamento == "right" ? "padding: 0 0 0 22px;" : "padding: 0 22px 0 0;";
-        var texto = WebUtility.HtmlEncode(titulo ?? string.Empty);
-
-        return "<td width=\"57%\" valign=\"middle\" align=\"" + alinhamento + "\" style=\"" + padding + "\">"
-            + "<p style=\"margin: 0; font-family: 'Segoe UI', Arial, sans-serif; font-size: 26px; line-height: 30px; font-weight: bold; color: #FFFFFF;\">"
-            + texto
-            + "</p></td>";
-    }
-
-    internal static string ConstruirCelulaImagem(string? heroSrc)
-    {
-        var src = WebUtility.HtmlEncode(heroSrc ?? string.Empty);
-
-        return "<td width=\"43%\" valign=\"middle\" align=\"center\" style=\"padding: 0;\">"
-            + "<img src=\"" + src + "\" alt=\"Hero\" width=\"240\" border=\"0\" style=\"display: block; width: 100%; max-width: 240px; height: auto; border-radius: 16px;\">"
-            + "</td>";
-    }
+    internal static IReadOnlyList<string> ExtrairCoresFase(FaseEstrategia? fase) => CoresFase.Identidade(fase);
 }

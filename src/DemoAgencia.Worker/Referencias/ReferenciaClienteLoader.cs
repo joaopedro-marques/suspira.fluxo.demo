@@ -283,7 +283,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         {
             try
             {
-                var estrategia = MontarEstrategia(cliente, tipos);
+                var estrategia = MontarEstrategia(cliente, tipos, _logger);
                 if (estrategia != null)
                 {
                     _estrategiaPorCliente[cliente] = estrategia;
@@ -408,7 +408,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return "";
     }
 
-    private static EstrategiaCliente? MontarEstrategia(string cliente, Dictionary<string, string> tipos)
+    private static EstrategiaCliente? MontarEstrategia(string cliente, Dictionary<string, string> tipos, ILogger logger)
     {
         var estrategia = new EstrategiaCliente { Cliente = cliente };
 
@@ -423,7 +423,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
 
         if (tipos.TryGetValue("paleta", out var paletaJson))
-            ProcessarPaleta(estrategia, paletaJson);
+            ProcessarPaleta(estrategia, paletaJson, logger);
 
         if (tipos.TryGetValue("temas", out var temasJson))
             ProcessarTemas(estrategia, temasJson);
@@ -435,7 +435,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             ProcessarMapa(estrategia, mapaJson);
 
         if (tipos.TryGetValue("regua", out var reguaJson))
-            ProcessarRegua(estrategia, reguaJson);
+            ProcessarRegua(estrategia, reguaJson, logger);
 
         return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Regua != null || estrategia.ConfiguracaoFases != null
             ? estrategia
@@ -510,7 +510,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return config.Fases.Count > 0 ? config : new FasesConfig();
     }
 
-    private static void ProcessarPaleta(EstrategiaCliente estrategia, string json)
+    private static void ProcessarPaleta(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -530,6 +530,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             var faseEstrategia = ObterOuCriarFase(estrategia, fase);
             faseEstrategia.CorPrincipal = corPrincipal;
             faseEstrategia.DescricaoCor = descricao;
+            faseEstrategia.CorTextoHeader = LerCorHexDoJson(item, "cor_texto_header", estrategia.Cliente, fase, logger);
+            faseEstrategia.CorMolduraHeader = LerCorHexDoJson(item, "cor_moldura_header", estrategia.Cliente, fase, logger);
 
             if (item.TryGetProperty("cores_hex_aproximadas", out var hexArr) && hexArr.ValueKind == JsonValueKind.Array)
             {
@@ -541,13 +543,81 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                         foreach (var hex in hexItem.EnumerateArray())
                         {
                             var s = hex.GetString();
-                            if (!string.IsNullOrEmpty(s)) linha.Add(s);
+                            if (string.IsNullOrEmpty(s))
+                                continue;
+
+                            if (!s.StartsWith('#'))
+                            {
+                                linha.Add(s);
+                                continue;
+                            }
+
+                            if (CorHex.TryNormalizar(s, out var normalizada))
+                                linha.Add(normalizada);
+                            else
+                                logger.LogWarning(
+                                    "Cor hex invalida descartada na paleta de {Cliente}/{Fase}: {Cor}",
+                                    estrategia.Cliente, fase, s);
                         }
                         faseEstrategia.CoresHex.Add(linha);
                     }
                 }
             }
+
+            ValidarCoresHeader(estrategia.Cliente, faseEstrategia, logger);
         }
+    }
+
+    private static string? LerCorHexDoJson(JsonElement item, string propriedade, string cliente, string fase, ILogger logger)
+    {
+        if (!item.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return null;
+
+        var bruto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(bruto))
+            return null;
+
+        if (CorHex.TryNormalizar(bruto, out var cor))
+            return cor;
+
+        logger.LogWarning(
+            "Cor invalida em {Propriedade} da paleta de {Cliente}/{Fase}: {Cor}. Use #RGB ou #RRGGBB.",
+            propriedade, cliente, fase, bruto);
+        return null;
+    }
+
+    /// <summary>
+    /// Avisa quando uma cor declarada para o header fica ilegivel sobre o fundo do gradiente.
+    /// O build nao falha: o renderer aplica o fallback e o teste de contrato dos assets acusa.
+    /// </summary>
+    private static void ValidarCoresHeader(string cliente, FaseEstrategia fase, ILogger logger)
+    {
+        var fundos = CoresFase.Gradiente(fase);
+        if (fundos.Count == 0)
+            return;
+
+        if (fase.CorTextoHeader != null)
+            ValidarContraste(cliente, fase, "cor_texto_header", fase.CorTextoHeader, fundos, logger);
+
+        if (fase.CorMolduraHeader != null)
+            ValidarContraste(cliente, fase, "cor_moldura_header", fase.CorMolduraHeader, fundos, logger);
+    }
+
+    private static void ValidarContraste(
+        string cliente,
+        FaseEstrategia fase,
+        string propriedade,
+        string cor,
+        IReadOnlyCollection<string> fundos,
+        ILogger logger)
+    {
+        var contraste = CorHex.ContrasteMinimo(fundos, cor);
+        if (contraste >= CorHex.ContrasteMinimoAbsoluto)
+            return;
+
+        logger.LogWarning(
+            "{Propriedade} de {Cliente}/{Fase} ({Cor}) tem contraste {Contraste:0.00}:1 sobre o fundo do header. Minimo {Minimo:0.0}:1; o renderer vai substituir a cor.",
+            propriedade, cliente, fase.Fase, cor, contraste, CorHex.ContrasteMinimoAbsoluto);
     }
 
     private static void ProcessarTemas(EstrategiaCliente estrategia, string json)
@@ -653,7 +723,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
     }
 
-    private static void ProcessarRegua(EstrategiaCliente estrategia, string json)
+    private static void ProcessarRegua(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -714,28 +784,66 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         // Extrair cores da regua renderizada em HTML no header do email
         if (reguaObj.TryGetProperty("estilo_html", out var estiloHtmlObj))
+            regua.EstiloHtml = LerEstiloHtml(estrategia.Cliente, "estilo_html", estiloHtmlObj, logger);
+
+        // Overrides por fase: a regua fica sobre o fundo do header, que muda a cada fase
+        if (reguaObj.TryGetProperty("estilo_html_por_fase", out var estiloPorFaseObj)
+            && estiloPorFaseObj.ValueKind == JsonValueKind.Object)
         {
-            var estiloHtml = new EstiloReguaHtml();
-
-            if (estiloHtmlObj.TryGetProperty("cor_concluida", out var corConcluida))
-                estiloHtml.CorConcluida = corConcluida.GetString() ?? estiloHtml.CorConcluida;
-
-            if (estiloHtmlObj.TryGetProperty("cor_atual", out var corAtual))
-                estiloHtml.CorAtual = corAtual.GetString() ?? estiloHtml.CorAtual;
-
-            if (estiloHtmlObj.TryGetProperty("cor_futura", out var corFutura))
-                estiloHtml.CorFutura = corFutura.GetString() ?? estiloHtml.CorFutura;
-
-            if (estiloHtmlObj.TryGetProperty("cor_label", out var corLabel))
-                estiloHtml.CorLabel = corLabel.GetString() ?? estiloHtml.CorLabel;
-
-            if (estiloHtmlObj.TryGetProperty("cor_label_atual", out var corLabelAtual))
-                estiloHtml.CorLabelAtual = corLabelAtual.GetString() ?? estiloHtml.CorLabelAtual;
-
-            regua.EstiloHtml = estiloHtml;
+            foreach (var faseProp in estiloPorFaseObj.EnumerateObject())
+            {
+                regua.EstiloHtmlPorFase[faseProp.Name] =
+                    LerEstiloHtml(estrategia.Cliente, $"estilo_html_por_fase.{faseProp.Name}", faseProp.Value, logger);
+            }
         }
 
         estrategia.Regua = regua;
+    }
+
+    private static EstiloReguaHtml LerEstiloHtml(string cliente, string contexto, JsonElement obj, ILogger logger)
+    {
+        var padrao = new EstiloReguaHtml();
+        var estilo = new EstiloReguaHtml
+        {
+            CorConcluida = LerCorRegua(obj, "cor_concluida", cliente, contexto, padrao.CorConcluida, logger),
+            CorAtual = LerCorRegua(obj, "cor_atual", cliente, contexto, padrao.CorAtual, logger),
+            CorLabel = LerCorRegua(obj, "cor_label", cliente, contexto, padrao.CorLabel, logger),
+            CorLabelAtual = LerCorRegua(obj, "cor_label_atual", cliente, contexto, padrao.CorLabelAtual, logger)
+        };
+
+        // cor_futura pode ser rgba()/transparent (translucida por design); aceita como veio
+        if (obj.TryGetProperty("cor_futura", out var futura) && futura.ValueKind == JsonValueKind.String)
+        {
+            var valor = futura.GetString();
+            if (!string.IsNullOrWhiteSpace(valor))
+                estilo.CorFutura = valor;
+        }
+
+        return estilo;
+    }
+
+    private static string LerCorRegua(
+        JsonElement obj,
+        string propriedade,
+        string cliente,
+        string contexto,
+        string valorPadrao,
+        ILogger logger)
+    {
+        if (!obj.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return valorPadrao;
+
+        var bruto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(bruto))
+            return valorPadrao;
+
+        if (CorHex.TryNormalizar(bruto, out var cor))
+            return cor;
+
+        logger.LogWarning(
+            "Cor invalida em {Contexto}.{Propriedade} de {Cliente}: {Cor}. Mantendo {Padrao}.",
+            contexto, propriedade, cliente, bruto, valorPadrao);
+        return valorPadrao;
     }
 
     private static void ProcessarFases(EstrategiaCliente estrategia, string json)

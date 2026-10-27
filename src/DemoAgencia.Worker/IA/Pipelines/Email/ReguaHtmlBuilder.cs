@@ -8,7 +8,7 @@ namespace DemoAgencia.Worker.IA.Pipelines.Email;
 /// <summary>Desenha a regua de jornada em HTML (segmentos + labels) para o header do email.</summary>
 internal static class ReguaHtmlBuilder
 {
-    internal static string Construir(EstrategiaEmail? estrategia)
+    internal static string Construir(EstrategiaEmail? estrategia, IReadOnlyCollection<string>? fundosHeader = null)
     {
         if (estrategia?.Regua is not { } regua || regua.Etapas.Count == 0 || string.IsNullOrEmpty(estrategia.Fase))
             return string.Empty;
@@ -16,7 +16,8 @@ internal static class ReguaHtmlBuilder
         var etapaAtual = DeterminarEtapaDestacada(estrategia, regua);
         var indiceAtual = regua.Etapas.FindIndex(
             etapa => string.Equals(etapa, etapaAtual, StringComparison.OrdinalIgnoreCase));
-        var estilo = regua.EstiloHtml;
+        var estilo = ResolverEstilo(estrategia, regua);
+        var (corConcluida, corAtual, corFutura, corLabel, corLabelAtual) = AjustarCores(estilo, fundosHeader);
         var largura = (100.0 / regua.Etapas.Count).ToString("0.##", CultureInfo.InvariantCulture);
 
         var sb = new StringBuilder();
@@ -25,9 +26,9 @@ internal static class ReguaHtmlBuilder
 
         for (var i = 0; i < regua.Etapas.Count; i++)
         {
-            var cor = i == indiceAtual ? estilo.CorAtual
-                : i < indiceAtual ? estilo.CorConcluida
-                : estilo.CorFutura;
+            var cor = i == indiceAtual ? corAtual
+                : i < indiceAtual ? corConcluida
+                : corFutura;
 
             sb.Append($"<td width=\"{largura}%\" height=\"6\" style=\"height: 6px; background-color: {cor}; font-size: 0; line-height: 0;\">&nbsp;</td>");
         }
@@ -38,16 +39,50 @@ internal static class ReguaHtmlBuilder
         {
             var atual = i == indiceAtual;
             var futura = i > indiceAtual;
-            var corLabel = atual ? estilo.CorLabelAtual : estilo.CorLabel;
+            var corLabelEtapa = atual ? corLabelAtual : corLabel;
             var peso = atual ? "bold" : "normal";
             var opacidade = futura ? " opacity: 0.8;" : "";
             var label = WebUtility.HtmlEncode(regua.Etapas[i]);
 
-            sb.Append($"<td width=\"{largura}%\" align=\"center\" valign=\"top\" style=\"padding: 8px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; line-height: 12px; color: {corLabel}; font-weight: {peso};{opacidade}\">{label}</td>");
+            sb.Append($"<td width=\"{largura}%\" align=\"center\" valign=\"top\" style=\"padding: 8px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; line-height: 12px; color: {corLabelEtapa}; font-weight: {peso};{opacidade}\">{label}</td>");
         }
 
         sb.Append("</tr></table>");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Estilo da regua para a fase atual. A regua fica sobre o fundo do header, que muda
+    /// a cada fase, entao o asset pode declarar overrides em <c>estilo_html_por_fase</c>.
+    /// </summary>
+    internal static EstiloReguaHtml ResolverEstilo(EstrategiaEmail estrategia, ReguaJornada regua)
+    {
+        if (!string.IsNullOrEmpty(estrategia.Fase)
+            && regua.EstiloHtmlPorFase.TryGetValue(estrategia.Fase, out var porFase))
+        {
+            return porFase;
+        }
+
+        return regua.EstiloHtml;
+    }
+
+    /// <summary>
+    /// Garante que as cores da regua nao sumam no fundo do header: substitui apenas o que
+    /// ficar abaixo do piso de legibilidade (as cores declaradas que passam sao mantidas).
+    /// </summary>
+    internal static (string concluida, string atual, string futura, string label, string labelAtual) AjustarCores(
+        EstiloReguaHtml estilo,
+        IReadOnlyCollection<string>? fundosHeader)
+    {
+        if (fundosHeader == null || fundosHeader.Count == 0)
+            return (estilo.CorConcluida, estilo.CorAtual, estilo.CorFutura, estilo.CorLabel, estilo.CorLabelAtual);
+
+        return (
+            CorHex.EscolherVisivel(fundosHeader, estilo.CorConcluida),
+            CorHex.EscolherVisivel(fundosHeader, estilo.CorAtual),
+            estilo.CorFutura,
+            CorHex.EscolherTexto(fundosHeader, estilo.CorLabel),
+            CorHex.EscolherTexto(fundosHeader, estilo.CorLabelAtual));
     }
 
     internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, ReguaJornada regua)

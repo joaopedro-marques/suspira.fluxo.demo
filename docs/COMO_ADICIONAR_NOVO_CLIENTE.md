@@ -243,6 +243,35 @@ Arquivos:
 - `ACME_footer.html`
 - `ACME_html_default.html` + `.json`
 
+## Header do email (componente editável)
+
+O header é montado por **um único asset**: `Assets/referencias/components/header_section.html`.
+O código apenas injeta valores; markup e estilos são seus.
+
+- O layout principal usa `{{header_colunas}}` no `<tr>` das colunas.
+- Cada coluna é um bloco: `<!--#bloco titulo--> ... <!--#/bloco-->` e `<!--#bloco hero--> ... <!--#/bloco-->`.
+  A ordem (título/hero ou hero/título) é sorteada por entrega; para adicionar um elemento,
+  crie um novo bloco e inclua a coluna correspondente (na fase atual, blocos fora de
+  `titulo`/`hero` precisam ser referenciados em `MontarColunas`).
+- Slots disponíveis: `{{header_bg}}` (gradiente), `{{header_clip}}` (margem triangular),
+  `{{regua_html}}` (régua), `{{header_titulo}}`, `{{header_titulo_cor}}`,
+  `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}`,
+  `{{header_moldura_cor}}` e `{{header_colunas}}`.
+
+Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
+
+| Arquivo | Campo | Função |
+|---|---|---|
+| `{CLIENTE}_paleta_de_cores.json` | `cor_texto_header` | Cor do título sobre o gradiente da fase |
+| `{CLIENTE}_paleta_de_cores.json` | `cor_moldura_header` | Cor da moldura atrás do hero |
+| `{CLIENTE}_regua_jornada.json` | `estilo_html` | Cores da régua (fallback) |
+| `{CLIENTE}_regua_jornada.json` | `estilo_html_por_fase` | Cores da régua por fase (obrigatório quando a fase muda o fundo) |
+
+O renderer valida contraste (`CorHex`): cor declarada abaixo de 2.5:1 é substituída
+automaticamente e o build loga warning. O teste de contrato dos assets
+(`AssetsCoresContratoTests`) falha se uma fase ficar sem `cor_texto_header`/`cor_moldura_header`,
+se a régua não tiver override para todas as fases ou se o contraste cair abaixo do piso.
+
 ## Validação
 
 Após adicionar todos os arquivos:

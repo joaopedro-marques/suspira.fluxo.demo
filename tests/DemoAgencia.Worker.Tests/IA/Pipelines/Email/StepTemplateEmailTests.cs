@@ -99,9 +99,15 @@ public class StepTemplateEmailTests
         <tr>
         <td width="600" style="{{header_bg}} {{header_clip}}">
         {{regua_html}}
-        <table role="presentation" width="100%"><tr>{{header_coluna_1}}{{header_coluna_2}}</tr></table>
+        <table role="presentation" width="100%"><tr>{{header_colunas}}</tr></table>
         </td>
         </tr>
+        <!--#bloco titulo-->
+        <td width="57%" align="{{header_titulo_align}}" style="{{header_titulo_padding}}"><p style="color: {{header_titulo_cor}};">{{header_titulo}}</p></td>
+        <!--#/bloco-->
+        <!--#bloco hero-->
+        <td width="43%"><table><tr><td bgcolor="{{header_moldura_cor}}" style="padding: 10px 10px 22px 10px;"><img src="{{header_hero_src}}" alt="Hero" width="220"></td></tr></table></td>
+        <!--#/bloco-->
         """;
 
     private const string TemplateComHeader = """
@@ -609,7 +615,7 @@ public class StepTemplateEmailTests
         ctx.Html.Should().Contain("Titulo teste");
         ctx.Html.Should().Contain("color: #FFFFFF");
         ctx.Html.Should().Contain("src=\"imagens/gerada_1.png\"");
-        ctx.Html.Should().Contain("width=\"240\"", "o hero deve ser menor que o background de 600px");
+        ctx.Html.Should().Contain("width=\"220\"", "o hero deve ser menor que o background de 600px");
         ctx.Html.Should().NotContain("{{header_section}}");
         ctx.Html.Should().NotContain("{{");
     }

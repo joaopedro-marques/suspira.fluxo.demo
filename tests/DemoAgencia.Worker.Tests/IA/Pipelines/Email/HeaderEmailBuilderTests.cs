@@ -8,6 +8,16 @@ namespace DemoAgencia.Worker.Tests.IA.Pipelines.Email;
 
 public class HeaderEmailBuilderTests
 {
+    private const string Componente = """
+        <td style="{{header_bg}} {{header_clip}}">{{regua_html}}{{header_colunas}}</td>
+        <!--#bloco titulo-->
+        <td width="57%" align="{{header_titulo_align}}" style="{{header_titulo_padding}}"><p style="color: {{header_titulo_cor}};">{{header_titulo}}</p></td>
+        <!--#/bloco-->
+        <!--#bloco hero-->
+        <td width="43%"><table><tr><td bgcolor="{{header_moldura_cor}}" style="padding: 10px 10px 22px 10px;"><img src="{{header_hero_src}}" alt="Hero" width="220" style="border-radius: 12px;"></td></tr></table></td>
+        <!--#/bloco-->
+        """;
+
     private static FaseEstrategia FaseRoxa() => new()
     {
         Fase = "pos-compra",
@@ -19,6 +29,22 @@ public class HeaderEmailBuilderTests
             new() { "#784099" },
             new() { "#AB40D9" },
             new() { "#AB40D9" }
+        }
+    };
+
+    private static FaseEstrategia FaseAmarela() => new()
+    {
+        Fase = "pos-chaves",
+        CorPrincipal = "Amarelo",
+        CorTextoHeader = "#2B1B00",
+        CorMolduraHeader = "#2B1B00",
+        CoresHex = new List<List<string>>
+        {
+            new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56", "#006B40" },
+            new() { "gradiente", "linear", "diagonal", "#F48421", "#FFB719" },
+            new() { "#FFB719" },
+            new() { "#FFDD02" },
+            new() { "#784099" }
         }
     };
 
@@ -122,30 +148,111 @@ public class HeaderEmailBuilderTests
     [Fact]
     public void Construir_PreencheTodosOsPlaceholders()
     {
-        const string componente = "<td style=\"{{header_bg}} {{header_clip}}\">{{regua_html}}{{header_coluna_1}}{{header_coluna_2}}</td>";
 
-        var html = HeaderEmailBuilder.Construir(componente, ContextoHeader(), invertido: false);
+        var html = HeaderEmailBuilder.Construir(Componente, ContextoHeader(), invertido: false);
 
         html.Should().NotContain("{{");
         html.Should().Contain("background-color: #784099");
         html.Should().Contain("Financiamento com o banco");
         html.Should().Contain("Titulo &lt;forte&gt;");
         html.Should().Contain("src=\"imagens/gerada_1.png\"");
-        html.Should().Contain("width=\"240\"");
+        html.Should().Contain("width=\"220\"");
         html.Should().Contain(HeaderEmailBuilder.ClipPathPadrao);
     }
 
     [Fact]
     public void Construir_ComLayoutInvertido_EspelhaClipEColunas()
     {
-        const string componente = "<td style=\"{{header_bg}} {{header_clip}}\">{{regua_html}}{{header_coluna_1}}{{header_coluna_2}}</td>";
 
-        var html = HeaderEmailBuilder.Construir(componente, ContextoHeader(), invertido: true);
+        var html = HeaderEmailBuilder.Construir(Componente, ContextoHeader(), invertido: true);
 
         html.Should().Contain(HeaderEmailBuilder.ClipPathInvertido);
         var imgIndex = html.IndexOf("<img", StringComparison.Ordinal);
         var tituloIndex = html.IndexOf("Titulo", StringComparison.Ordinal);
         imgIndex.Should().BeLessThan(tituloIndex);
         html.Should().Contain("align=\"right\"");
+    }
+
+    [Fact]
+    public void CorTitulo_ComFaseAmarela_UsaCorEscuraDeclarada()
+    {
+        HeaderEmailBuilder.CorTitulo(FaseAmarela()).Should().Be("#2B1B00");
+    }
+
+    [Fact]
+    public void CorTitulo_SemCorDeclaradaEmFundoClaro_UsaEscuro()
+    {
+        var fase = FaseAmarela();
+        fase.CorTextoHeader = null;
+
+        HeaderEmailBuilder.CorTitulo(fase).Should().Be(CorHex.TextoEscuroPadrao);
+    }
+
+    [Fact]
+    public void CorTitulo_SemCorDeclaradaEmFundoEscuro_UsaBranco()
+    {
+        var fase = FaseRoxa();
+        fase.CorTextoHeader = null;
+
+        HeaderEmailBuilder.CorTitulo(fase).Should().Be(CorHex.TextoClaroPadrao);
+    }
+
+    [Fact]
+    public void CorMoldura_ComFundoAmarelo_NaoUsaBrancoInvisivel()
+    {
+        HeaderEmailBuilder.CorMoldura(FaseAmarela()).Should().Be("#2B1B00");
+    }
+
+    [Fact]
+    public void CorMoldura_SemCorDeclaradaEmFundoEscuro_UsaBranco()
+    {
+        var fase = FaseRoxa();
+        fase.CorMolduraHeader = null;
+
+        HeaderEmailBuilder.CorMoldura(fase).Should().Be(CorHex.MolduraPadrao);
+    }
+
+    [Fact]
+    public void Construir_ComFaseAmarela_NaoUsaTituloBranco()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-chaves",
+            FaseDados = FaseAmarela(),
+            Regua = contexto.Estrategia!.Regua
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().Contain("color: #2B1B00");
+        html.Should().NotContain("color: #FFFFFF");
+    }
+
+    [Fact]
+    public void Construir_RenderizaMolduraAtrasDoHero()
+    {
+
+        var html = HeaderEmailBuilder.Construir(Componente, ContextoHeader(), invertido: false);
+
+        html.Should().Contain("bgcolor=\"#FFFFFF\"", "a moldura usa a cor declarada para a fase");
+        html.Should().Contain("padding: 10px 10px 22px 10px", "a moldura fica deslocada para cima do hero");
+        html.Should().Contain("border-radius: 12px", "a imagem tem raio menor que a moldura");
+    }
+
+    [Fact]
+    public void ExtrairCoresFase_DescartaHexInvalido()
+    {
+        var fase = new FaseEstrategia
+        {
+            Fase = "pos-compra",
+            CoresHex = new List<List<string>>
+            {
+                new() { "#78409" },
+                new() { "#AB40D9" }
+            }
+        };
+
+        HeaderEmailBuilder.ExtrairCoresFase(fase).Should().Equal("#AB40D9");
     }
 }
