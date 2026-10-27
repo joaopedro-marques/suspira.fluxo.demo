@@ -402,9 +402,7 @@ public class TelegramService : BackgroundService
                 var resultadoPipeline = execucao.Resultado;
                 if (!resultadoPipeline.QaAprovado)
                 {
-                    var feedbackMsg = $"⚠️ QA nao aprovou o email apos refacoes.";
-                    if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
-                        feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
+                    var feedbackMsg = "⚠️ QA nao aprovou o email apos refacoes.";
                     try
                     {
                         await _gateway!.EditMessageTextAsync(chatId, mensagemProgressoId, feedbackMsg, ct);
@@ -575,8 +573,6 @@ public class TelegramService : BackgroundService
         if (!resultadoPipeline.QaAprovado)
         {
             var feedbackMsg = "⚠️ QA nao aprovou o email apos refacoes.";
-            if (!string.IsNullOrEmpty(resultadoPipeline.QaFeedbackFinal))
-                feedbackMsg += $"\n{resultadoPipeline.QaFeedbackFinal}";
             try
             {
                 await _gateway!.EditMessageTextAsync(chatId, messageId, feedbackMsg, ct);
@@ -905,8 +901,6 @@ public class TelegramService : BackgroundService
 
             var feedbackMsg =
                 $"⚠️ O ajuste não passou na revisão de qualidade. A entrega v{entrega.Versao} continua valendo.";
-            if (!string.IsNullOrEmpty(resultado.QaFeedbackFinal))
-                feedbackMsg += $"\n{resultado.QaFeedbackFinal}";
             await EditarOuEnviarAsync(chatId, messageId, feedbackMsg, CriarKeyboardEntrega(), ct);
             return;
         }

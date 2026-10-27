@@ -353,7 +353,7 @@ public class TelegramServiceTests
         {
             RespostaFinal = "<html>email</html>",
             QaAprovado = false,
-            QaFeedbackFinal = "QA nao aprovou"
+            QaFeedbackFinal = "Instrucao interna de revisao"
         };
         var runnerMock = new Mock<PipelineRunner>(Mock.Of<ILogger<PipelineRunner>>());
         runnerMock.Setup(r => r.ExecutarAsync(It.IsAny<PipelineContext>(), It.IsAny<IReadOnlyList<IPipelineStep>>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -387,6 +387,7 @@ public class TelegramServiceTests
 
         gatewayMock.Verify(g => g.SendDocumentAsync(It.IsAny<long>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         editCalls.Should().Contain(m => m.Contains("QA nao aprovou"));
+        editCalls.Should().NotContain(m => m.Contains("Instrucao interna de revisao"));
     }
 
     [Fact]

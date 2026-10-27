@@ -396,6 +396,13 @@ public class TelegramServiceAjusteTests
             It.Is<string>(t => t.Contains("continua valendo")),
             It.IsAny<InlineKeyboardMarkup?>(),
             It.IsAny<CancellationToken>()), Times.Once);
+
+        gateway.Verify(g => g.EditMessageTextAsync(
+            ChatId,
+            It.IsAny<int>(),
+            It.Is<string>(t => t.Contains("Ainda nao atende")),
+            It.IsAny<InlineKeyboardMarkup?>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
