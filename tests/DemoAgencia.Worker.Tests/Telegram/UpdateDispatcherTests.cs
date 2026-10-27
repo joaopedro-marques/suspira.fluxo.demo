@@ -122,6 +122,75 @@ public class UpdateDispatcherTests
     }
 
     [Fact]
+    public async Task CallbackEMensagemDoMesmoChat_ProcessamSequencialmenteEmOrdem()
+    {
+        var ordem = new List<string>();
+        var callbackIniciou = new TaskCompletionSource();
+        var liberarCallback = new TaskCompletionSource();
+        var mensagemIniciou = new TaskCompletionSource();
+
+        Task Handler(Update update, CancellationToken ct)
+        {
+            if (update.CallbackQuery != null)
+            {
+                ordem.Add("callback");
+                callbackIniciou.SetResult();
+                return liberarCallback.Task;
+            }
+
+            ordem.Add("mensagem");
+            mensagemIniciou.SetResult();
+            return Task.CompletedTask;
+        }
+
+        var callback = new Update
+        {
+            Id = 1,
+            CallbackQuery = new CallbackQuery
+            {
+                Id = "cb",
+                Data = "entrega|ajustar",
+                Message = new Message { Id = 1, Chat = new Chat { Id = 700, Type = ChatType.Private } }
+            }
+        };
+
+        var dispatcher = new UpdateDispatcher(Handler, 64, Mock.Of<ILogger<UpdateDispatcher>>());
+
+        await dispatcher.EnfileirarAsync(callback);
+        await dispatcher.EnfileirarAsync(CriarUpdate(2, 700));
+
+        await callbackIniciou.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        ordem.Should().Contain("callback");
+        ordem.Should().NotContain("mensagem");
+
+        liberarCallback.SetResult();
+        await mensagemIniciou.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        dispatcher.Liberar();
+        await dispatcher.DrainAsync(TimeSpan.FromSeconds(5));
+
+        ordem.Should().ContainInOrder("callback", "mensagem");
+    }
+
+    [Fact]
+    public void ObterChatId_DeveExtrairChatDeCallback()
+    {
+        var update = new Update
+        {
+            Id = 1,
+            CallbackQuery = new CallbackQuery
+            {
+                Id = "cb",
+                Data = "x",
+                Message = new Message { Id = 1, Chat = new Chat { Id = 42, Type = ChatType.Private } }
+            }
+        };
+
+        UpdateDispatcher.ObterChatId(update).Should().Be(42);
+    }
+
+    [Fact]
     public async Task TemFilaPendente_RetornaTrueQuandoHaUpdatesEsperando()
     {
         var bloqueio = new TaskCompletionSource();

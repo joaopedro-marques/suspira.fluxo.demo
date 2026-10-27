@@ -190,19 +190,7 @@ public partial class StepQaEmail : IPipelineStep
 
     private static string NormalizarStepAlvo(string? stepAlvo)
     {
-        if (string.IsNullOrWhiteSpace(stepAlvo))
-            return "copy";
-
-        var normalized = stepAlvo.Trim().ToLowerInvariant();
-
-        if (normalized.Contains("hero") || normalized.Contains("imagem"))
-            return "hero";
-        if (normalized.Contains("diagramacao") || normalized.Contains("diagram"))
-            return "diagramacao";
-        if (normalized.Contains("copy") || normalized.Contains("texto"))
-            return "copy";
-
-        return "copy";
+        return StepAlvoNormalizer.NormalizarQa(stepAlvo);
     }
 
     internal static IReadOnlyList<string> ExtrairPlaceholders(string html)

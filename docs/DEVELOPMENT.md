@@ -34,6 +34,10 @@ dotnet run --project src/DemoAgencia.Worker
 - **Logging**: Serilog com structured logging (`{Property}`)
 - **Testes**: Métodos testáveis são `virtual` para mocking
 
+### Agentes
+
+Os agentes em `Assets/agentes/*.md` são carregados no startup. Para o fluxo pós-entrega, o `refinador.md` classifica o feedback do cliente e devolve `{ step_alvo, instrucoes, template_id? }`.
+
 ### Camadas
 
 ```
@@ -41,6 +45,7 @@ Telegram/           → Comunicação com Telegram Bot API (ITelegramGateway)
 Agentes/            → IAgentesCatalogo + loader de agentes .md (router, redator, hero, qa)
 IA/Router/          → RouterService, RouterParser, Brief
 IA/PreFlight/       → ConversaPendenteStore, EstadoPreFlight
+IA/Ajustes/         → EntregaStore, RefinadorService, PlanoAjuste (ajuste pós-entrega)
 IA/Pipelines/       → PipelineRunner, IPipelineStep, PipelineContext, StepRecords
 IA/Pipelines/Email/ → PipelineEmail + Steps (Estrategia, Marca, Copy, Hero, Template, QA)
 IA/                 → OpenRouterService, OpenRouterPrivacyHandler, interfaces

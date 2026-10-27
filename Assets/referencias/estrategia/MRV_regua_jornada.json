@@ -18,7 +18,7 @@
       "futura": "outline only, no fill, empty/vacant segments",
       "diretrizes": [
         "Render the stage labels in Portuguese EXACTLY as written with the same colors (white or yellow), using a clean sans-serif typeface, small, legible",
-        "Design: smooth drop shadows, NO gradients, some transparency, NO glass effects, NO blurs, soft edges",
+        "Design: smooth drop shadows, smooth gradients, some transparency, with glass effects, soft blurs, soft edges",
         "The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable"
       ]
     }

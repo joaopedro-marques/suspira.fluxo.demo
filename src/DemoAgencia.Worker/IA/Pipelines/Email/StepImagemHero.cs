@@ -48,6 +48,12 @@ public class StepImagemHero : IPipelineStep
 
     public virtual async Task<PipelineContext> ExecutarAsync(PipelineContext context, CancellationToken ct)
     {
+        if (context.PreservarHero)
+        {
+            _logger.LogInformation("Ajuste pontual: preservando hero/banner da entrega anterior.");
+            return context;
+        }
+
         var isHeroRefacao = context.Refacoes > 0 &&
             context.QaStepAlvo?.Equals("hero", StringComparison.OrdinalIgnoreCase) == true;
 
@@ -129,6 +135,14 @@ public class StepImagemHero : IPipelineStep
             promptBase += $"\n\n⚠️ REVISION REQUIRED (retry {context.Refacoes})\n";
             promptBase += $"QA rejected the previous version. Fix the following issues:\n";
             promptBase += $"{context.QaFeedback}\n";
+        }
+
+        if (!string.IsNullOrEmpty(context.FeedbackAjuste))
+        {
+            promptBase += $"\n\n## Client requested adjustment\n";
+            promptBase += $"The client asked to change the previous delivery. Apply this adjustment to the new image:\n";
+            promptBase += $"{context.FeedbackAjuste}\n";
+            promptBase += $"Keep the client visual identity and the journey context; change only what was requested.\n";
         }
 
         var promptFinal = await GerarPromptDetalhado(context.ChatId, promptBase, ct);

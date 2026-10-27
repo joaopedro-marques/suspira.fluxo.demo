@@ -77,6 +77,23 @@
 - [ ] Zip contém `assets/logo.png` (se cliente tem logo)
 - [ ] Zip contém `assets/logoMRVCO.png`, ícones sociais (se referenciados no template)
 
+#### Ajustes Pós-Entrega
+
+- [ ] Após o zip, bot envia menu com "✅ Aprovar" e "🔧 Pedir ajustes"
+- [ ] Clicar em "Aprovar" - bot confirma e a entrega é marcada como aprovada
+- [ ] Clicar em "Pedir ajustes" - bot pede a descrição do que não ficou legal
+- [ ] Enviar "o título está muito formal" - refinador classifica como `copy` e mostra o plano com botões Aplicar/Cancelar
+- [ ] Enviar "a imagem não tem a ver com o tema" - refinador classifica como `hero`
+- [ ] Enviar "troque o fundo das seções" - refinador classifica como `diagramacao`
+- [ ] Aplicar ajuste de copy - pipeline re-executa de copy em diante; zip v2 chega com a imagem hero preservada
+- [ ] Aplicar ajuste de hero - nova imagem gerada; imagens antigas não são duplicadas no zip
+- [ ] Cancelar ajuste - nenhuma chamada de pipeline; entrega vigente continua valendo
+- [ ] Feedback ambíguo - bot pede para detalhar e mantém o estado de espera de feedback
+- [ ] QA reprova após ajuste - bot informa e mantém a versão anterior
+- [ ] Atingir o limite de rodadas (`Ajustes__MaxRodadas`) - bot recusa novo ajuste e orienta aprovar ou enviar novo pedido
+- [ ] Enviar texto livre sem clicar nos botões - tratado como novo pedido pelo router
+- [ ] Deixar a entrega expirar (`Ajustes__TtlHorasEntrega`) - bot informa que não há entrega recente
+
 ### Multimodal (Análise de Fotos)
 - [ ] Enviar foto sem legenda - Bot descreve a imagem
 - [ ] Enviar foto com legenda "O que tem nesta imagem?" - Bot analisa com contexto
@@ -95,6 +112,7 @@
 - [ ] Verificar trace `email_hero_prompt` (etapaNome="email_hero_prompt")
 - [ ] Verificar trace `email_hero_imagem` (etapaNome="email_hero_imagem")
 - [ ] Verificar trace `email_qa` (etapaNome="email_qa")
+- [ ] Verificar trace `email_refinador` (etapaNome="email_refinador", ajuste pós-entrega)
 - [ ] Verificar métricas: tokens, latência, modelo usado por step
 - [ ] Verificar traces de análise de imagem (etapaNome="image-analysis")
 

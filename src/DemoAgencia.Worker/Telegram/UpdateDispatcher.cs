@@ -25,7 +25,7 @@ public class UpdateDispatcher
 
     public ValueTask<bool> EnfileirarAsync(Update update, CancellationToken ct = default)
     {
-        var chatId = update.Message?.Chat.Id ?? 0;
+        var chatId = ObterChatId(update);
         var canal = ObterOuCriarCanal(chatId);
         var aceito = canal.Writer.TryWrite(update);
         if (!aceito)
@@ -34,6 +34,17 @@ public class UpdateDispatcher
                 chatId, _capacidade, update.Id);
         }
         return new ValueTask<bool>(aceito);
+    }
+
+    /// <summary>
+    /// Chat de origem do update. Callbacks tambem precisam ir para a fila do chat
+    /// para manter a ordem com as mensagens (ex.: botao "Pedir ajustes" e o feedback seguinte).
+    /// </summary>
+    public static long ObterChatId(Update update)
+    {
+        return update.Message?.Chat.Id
+            ?? update.CallbackQuery?.Message?.Chat.Id
+            ?? 0;
     }
 
     public bool TemFilaPendente(long chatId)

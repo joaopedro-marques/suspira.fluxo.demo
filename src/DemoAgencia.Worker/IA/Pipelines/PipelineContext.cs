@@ -20,7 +20,13 @@ public class PipelineContext
     public bool QaAprovado { get; set; }
     public int Refacoes { get; set; }
 
+    /// <summary>Instrucoes de ajuste pos-entrega, injetadas no step alvo.</summary>
+    public string? FeedbackAjuste { get; set; }
+
+    /// <summary>Quando true, o step de hero preserva a imagem/banner da entrega anterior.</summary>
+    public bool PreservarHero { get; set; }
+
     public IReadOnlyList<string> FixedAssetRefs { get; set; } = Array.Empty<string>();
 
-    public ResultadoPipeline Resultado { get; } = new();
+    public ResultadoPipeline Resultado { get; set; } = new();
 }

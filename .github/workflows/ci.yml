@@ -95,6 +95,7 @@ jobs:
           "Assets/agentes/redator.md"
           "Assets/agentes/hero.md"
           "Assets/agentes/qa.md"
+          "Assets/agentes/refinador.md"
         )
         
         for file in "${required_files[@]}"; do

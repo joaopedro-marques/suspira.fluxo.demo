@@ -115,6 +115,23 @@ public class StepCopyEmail : IPipelineStep
             }
         }
 
+        if (!string.IsNullOrEmpty(context.FeedbackAjuste))
+        {
+            prompt += $"\n## Ajuste solicitado pelo cliente (entrega anterior)\n";
+            prompt += $"{context.FeedbackAjuste}\n";
+            prompt += $"Corrija APENAS o que foi pedido. Preserve o restante da copy e a estrategia.\n";
+
+            if (context.Copy != null)
+            {
+                prompt += $"\n## Copy anterior (para referencia)\n";
+                prompt += $"Assunto: {context.Copy.Assunto}\n";
+                prompt += $"Preheader: {context.Copy.Preheader}\n";
+                prompt += $"Titulo: {context.Copy.Titulo}\n";
+                prompt += $"Corpo:\n{context.Copy.Corpo}\n";
+                prompt += $"CTA: {context.Copy.CtaTexto} -> {context.Copy.CtaLink}\n";
+            }
+        }
+
         return prompt;
     }
 

@@ -349,6 +349,19 @@ public class PipelineRunner
         // Max refações = maxRefacoesQa (default 4)
         // Retorna ResultadoPipeline (HTML + imagens + assets)
     }
+
+    public async Task<ResultadoPipeline> ExecutarAjusteAsync(
+        PipelineContext context,
+        IReadOnlyList<IPipelineStep> steps,
+        string stepAlvo,
+        int maxRefacoesQa,
+        CancellationToken ct)
+    {
+        // Re-executa apenas do step alvo em diante (ajuste pos-entrega)
+        // Reaproveita retrieval anterior (estrategia, marca, logo)
+        // Preserva hero/banner quando o alvo nao e "hero"
+        // QA interno continua valendo (max refacoes)
+    }
 }
 ```
 
@@ -368,6 +381,56 @@ graph TD
     I -->|Não| D[Re-executar hero]
     H -->|Não| J[Retornar com feedback]
 ```
+
+## Loop de Ajuste Pós-Entrega
+
+Depois de entregar o zip, o contexto final da pipeline é guardado em memória (`EntregaStore`) para permitir ajustes pontuais sem refazer o email inteiro.
+
+```mermaid
+sequenceDiagram
+    participant U as Cliente
+    participant T as TelegramService
+    participant R as RefinadorService
+    participant PR as PipelineRunner
+    participant S as EntregaStore
+
+    T->>S: Guardar contexto da entrega (v1)
+    T-->>U: Zip v1 + [Aprovar] [Pedir ajustes]
+    U->>T: Pedir ajustes
+    T-->>U: "O que nao ficou legal?"
+    U->>T: "o titulo esta muito formal"
+    T->>R: Classificar(feedback, contexto)
+    R-->>T: { step_alvo: copy, instrucoes }
+    T-->>U: Plano + [Aplicar ajuste] [Cancelar]
+    U->>T: Aplicar ajuste
+    T->>PR: ExecutarAjusteAsync(clone, copy, feedback)
+    PR->>PR: copy -> diagramacao -> template -> assets -> QA
+    Note over PR: hero/banner preservados (PreservarHero)
+    PR-->>T: ResultadoPipeline (QA aprovado)
+    T->>S: Atualizar entrega (v2, rodadas + 1)
+    T-->>U: Zip v2 + menu de aprovacao
+```
+
+### Regras
+
+| Regra | Comportamento |
+|-------|---------------|
+| Etapas alvo | `copy`, `diagramacao`, `hero`, `template` (normalizacao deterministica; desconhecido cai em `copy`) |
+| Aprovacao do plano | O ajuste so executa depois que o cliente confirma, evitando gasto de LLM/imagem |
+| Aprovacao do resultado | A nova versao volta com `[Aprovar] [Pedir ajustes]`; aprovar fecha o ciclo |
+| Hero/banner | Preservados em ajustes de copy/diagramacao/template (`PipelineContext.PreservarHero`); recriados quando o alvo e `hero` |
+| Template | Ajuste pode trocar o template; `template_id` e validado contra o catalogo do cliente |
+| Versao anterior | O contexto e clonado antes de executar; se o QA reprovar, a versao vigente nao e corrompida |
+| Limite de rodadas | `Ajustes__MaxRodadas` por entrega; atingido o limite, e preciso aprovar ou pedir um novo email |
+| Expiracao | `Ajustes__TtlHorasEntrega`, em memoria (restart do worker perde a entrega ativa) |
+
+### Configuracao
+
+| Variavel | Default | Descricao |
+|----------|---------|-----------|
+| `Ajustes__TtlHorasEntrega` | `24` | Tempo que a ultima entrega fica disponivel para ajustes |
+| `Ajustes__MaxRodadas` | `3` | Rodadas de ajuste por entrega |
+| `Ajustes__MaxRefacoesQa` | `4` | Refacoes internas do QA dentro de uma rodada de ajuste |
 
 ## Resiliência HTTP e Tratamento de 429
 
@@ -475,6 +538,8 @@ Cada step LLM gera um trace no Langfuse com etapa nomeada:
 | `email_banner_check` | Validação de compatibilidade temática banner×email | `deepseek/deepseek-v3.2` |
 | `email_hero_imagem` | Chamada de API de geração de imagem | (API call) |
 | `email_qa` | Avaliação de qualidade | `deepseek/deepseek-r1-0528` |
+| `email_refinador` | Classificação do feedback pós-entrega (step alvo) | `deepseek/deepseek-v3.2` |
+| `email_refinador_retry` | Retry do refinador (JSON inválido) | `deepseek/deepseek-v3.2` |
 | `image-analysis` | Análise de imagem enviada pelo usuário | `qwen/qwen2.5-vl-72b-instruct` |
 | `banner-analysis` | Análise estruturada de banner (BannerDescricao) | `qwen/qwen2.5-vl-72b-instruct` |
 | `image-generation` | Geração de imagem via API | `qwen/qwen-image-3-pro` |
@@ -517,6 +582,12 @@ src/DemoAgencia.Worker/
 │   └── TelegramTextFormatter.cs        # Formatação de texto
 │
 ├── IA/
+    │   ├── Ajustes/
+    │   │   ├── AjusteCallbacks.cs          # Callbacks pos-entrega/ajuste
+    │   │   ├── EntregaStore.cs             # Ultima entrega por chat (contexto + versao + TTL)
+    │   │   ├── EstadoEntrega.cs            # Fase do dialogo, versao, rodadas, plano
+    │   │   ├── PlanoAjuste.cs              # Step alvo + instrucoes + template opcional
+    │   │   └── RefinadorService.cs         # Classifica feedback → etapa a refazer
     │   ├── Router/
     │   │   ├── RouterService.cs            # Intake + classificação
     │   │   ├── RouterParser.cs             # Parse JSON do router
@@ -632,8 +703,10 @@ public class PipelineContext
     public string? QaStepAlvo { get; set; }
     public bool QaAprovado { get; set; }
     public int Refacoes { get; set; }
-    
-    public ResultadoPipeline Resultado { get; } = new();
+
+    public string? FeedbackAjuste { get; set; }   // instrucoes do ajuste pos-entrega
+    public bool PreservarHero { get; set; }       // reaproveita hero/banner da entrega
+    public ResultadoPipeline Resultado { get; set; }
 }
 ```
 
@@ -649,6 +722,7 @@ public class PipelineContext
 | Single Router (ao invés de Refinador + Montador) | Uma única LLM call classifica + estrutura brief | Duas LLM calls (refinador + montador) |
 | Polly + fallback de modelos (ao invés de retry infinito no mesmo modelo) | 429 persistente troca de modelo; Polly honra Retry-After | Retry infinito no mesmo modelo rate-limited |
 | Modelo ator por chat (ao invés de processamento totalmente paralelo) | Garante ordem no PreFlight; evita race conditions por conversa | Paralelismo ingênuo (quebra máquina de estados) |
+| Ajuste pós-entrega com aprovação do plano (ao invés de refazer o email inteiro) | Corrige pontualmente, controla custo de LLM/imagem e preserva o que o cliente aprovou | Re-rodar a pipeline completa a cada feedback |
 | Limite global de pipelines via SemaphoreSlim | Protege RAM (1GB) e rate limit OpenRouter; default 3 para VM E2 Micro | Sem limite (crash por OOM ou storm de 429) |
 
 ## Trade-offs

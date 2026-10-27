@@ -1,6 +1,7 @@
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Ajustes;
 using DemoAgencia.Worker.IA.Onboarding;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
@@ -29,6 +30,8 @@ public class TelegramServiceTests
     private readonly ConversaPendenteStore _pendencias;
     private readonly OnboardingStore _onboardingStore;
     private readonly OnboardingService _onboardingService;
+    private readonly EntregaStore _entregaStore;
+    private readonly Mock<RefinadorService> _refinadorMock;
     private readonly Mock<IServiceProvider> _serviceProviderMock;
     private readonly Mock<IReferenciasCliente> _referenciasMock;
 
@@ -70,6 +73,17 @@ public class TelegramServiceTests
             _referenciasMock.Object,
             Mock.Of<ILogger<OnboardingService>>());
 
+        _entregaStore = new EntregaStore(
+            TestOptions.Create(new AjustesOptions()),
+            TimeProvider.System,
+            Mock.Of<ILogger<EntregaStore>>());
+
+        _refinadorMock = new Mock<RefinadorService>(
+            new AgenteDefinicao("refinador", "deepseek/deepseek-v3.2", 0.2, 2000, "persona"),
+            Mock.Of<IServicoChat>(),
+            Mock.Of<ITemplateCatalogo>(),
+            Mock.Of<ILogger<RefinadorService>>());
+
         _serviceProviderMock = new Mock<IServiceProvider>();
     }
 
@@ -87,6 +101,9 @@ public class TelegramServiceTests
         _pendencias,
         _onboardingService,
         _onboardingStore,
+        _entregaStore,
+        _refinadorMock.Object,
+        TestOptions.Create(new AjustesOptions()),
         _serviceProviderMock.Object,
         Mock.Of<ILogger<UpdateDispatcher>>());
 

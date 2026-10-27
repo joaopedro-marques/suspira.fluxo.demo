@@ -47,6 +47,9 @@ check "Agente hero.md existe"
 docker-compose exec demoagencia ls /app/Assets/agentes/qa.md > /dev/null 2>&1
 check "Agente qa.md existe"
 
+docker-compose exec demoagencia ls /app/Assets/agentes/refinador.md > /dev/null 2>&1
+check "Agente refinador.md existe"
+
 echo ""
 echo "5. Verificando logs da aplicação..."
 docker-compose exec demoagencia ls /app/logs/ > /dev/null 2>&1
@@ -75,7 +78,8 @@ if [ $FAIL -eq 0 ]; then
     echo "  1. Teste o bot no Telegram: /start, /help"
     echo "  2. Teste uma mensagem de texto livre para gerar email marketing"
     echo "  3. Teste envio de foto para análise multimodal"
-    echo "  4. Verifique os traces no Langfuse"
+    echo "  4. Teste o fluxo pós-entrega: Aprovar / Pedir ajustes (ajuste pontual)"
+    echo "  5. Verifique os traces no Langfuse"
     exit 0
 else
     echo "✗ Alguns checks falharam. Verifique os logs:"

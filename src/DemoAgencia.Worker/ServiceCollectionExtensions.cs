@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using DemoAgencia.Worker.Agentes;
 using DemoAgencia.Worker.Configuracoes;
 using DemoAgencia.Worker.IA;
+using DemoAgencia.Worker.IA.Ajustes;
 using DemoAgencia.Worker.IA.Pipelines;
 using DemoAgencia.Worker.IA.Pipelines.Email;
 using DemoAgencia.Worker.IA.PreFlight;
@@ -30,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.Configure<SegurancaOptions>(configuration.GetSection(SegurancaOptions.Section));
         services.Configure<PreFlightOptions>(configuration.GetSection(PreFlightOptions.Section));
         services.Configure<ConcorrenciaOptions>(configuration.GetSection(ConcorrenciaOptions.Section));
+        services.Configure<AjustesOptions>(configuration.GetSection(AjustesOptions.Section));
 
         var openRouterConfig = configuration.GetSection(OpenRouterOptions.Section).Get<OpenRouterOptions>() ?? new OpenRouterOptions();
 
@@ -72,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ConversaPendenteStore>();
         services.AddSingleton<OnboardingStore>();
         services.AddSingleton<OnboardingService>();
+        services.AddSingleton<EntregaStore>();
 
         services.AddSingleton<AgentesLoader>();
         services.AddSingleton<IAgentesCatalogo>(sp => sp.GetRequiredService<AgentesLoader>());
@@ -83,6 +86,11 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<RouterService>();
         services.AddSingleton<PipelineRunner>();
+        services.AddSingleton(sp => new RefinadorService(
+            sp.GetRequiredService<IAgentesCatalogo>().Obter("refinador"),
+            sp.GetRequiredService<IServicoChat>(),
+            sp.GetRequiredService<ITemplateCatalogo>(),
+            sp.GetRequiredService<ILogger<RefinadorService>>()));
 
         services.AddSingleton(sp => new PipelineEmail(
             sp.GetRequiredService<IServicoChat>(),
