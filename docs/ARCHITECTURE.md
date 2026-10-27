@@ -233,8 +233,8 @@ sequenceDiagram
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé. Prompt inclui Tom do brief (extraído pelo router) e hex codes da fase da paleta JSON |
 | `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis (nomes exatos) e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido. Prompt reforçado: usa APENAS nomes exatos de ícones listados, nunca inventa |
-| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com imagem limpa sem textos (diretriz estrita), régua full-width no topo (header da foto, etapas passadas em branco, etapa atual em amarelo, flat sem sombra/transparência, labels em português) e direção de arte das referências (paleta da fase, tom emocional, identidade visual do cliente); extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
-| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots |
+| `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com imagem limpa, sem nenhum texto e sem régua desenhada (a régua de jornada é renderizada em HTML no header), com diretriz de composição para uso ao lado do título no header e direção de arte das referências (paleta da fase, tom emocional, identidade visual do cliente); extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
+| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots; quando o template tem `{{header_section}}` e há hero, monta o header MRV (fundo gradiente na cor da etapa, régua de jornada em HTML no topo, título branco ao lado do hero menor que o background e margem inferior triangular arredondada) com o lado sorteado uma única vez por entrega (`PipelineContext.HeaderLayoutInvertido`) |
 | `StepAssetsEmail` | Retrieval determinístico + sanitização | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota; **remove tags `<img>` com referências não resolvidas** (sanitização determinística contra alucinações do LLM) |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
@@ -250,7 +250,7 @@ Cada step recebe apenas o contexto necessário (princípio do mínimo privilégi
 | `StepCopyEmail` | Brief fields (incl. Tom) + Estrategia (cores/temas/hex/mapa/E-R) | Marca, outros steps, histórico |
 | `StepDiagramacaoEmail` | Copy + Estrategia (cores/temas) + ícones disponíveis | Outros steps, histórico |
 | `StepImagemHero` | Brief.imagens + Marca + Estrategia (paleta) + ITemplateCatalogo (sub-jornadas) + BannerDescricaoCache | Outros steps |
-| `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca | Brief, outros steps |
+| `StepTemplateEmail` | Copy slots + Hero src + Banner src + Marca + Estrategia (fase/régua/cores) | Brief, outros steps |
 | `StepAssetsEmail` | HTML final + banco de referências | Brief, outros steps |
 | `StepQaEmail` | Brief original + HTML final + Estrategia + Banner src | Few-shots, outros steps |
 
@@ -266,7 +266,7 @@ Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) co
 <!-- Estrutura principal -->
 <table width="600">
   <tr><td>{{banner_section}}</td></tr>  <!-- Condicional: banner de referência da etapa ou vazio -->
-  {{hero_section}}  <!-- Condicional: imagem hero gerada pela IA (quando sem banner) -->
+  {{header_section}}  <!-- Condicional: header MRV (gradiente da etapa + régua + título + hero) -->
   <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
   <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
   <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
@@ -298,7 +298,8 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 
 ### Placeholders
 
-- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`
+- **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`, `{{header_section}}`
+- **Componente header_section** (preenchidos por `HeaderEmailBuilder`/`ReguaHtmlBuilder`): `{{header_bg}}` (gradiente da fase), `{{header_clip}}` (margem inferior triangular), `{{regua_html}}` (régua em HTML), `{{header_coluna_1}}` e `{{header_coluna_2}}` (título branco e imagem hero, na ordem do layout sorteado)
 - **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
 
 ### Características do Template
@@ -310,13 +311,14 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 - **Max-width 600px**: Padrão de email marketing
 - **CTA bulletproof**: Botão como tabela, não `<a>` com background
 - **Hero section**: Condicional (`{{hero_section}}` preenchido ou vazio)
+- **Header section**: Condicional (`{{header_section}}` montado quando há hero e o template declara o slot; inclui gradiente da etapa, régua em HTML, título branco e hero menor que o background; `clip-path`/gradiente degradam para retângulo com a cor sólida da fase em clientes sem suporte, como Outlook desktop)
 - **Banner section**: Condicional (`{{banner_section}}` preenchido com banner da etapa ou vazio; quando presente, hero é suprimido)
 - **Empacotamento de assets**: `StepAssetsEmail` resolve referências `assets/...` no HTML contra o banco de referências e as inclui no zip final
 - **HTML escaping**: Slots de texto escapados via `WebUtility.HtmlEncode`
 
 ### Testes HTML (TDD)
 
-O `StepTemplateEmail` tem 11 testes unitários cobrindo:
+O `StepTemplateEmail` tem testes unitários cobrindo:
 
 1. **Preenchimento de slots**: Todos os placeholders substituídos
 2. **Estrutura table**: Zero `<div>`, apenas `<table>`
@@ -326,9 +328,10 @@ O `StepTemplateEmail` tem 11 testes unitários cobrindo:
 6. **Max-width**: `max-width: 600px`
 7. **CTA bulletproof**: Tabela ao redor do link
 8. **Hero condicional**: Presente quando `hero_src` definido, ausente quando nulo
-9. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
-10. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
-11. **Logo**: `logo_src` preenchido corretamente
+9. **Header section condicional**: header montado com gradiente da fase, régua em HTML, título branco e hero; slot removido quando não há hero
+10. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
+11. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
+12. **Logo**: `logo_src` preenchido corretamente
 
 ## PipelineRunner
 

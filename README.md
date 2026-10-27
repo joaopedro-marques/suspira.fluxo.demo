@@ -47,7 +47,8 @@ O sistema segue uma arquitetura de **2 camadas** que separa claramente:
   │   └── {CLIENTE}_html_*.json             # Sidecars
   ├── components/           # Componentes genéricos
   │   ├── hero_section.html
-  │   └── banner_section.html
+  │   ├── banner_section.html
+  │   └── header_section.html
   └── imagens/              # Assets visuais
       ├── logos/
       ├── icons/
@@ -137,8 +138,8 @@ Assets/
       ├── estrategia/        # {cliente}_{tipo}.json (fases, paleta, temas, jornada, régua, mapa)
       ├── footer/            # {cliente}_footer.html (footer padrão)
       │                      # {cliente}_footer_{nome}.html (footers nomeados)
-      ├── templates/         # Modelos base de email (com slots {{header}}, {{footer}}, etc.)
-      ├── components/        # Componentes genéricos (hero_section.html, banner_section.html)
+      ├── templates/         # Modelos base de email (com slots {{header_section}}, {{banner_section}}, {{footer}}, etc.)
+      ├── components/        # Componentes genéricos (hero_section.html, banner_section.html, header_section.html)
       └── imagens/           # {cliente}_{tipo}_{nome}.ext (logos/, icons/, banners/)
                              # Banners: classificados pelo diretório banners/, nome descritivo
                              # da etapa da jornada para seleção por afinidade

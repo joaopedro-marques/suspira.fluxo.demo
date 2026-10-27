@@ -96,6 +96,7 @@ jobs:
           "Assets/agentes/hero.md"
           "Assets/agentes/qa.md"
           "Assets/agentes/refinador.md"
+          "Assets/referencias/components/header_section.html"
         )
         
         for file in "${required_files[@]}"; do
