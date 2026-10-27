@@ -961,4 +961,94 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         estrategia.Should().BeNull();
     }
+
+    [Fact]
+    public async Task ObterEstrategia_WithReguaEstiloHtml_ShouldLoadHtmlColors()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var regua = """
+        {
+          "regua": {
+            "etapas": ["Assinatura do Contrato", "Vistoria"],
+            "etapa_destacada_por_fase": { "pre-chaves": "Vistoria" },
+            "estilo_html": {
+              "cor_concluida": "#EEEEEE",
+              "cor_atual": "#FFCC00",
+              "cor_futura": "rgba(255, 255, 255, 0.2)",
+              "cor_label": "#F5F5F5",
+              "cor_label_atual": "#FFAA00"
+            }
+          }
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_regua_jornada.json"), regua);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Regua.Should().NotBeNull();
+        estrategia.Regua!.EstiloHtml.CorConcluida.Should().Be("#EEEEEE");
+        estrategia.Regua.EstiloHtml.CorAtual.Should().Be("#FFCC00");
+        estrategia.Regua.EstiloHtml.CorFutura.Should().Be("rgba(255, 255, 255, 0.2)");
+        estrategia.Regua.EstiloHtml.CorLabel.Should().Be("#F5F5F5");
+        estrategia.Regua.EstiloHtml.CorLabelAtual.Should().Be("#FFAA00");
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_WithoutReguaEstiloHtml_ShouldUseDefaultColors()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+
+        var regua = """
+        {
+          "regua": {
+            "etapas": ["Assinatura do Contrato", "Vistoria"],
+            "etapa_destacada_por_fase": { "pre-chaves": "Vistoria" }
+          }
+        }
+        """;
+
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "MRV_regua_jornada.json"), regua);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("mrv");
+
+        estrategia!.Regua!.EstiloHtml.CorConcluida.Should().Be("#FFFFFF");
+        estrategia.Regua.EstiloHtml.CorAtual.Should().Be("#FFDD02");
+    }
+
+    [Fact]
+    public async Task ObterHeaderSectionTemplate_WhenComponentExists_ShouldLoad()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string header = "<tr><td>{{header_bg}}{{regua_html}}</td></tr>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "header_section.html"), header);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterHeaderSectionTemplate().Should().Be(header);
+    }
+
+    [Fact]
+    public async Task ObterHeaderSectionTemplate_WhenComponentMissing_ShouldReturnNull()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterHeaderSectionTemplate().Should().BeNull();
+    }
 }

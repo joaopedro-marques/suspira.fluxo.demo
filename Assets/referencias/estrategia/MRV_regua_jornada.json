@@ -21,6 +21,13 @@
         "Design: smooth drop shadows, smooth gradients, some transparency, with glass effects, soft blurs, soft edges",
         "The ruler must be crisp, clean, professional, and integrated with the banner's visual style while remaining clearly readable"
       ]
+    },
+    "estilo_html": {
+      "cor_concluida": "#FFFFFF",
+      "cor_atual": "#FFDD02",
+      "cor_futura": "rgba(255, 255, 255, 0.35)",
+      "cor_label": "#FFFFFF",
+      "cor_label_atual": "#FFDD02"
     }
   }
 }
