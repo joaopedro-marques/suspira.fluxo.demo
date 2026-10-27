@@ -53,6 +53,45 @@ public class AgentesLoaderTests : IDisposable
     }
 
     [Fact]
+    public void Obter_WithoutStartAsync_LoadsCatalogLazily()
+    {
+        WriteAgentFile("refinador", """
+            ---
+            modelo: deepseek/deepseek-v3.2
+            temperatura: 0.2
+            max_tokens: 2000
+            ---
+
+            Voce e o refinador.
+            """);
+
+        var loader = new AgentesLoader(_loggerMock.Object, _tempDir);
+
+        loader.Obter("refinador").Nome.Should().Be("refinador");
+    }
+
+    [Fact]
+    public async Task StartAsync_AfterLazyLoad_DoesNotDuplicateAgents()
+    {
+        WriteAgentFile("router", """
+            ---
+            modelo: deepseek/deepseek-v3.2
+            temperatura: 0.2
+            max_tokens: 2000
+            ---
+
+            Voce e o router.
+            """);
+
+        var loader = new AgentesLoader(_loggerMock.Object, _tempDir);
+
+        loader.Obter("router").Nome.Should().Be("router");
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.Obter("router").Nome.Should().Be("router");
+    }
+
+    [Fact]
     public async Task StartAsync_WithValidFrontmatter_ParsesAllFields()
     {
         WriteAgentFile("teste", """

@@ -7,6 +7,8 @@ public class AgentesLoader : IHostedService, IAgentesCatalogo
     private readonly ILogger<AgentesLoader> _logger;
     private readonly string? _customPath;
     private readonly Dictionary<string, AgenteDefinicao> _agentes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _cargaSync = new();
+    private bool _carregado;
 
     public AgentesLoader(ILogger<AgentesLoader> logger, string? customPath = null)
     {
@@ -15,6 +17,35 @@ public class AgentesLoader : IHostedService, IAgentesCatalogo
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
+    {
+        GarantirCarregado();
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Carrega os agentes sob demanda. Servicos resolvidos antes do inicio dos
+    /// hosted services (ex.: dependencias construidas ao montar IEnumerable&lt;IHostedService&gt;)
+    /// podem consultar o catalogo sem depender da ordem de StartAsync.
+    /// </summary>
+    private void GarantirCarregado()
+    {
+        if (Volatile.Read(ref _carregado))
+            return;
+
+        lock (_cargaSync)
+        {
+            if (_carregado)
+                return;
+
+            Carregar();
+
+            Volatile.Write(ref _carregado, true);
+        }
+    }
+
+    private void Carregar()
     {
         var path = ResolvePath();
 
@@ -33,14 +64,12 @@ public class AgentesLoader : IHostedService, IAgentesCatalogo
 
         _logger.LogInformation("Agentes carregados: {Count} ({Names})",
             _agentes.Count, string.Join(", ", _agentes.Keys));
-
-        return Task.CompletedTask;
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public AgenteDefinicao Obter(string nome)
     {
+        GarantirCarregado();
+
         if (!_agentes.TryGetValue(nome, out var agente))
             throw new InvalidOperationException($"Agente '{nome}' nao encontrado no catalogo. Disponiveis: {string.Join(", ", _agentes.Keys)}");
 
