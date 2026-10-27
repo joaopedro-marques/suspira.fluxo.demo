@@ -48,7 +48,25 @@ public partial class StepTemplateEmail : IPipelineStep
         html = html.Replace("{{logo_src}}", HtmlEncode(context.LogoSrc ?? ""));
 
         var heroSectionTemplate = _referencias.ObterHeroSectionTemplate();
-        if (!string.IsNullOrEmpty(context.HeroSrc) && !string.IsNullOrEmpty(heroSectionTemplate))
+        var headerSectionTemplate = _referencias.ObterHeaderSectionTemplate();
+        var headerRenderizado = false;
+
+        if (html.Contains("{{header_section}}", StringComparison.Ordinal))
+        {
+            if (!string.IsNullOrEmpty(context.HeroSrc) && !string.IsNullOrEmpty(headerSectionTemplate))
+            {
+                var invertido = context.HeaderLayoutInvertido ??= Random.Shared.Next(2) == 0;
+                var headerHtml = HeaderEmailBuilder.Construir(headerSectionTemplate, context, invertido);
+                html = html.Replace("{{header_section}}", headerHtml);
+                headerRenderizado = true;
+            }
+            else
+            {
+                html = html.Replace("{{header_section}}", "");
+            }
+        }
+
+        if (!headerRenderizado && !string.IsNullOrEmpty(context.HeroSrc) && !string.IsNullOrEmpty(heroSectionTemplate))
         {
             var heroHtml = heroSectionTemplate.Replace("{{hero_src}}", HtmlEncode(context.HeroSrc));
             html = html.Replace("{{hero_section}}", heroHtml);

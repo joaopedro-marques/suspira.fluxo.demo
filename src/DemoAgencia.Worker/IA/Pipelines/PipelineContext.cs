@@ -26,6 +26,12 @@ public class PipelineContext
     /// <summary>Quando true, o step de hero preserva a imagem/banner da entrega anterior.</summary>
     public bool PreservarHero { get; set; }
 
+    /// <summary>
+    /// Lado do header MRV (titulo x imagem e inclinacao da margem inferior).
+    /// Sorteado uma unica vez por entrega e preservado nas refacoes/ajustes.
+    /// </summary>
+    public bool? HeaderLayoutInvertido { get; set; }
+
     public IReadOnlyList<string> FixedAssetRefs { get; set; } = Array.Empty<string>();
 
     public ResultadoPipeline Resultado { get; set; } = new();

@@ -26,6 +26,7 @@ public static class PipelineContextCloner
             TemplateId = origem.TemplateId,
             Html = origem.Html,
             FixedAssetRefs = new List<string>(origem.FixedAssetRefs),
+            HeaderLayoutInvertido = origem.HeaderLayoutInvertido,
             QaFeedback = null,
             QaStepAlvo = null,
             QaAprovado = false,
