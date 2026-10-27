@@ -14,26 +14,29 @@ internal static class HeaderEmailBuilder
     internal const string BlocoInicio = "<!--#bloco ";
     internal const string BlocoFim = "<!--#/bloco-->";
 
-    internal const string ClipPathPadrao =
-        "clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 7px) 100%, 0 calc(100% - 34px));";
+    internal const string ClipPathPadrao = HeaderConfig.ClipPathPadraoPadrao;
 
-    internal const string ClipPathInvertido =
-        "clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 7px 100%, 0 calc(100% - 8px));";
+    internal const string ClipPathInvertido = HeaderConfig.ClipPathInvertidoPadrao;
 
     internal static string Construir(string componente, PipelineContext context, bool invertido)
     {
         var fase = context.Estrategia?.FaseDados;
+        var header = context.Estrategia?.Header;
         var coresFundo = CoresGradiente(fase);
         var corTitulo = CorTitulo(fase, coresFundo);
         var corMoldura = CorMoldura(fase, coresFundo);
         var alinhamento = invertido ? "right" : "left";
 
         var blocos = ExtrairBlocos(componente, out var layout);
+        var ordem = header?.Colunas is { Count: > 0 } colunas ? colunas : HeaderConfig.ColunasPadrao;
 
         var html = layout;
-        html = html.Replace("{{header_colunas}}", MontarColunas(blocos, invertido));
-        html = html.Replace("{{header_bg}}", ConstruirFundo(fase));
-        html = html.Replace("{{header_clip}}", invertido ? ClipPathInvertido : ClipPathPadrao);
+        html = html.Replace("{{header_colunas}}",
+            MontarColunas(blocos, ordem, invertido, temHero: !string.IsNullOrEmpty(context.HeroSrc)));
+        html = html.Replace("{{header_bg}}", ConstruirFundo(fase, header?.GradienteAngulo));
+        html = html.Replace("{{header_clip}}", invertido
+            ? header?.ClipPathInvertido ?? ClipPathInvertido
+            : header?.ClipPathPadrao ?? ClipPathPadrao);
         html = html.Replace("{{header_titulo}}", WebUtility.HtmlEncode(context.Copy?.Titulo ?? string.Empty));
         html = html.Replace("{{header_titulo_cor}}", corTitulo);
         html = html.Replace("{{header_titulo_align}}", alinhamento);
@@ -92,14 +95,24 @@ internal static class HeaderEmailBuilder
         return blocos;
     }
 
-    /// <summary>Colunas na ordem sorteada para a entrega; bloco ausente e ignorado.</summary>
-    internal static string MontarColunas(IReadOnlyDictionary<string, string> blocos, bool invertido)
+    /// <summary>Colunas na ordem configurada (ou sorteada); bloco ausente e ignorado.</summary>
+    internal static string MontarColunas(
+        IReadOnlyDictionary<string, string> blocos,
+        IReadOnlyList<string> ordem,
+        bool invertido,
+        bool temHero = true)
     {
-        var ordem = invertido ? new[] { "hero", "titulo" } : new[] { "titulo", "hero" };
+        var efetiva = ordem;
+        if (invertido && ordem.Count == 2)
+            efetiva = new[] { ordem[1], ordem[0] };
+
         var sb = new StringBuilder();
 
-        foreach (var nome in ordem)
+        foreach (var nome in efetiva)
         {
+            if (!temHero && nome.Equals("hero", StringComparison.OrdinalIgnoreCase))
+                continue;
+
             if (blocos.TryGetValue(nome, out var bloco))
                 sb.Append(bloco);
         }
@@ -121,7 +134,7 @@ internal static class HeaderEmailBuilder
             fase?.CorMolduraHeader ?? CorHex.MolduraPadrao);
     }
 
-    internal static string ConstruirFundo(FaseEstrategia? fase)
+    internal static string ConstruirFundo(FaseEstrategia? fase, string? angulo = null)
     {
         var cores = CoresGradiente(fase);
         if (cores.Count == 0)
@@ -129,7 +142,11 @@ internal static class HeaderEmailBuilder
 
         var css = $"background-color: {cores[0]};";
         if (cores.Count > 1)
-            css += $" background-image: linear-gradient(135deg, {cores[0]} 0%, {cores[1]} 100%);";
+        {
+            var anguloFinal = string.IsNullOrWhiteSpace(angulo) ? HeaderConfig.GradienteAnguloPadrao : angulo;
+            css += $" background-image: linear-gradient({anguloFinal}, {cores[0]} 0%, {cores[1]} 100%);";
+        }
+
         return css;
     }
 

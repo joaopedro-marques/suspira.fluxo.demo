@@ -255,4 +255,61 @@ public class HeaderEmailBuilderTests
 
         HeaderEmailBuilder.ExtrairCoresFase(fase).Should().Equal("#AB40D9");
     }
+
+    [Fact]
+    public void Construir_UsaAnguloClipEOrdemDaConfiguracaoDoCliente()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                Colunas = new List<string> { "hero", "titulo" },
+                SortearOrdem = false,
+                GradienteAngulo = "90deg",
+                ClipPathPadrao = "clip-path: polygon(0 0, 10px 0);"
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().Contain("linear-gradient(90deg,");
+        html.Should().Contain("clip-path: polygon(0 0, 10px 0);");
+        html.IndexOf("<img", StringComparison.Ordinal)
+            .Should().BeLessThan(html.IndexOf("Titulo", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Construir_SemHero_NaoRenderizaBlocoHero()
+    {
+        var contexto = ContextoHeader();
+        contexto.HeroSrc = null;
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().NotContain("<img");
+        html.Should().Contain("Titulo &lt;forte&gt;");
+        html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public void MontarColunas_ComOrdemDeTresBlocos_NaoInverte()
+    {
+        var blocos = new Dictionary<string, string> { ["a"] = "A", ["b"] = "B", ["c"] = "C" };
+
+        HeaderEmailBuilder.MontarColunas(blocos, new[] { "a", "b", "c" }, invertido: true)
+            .Should().Be("ABC");
+    }
+
+    [Fact]
+    public void MontarColunas_ComDoisBlocosInvertido_TrocaAOrdem()
+    {
+        var blocos = new Dictionary<string, string> { ["titulo"] = "T", ["hero"] = "H" };
+
+        HeaderEmailBuilder.MontarColunas(blocos, new[] { "titulo", "hero" }, invertido: true)
+            .Should().Be("HT");
+    }
 }

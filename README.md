@@ -48,7 +48,8 @@ O sistema segue uma arquitetura de **2 camadas** que separa claramente:
   ├── components/           # Componentes genéricos
   │   ├── hero_section.html
   │   ├── banner_section.html
-  │   └── header_section.html
+  │   ├── header_section.html            # fallback global
+  │   └── header_section_{CLIENTE}.html   # opcional, por cliente
   └── imagens/              # Assets visuais
       ├── logos/
       ├── icons/

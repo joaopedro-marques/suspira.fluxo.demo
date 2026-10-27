@@ -48,14 +48,16 @@ public partial class StepTemplateEmail : IPipelineStep
         html = html.Replace("{{logo_src}}", HtmlEncode(context.LogoSrc ?? ""));
 
         var heroSectionTemplate = _referencias.ObterHeroSectionTemplate();
-        var headerSectionTemplate = _referencias.ObterHeaderSectionTemplate();
+        var headerConfig = context.Estrategia?.Header;
+        var headerSectionTemplate = _referencias.ObterHeaderSectionTemplate(context.Cliente);
         var headerRenderizado = false;
+        var requerHero = headerConfig?.RequerHero ?? true;
 
         if (html.Contains("{{header_section}}", StringComparison.Ordinal))
         {
-            if (!string.IsNullOrEmpty(context.HeroSrc) && !string.IsNullOrEmpty(headerSectionTemplate))
+            if ((!requerHero || !string.IsNullOrEmpty(context.HeroSrc)) && !string.IsNullOrEmpty(headerSectionTemplate))
             {
-                var invertido = context.HeaderLayoutInvertido ??= Random.Shared.Next(2) == 0;
+                var invertido = ResolverLayoutInvertido(context, headerConfig);
                 var headerHtml = HeaderEmailBuilder.Construir(headerSectionTemplate, context, invertido);
                 html = html.Replace("{{header_section}}", headerHtml);
                 headerRenderizado = true;
@@ -91,6 +93,22 @@ public partial class StepTemplateEmail : IPipelineStep
         context.Resultado.RespostaFinal = html;
 
         return Task.FromResult(context);
+    }
+
+    /// <summary>
+    /// Decide (uma unica vez por entrega) se o hero vem antes do titulo. A ordem e regida
+    /// por <see cref="HeaderConfig.SortearOrdem"/> no asset do cliente.
+    /// </summary>
+    internal static bool ResolverLayoutInvertido(PipelineContext context, HeaderConfig? header = null)
+    {
+        if (context.HeaderLayoutInvertido is { } definido)
+            return definido;
+
+        header ??= context.Estrategia?.Header;
+        var sortear = header?.SortearOrdem ?? true;
+        var invertido = sortear && Random.Shared.Next(2) == 0;
+        context.HeaderLayoutInvertido = invertido;
+        return invertido;
     }
 
     internal string InjectFooters(string html, string? cliente)

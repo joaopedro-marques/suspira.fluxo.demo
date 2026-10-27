@@ -14,6 +14,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private string? _heroSectionTemplate;
     private string? _bannerSectionTemplate;
     private string? _headerSectionTemplate;
+    private readonly Dictionary<string, string> _headerSectionTemplatesPorCliente = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -234,8 +235,14 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return _bannerSectionTemplate;
     }
 
-    public virtual string? ObterHeaderSectionTemplate()
+    public virtual string? ObterHeaderSectionTemplate(string? cliente = null)
     {
+        if (!string.IsNullOrWhiteSpace(cliente)
+            && _headerSectionTemplatesPorCliente.TryGetValue(cliente.Trim(), out var especifico))
+        {
+            return especifico;
+        }
+
         return _headerSectionTemplate;
     }
 
@@ -382,17 +389,32 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             _logger.LogDebug("Template banner_section.html carregado");
         }
 
-        var headerFile = Path.Combine(componentsPath, "header_section.html");
-        if (File.Exists(headerFile))
+        foreach (var headerFile in Directory.GetFiles(componentsPath, "header_section*.html"))
         {
-            _headerSectionTemplate = File.ReadAllText(headerFile);
-            _logger.LogDebug("Template header_section.html carregado");
+            var nome = Path.GetFileNameWithoutExtension(headerFile);
+            var conteudo = File.ReadAllText(headerFile);
+
+            if (nome.Equals("header_section", StringComparison.OrdinalIgnoreCase))
+            {
+                _headerSectionTemplate = conteudo;
+                _logger.LogDebug("Template header_section.html carregado");
+                continue;
+            }
+
+            var sufixo = nome["header_section_".Length..];
+            if (sufixo.Length == 0)
+                continue;
+
+            _headerSectionTemplatesPorCliente[sufixo] = conteudo;
+            _logger.LogDebug("Template de header especifico carregado: {Nome}", nome);
         }
     }
 
     private static string NormalizarTipoEstrategia(string nomeArquivo)
     {
         var lower = nomeArquivo.ToLowerInvariant();
+        if (lower == "header")
+            return "header";
         if (lower.Contains("fases"))
             return "fases";
         if (lower.Contains("regua"))
@@ -436,6 +458,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         if (tipos.TryGetValue("regua", out var reguaJson))
             ProcessarRegua(estrategia, reguaJson, logger);
+
+        if (tipos.TryGetValue("header", out var headerJson))
+            ProcessarHeader(estrategia, headerJson, logger);
 
         return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Regua != null || estrategia.ConfiguracaoFases != null
             ? estrategia
@@ -846,9 +871,71 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return valorPadrao;
     }
 
-    private static void ProcessarFases(EstrategiaCliente estrategia, string json)
+    private static void ProcessarHeader(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var header = new HeaderConfig();
+
+        if (root.TryGetProperty("colunas", out var colunas) && colunas.ValueKind == JsonValueKind.Array)
+        {
+            var lista = new List<string>();
+            foreach (var item in colunas.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var nome = item.GetString();
+                if (!string.IsNullOrWhiteSpace(nome))
+                    lista.Add(nome.Trim());
+            }
+
+            if (lista.Count > 0)
+                header.Colunas = lista;
+        }
+
+        if (root.TryGetProperty("sortear_ordem", out var sortear)
+            && sortear.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            header.SortearOrdem = sortear.GetBoolean();
+        }
+
+        if (root.TryGetProperty("requer_hero", out var requer)
+            && requer.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            header.RequerHero = requer.GetBoolean();
+        }
+
+        header.ClipPathPadrao = LerTextoHeader(root, "clip_path_padrao", header.ClipPathPadrao, estrategia.Cliente, logger);
+        header.ClipPathInvertido = LerTextoHeader(root, "clip_path_invertido", header.ClipPathInvertido, estrategia.Cliente, logger);
+        header.GradienteAngulo = LerTextoHeader(root, "gradiente_angulo", header.GradienteAngulo, estrategia.Cliente, logger);
+
+        estrategia.Header = header;
+    }
+
+    private static string LerTextoHeader(JsonElement root, string propriedade, string padrao, string cliente, ILogger logger)
+    {
+        if (!root.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return padrao;
+
+        var texto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(texto))
+            return padrao;
+
+        var limpo = texto.Trim();
+        if (limpo.Contains('<') || limpo.Contains('>') || limpo.Contains('\n') || limpo.Contains('\r'))
+        {
+            logger.LogWarning(
+                "Valor invalido em {Propriedade} do header de {Cliente}; mantendo o padrao.",
+                propriedade, cliente);
+            return padrao;
+        }
+
+        return limpo;
+    }
+
+    private static void ProcessarFases(EstrategiaCliente estrategia, string json)
+    {        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
         if (!root.TryGetProperty("fases", out var fasesObj) || fasesObj.ValueKind != JsonValueKind.Object)

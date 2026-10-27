@@ -10,6 +10,9 @@ public class EstrategiaCliente
     public List<EtapaEmocional> MapaEmocional { get; init; } = new();
     public ReguaJornada? Regua { get; set; }
     public FasesConfig? ConfiguracaoFases { get; set; }
+
+    /// <summary>Configuracao do header declarada em {CLIENTE}_header.json.</summary>
+    public HeaderConfig? Header { get; set; }
     
     public string? NormalizarFase(string? input)
     {

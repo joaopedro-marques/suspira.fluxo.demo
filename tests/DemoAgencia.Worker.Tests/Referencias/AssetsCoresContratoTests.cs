@@ -101,6 +101,21 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
+    public async Task HeaderConfig_DeclaraOrdemEClipeNoAsset()
+    {
+        var estrategia = await CarregarMrvAsync();
+        var header = estrategia.Header;
+
+        header.Should().NotBeNull("MRV_header.json precisa existir");
+        header!.Colunas.Should().Equal("titulo", "hero");
+        header.SortearOrdem.Should().BeTrue();
+        header.RequerHero.Should().BeTrue();
+        header.ClipPathPadrao.Should().StartWith("clip-path:");
+        header.ClipPathInvertido.Should().StartWith("clip-path:");
+        header.GradienteAngulo.Should().Be("135deg");
+    }
+
+    [Fact]
     public async Task Paleta_DeclaraCorDeTextoEMolduraEmTodasAsFases()
     {
         var estrategia = await CarregarMrvAsync();

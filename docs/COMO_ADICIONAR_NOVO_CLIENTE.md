@@ -245,18 +245,28 @@ Arquivos:
 
 ## Header do email (componente editável)
 
-O header é montado por **um único asset**: `Assets/referencias/components/header_section.html`.
-O código apenas injeta valores; markup e estilos são seus.
+O header é montado por **um asset por cliente**: `Assets/referencias/components/header_section_{CLIENTE}.html`
+(com fallback para `header_section.html`, usado por todos). O código apenas injeta valores;
+markup e estilos são seus.
 
 - O layout principal usa `{{header_colunas}}` no `<tr>` das colunas.
 - Cada coluna é um bloco: `<!--#bloco titulo--> ... <!--#/bloco-->` e `<!--#bloco hero--> ... <!--#/bloco-->`.
-  A ordem (título/hero ou hero/título) é sorteada por entrega; para adicionar um elemento,
-  crie um novo bloco e inclua a coluna correspondente (na fase atual, blocos fora de
-  `titulo`/`hero` precisam ser referenciados em `MontarColunas`).
+  A ordem vem de `colunas` no JSON e, se `sortear_ordem` for `true`, é sorteada por entrega.
+  Para adicionar um elemento, crie um bloco novo e liste-o em `colunas`.
 - Slots disponíveis: `{{header_bg}}` (gradiente), `{{header_clip}}` (margem triangular),
   `{{regua_html}}` (régua), `{{header_titulo}}`, `{{header_titulo_cor}}`,
   `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}`,
   `{{header_moldura_cor}}` e `{{header_colunas}}`.
+
+Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
+
+| Campo | Efeito |
+|---|---|
+| `colunas` | Ordem dos blocos (ex.: `["titulo","hero"]`) |
+| `sortear_ordem` | Sorteia a ordem a cada entrega (`false` = determinístico) |
+| `requer_hero` | `false` renderiza o header mesmo sem hero (sem o bloco `hero`) |
+| `clip_path_padrao` / `clip_path_invertido` | Margem inferior triangular |
+| `gradiente_angulo` | Ângulo do gradiente (ex.: `135deg`) |
 
 Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
 

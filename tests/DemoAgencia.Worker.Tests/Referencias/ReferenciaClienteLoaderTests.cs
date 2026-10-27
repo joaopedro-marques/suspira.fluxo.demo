@@ -1051,4 +1051,73 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         loader.ObterHeaderSectionTemplate().Should().BeNull();
     }
+
+    [Fact]
+    public async Task ObterHeaderSectionTemplate_PorCliente_TemPrecedenciaSobreOGlobal()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string global = "<tr><td>global</td></tr>";
+        const string mrv = "<tr><td>mrv</td></tr>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "header_section.html"), global);
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "header_section_mrv.html"), mrv);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterHeaderSectionTemplate("mrv").Should().Be(mrv);
+        loader.ObterHeaderSectionTemplate("acme").Should().Be(global);
+        loader.ObterHeaderSectionTemplate().Should().Be(global);
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_ComHeaderJson_DeveCarregarConfiguracaoDoHeader()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra", "pos-compra"] } } }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_header.json"), """
+            {
+              "colunas": ["hero", "titulo"],
+              "sortear_ordem": false,
+              "requer_hero": false,
+              "clip_path_padrao": "clip-path: polygon(0 0, 1px 0);",
+              "gradiente_angulo": "90deg"
+            }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Header.Should().NotBeNull();
+        estrategia.Header!.Colunas.Should().Equal("hero", "titulo");
+        estrategia.Header.SortearOrdem.Should().BeFalse();
+        estrategia.Header.RequerHero.Should().BeFalse();
+        estrategia.Header.ClipPathPadrao.Should().Be("clip-path: polygon(0 0, 1px 0);");
+        estrategia.Header.GradienteAngulo.Should().Be("90deg");
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_SemHeaderJson_UsaPadroesDoHeader()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra", "pos-compra"] } } }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme")!;
+
+        estrategia.Header.Should().BeNull();
+        HeaderConfig.ColunasPadrao.Should().Equal("titulo", "hero");
+    }
 }

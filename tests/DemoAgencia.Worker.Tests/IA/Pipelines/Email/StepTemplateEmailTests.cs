@@ -162,7 +162,7 @@ public class StepTemplateEmailTests
         
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var loggerMock = new Mock<ILogger<StepTemplateEmail>>();
         
@@ -424,7 +424,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns("<footer>Default Footer</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -451,7 +451,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", "mrveco")).Returns("<footer>MRV&CO Footer</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var step = CriarStep(templateWithNamedFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -478,7 +478,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns((string?)null);
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -508,7 +508,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", "special")).Returns("<footer>Special</footer>");
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var step = CriarStep(templateWithMultipleFooters, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -544,7 +544,7 @@ public class StepTemplateEmailTests
         referenciasMock.Setup(r => r.ObterFooterHtml("acme", null)).Returns(footerWithAssets);
         referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
         referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
-        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate()).Returns(HeaderTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
         
         var step = CriarStep(templateWithFooter, referenciasMock.Object);
         var ctx = CriarContexto(cliente: "acme");
@@ -555,9 +555,9 @@ public class StepTemplateEmailTests
         ctx.FixedAssetRefs.Should().Contain("facebook.png");
     }
 
-    private static PipelineContext CriarContextoComHeader(string? heroSrc = "imagens/gerada_1.png")
+    private static PipelineContext CriarContextoComHeader(string? heroSrc = "imagens/gerada_1.png", string? cliente = null)
     {
-        var ctx = CriarContexto(logoSrc: "assets/logo.png", heroSrc: heroSrc);
+        var ctx = CriarContexto(logoSrc: "assets/logo.png", heroSrc: heroSrc, cliente: cliente);
         ctx.Estrategia = new EstrategiaEmail
         {
             Fase = "pos-compra",
@@ -696,5 +696,60 @@ public class StepTemplateEmailTests
         var ocorrencias = System.Text.RegularExpressions.Regex.Matches(
             ctx.Html!, "src=\"imagens/gerada_1.png\"").Count;
         ocorrencias.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithSortearOrdemFalse_NaoInverteLayout()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader();
+        DefinirHeader(ctx, new HeaderConfig { SortearOrdem = false });
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.HeaderLayoutInvertido.Should().BeFalse();
+        ctx.Html.Should().Contain(HeaderEmailBuilder.ClipPathPadrao);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithRequerHeroFalse_RendersHeaderWithoutHero()
+    {
+        var step = CriarStep(TemplateComHeader);
+        var ctx = CriarContextoComHeader(heroSrc: null);
+        DefinirHeader(ctx, new HeaderConfig { RequerHero = false, SortearOrdem = false });
+
+        ctx = await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        ctx.Html.Should().Contain("background-color: #784099", "o header e renderizado mesmo sem hero");
+        ctx.Html.Should().Contain("Titulo teste");
+        ctx.Html.Should().NotContain("<img");
+        ctx.Html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_UsaComponenteDeHeaderDoCliente()
+    {
+        var referenciasMock = new Mock<IReferenciasCliente>();
+        referenciasMock.Setup(r => r.ObterHeroSectionTemplate()).Returns(HeroTr);
+        referenciasMock.Setup(r => r.ObterBannerSectionTemplate()).Returns(BannerTr);
+        referenciasMock.Setup(r => r.ObterHeaderSectionTemplate(It.IsAny<string?>())).Returns(HeaderTr);
+
+        var step = CriarStep(TemplateComHeader, referenciasMock.Object);
+        var ctx = CriarContextoComHeader(cliente: "mrv");
+
+        await step.ExecutarAsync(ctx, CancellationToken.None);
+
+        referenciasMock.Verify(r => r.ObterHeaderSectionTemplate("mrv"), Times.Once);
+    }
+
+    private static void DefinirHeader(PipelineContext ctx, HeaderConfig header)
+    {
+        ctx.Estrategia = new EstrategiaEmail
+        {
+            Fase = ctx.Estrategia!.Fase,
+            FaseDados = ctx.Estrategia.FaseDados,
+            Regua = ctx.Estrategia.Regua,
+            Header = header
+        };
     }
 }
