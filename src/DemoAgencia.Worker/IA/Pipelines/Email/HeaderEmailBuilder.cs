@@ -26,17 +26,28 @@ internal static class HeaderEmailBuilder
     {
         var fase = context.Estrategia?.FaseDados;
         var header = context.Estrategia?.Header;
+        var faseConfig = ResolverConfigFase(header, context.Estrategia?.Fase);
+        var usaFundoHero = faseConfig?.UsaHeroComoFundo == true && !string.IsNullOrEmpty(context.HeroSrc);
         var coresFundo = CoresGradiente(fase);
         var corTitulo = CorTitulo(fase, coresFundo);
         var alinhamento = invertido ? "right" : "left";
 
         var blocos = ExtrairBlocos(componente, out var layout);
-        var ordem = header?.Colunas is { Count: > 0 } colunas ? colunas : HeaderConfig.ColunasPadrao;
+        var ordem = faseConfig?.Colunas is { Count: > 0 } colunasFase
+            ? colunasFase
+            : header?.Colunas is { Count: > 0 } colunas
+                ? colunas
+                : HeaderConfig.ColunasPadrao;
 
         var html = layout;
-        html = html.Replace("{{header_colunas}}",
-            MontarColunas(blocos, ordem, invertido, temHero: !string.IsNullOrEmpty(context.HeroSrc)));
-        html = html.Replace("{{header_bg}}", ConstruirFundo(fase, header?.GradienteAngulo));
+        html = html.Replace("{{header_colunas}}", MontarColunas(
+            blocos,
+            ordem,
+            invertido,
+            temHero: !usaFundoHero && !string.IsNullOrEmpty(context.HeroSrc)));
+        html = html.Replace("{{header_bg}}", usaFundoHero
+            ? ConstruirFundoComHero(fase, header?.GradienteAngulo, context.HeroSrc!, faseConfig?.Scrim)
+            : ConstruirFundo(fase, header?.GradienteAngulo));
         html = html.Replace("{{header_clip}}", invertido
             ? header?.ClipPathInvertido ?? ClipPathInvertido
             : header?.ClipPathPadrao ?? ClipPathPadrao);
@@ -147,6 +158,36 @@ internal static class HeaderEmailBuilder
         }
 
         return css;
+    }
+
+    /// <summary>
+    /// Fundo do header com a foto full-bleed (fase com <c>fundo: hero</c>). O gradiente
+    /// da fase continua como fallback — Outlook desktop ignora background-image — e o
+    /// scrim garante contraste do titulo e da regua sobre qualquer foto.
+    /// </summary>
+    internal static string ConstruirFundoComHero(
+        FaseEstrategia? fase,
+        string? angulo,
+        string heroSrc,
+        string? scrim = null)
+    {
+        var cores = CoresGradiente(fase);
+        var camada = string.IsNullOrWhiteSpace(scrim) ? HeaderConfig.ScrimPadrao : scrim.Trim();
+        var url = $"url('{heroSrc.Replace("'", "%27").Replace("\"", "%22")}')";
+
+        var css = cores.Count > 0 ? $"background-color: {cores[0]}; " : string.Empty;
+        return css
+            + $"background-image: linear-gradient({camada}, {camada}), {url};"
+            + " background-size: cover; background-position: center;";
+    }
+
+    /// <summary>Override do header para a fase atual (chave normalizada, ex.: pos-compra).</summary>
+    internal static HeaderFaseConfig? ResolverConfigFase(HeaderConfig? header, string? fase)
+    {
+        if (header?.PorFase is not { Count: > 0 } porFase || string.IsNullOrWhiteSpace(fase))
+            return null;
+
+        return porFase.TryGetValue(fase.Trim(), out var config) ? config : null;
     }
 
     /// <summary>Cores efetivamente usadas no gradiente (no maximo os dois primeiros stops).</summary>

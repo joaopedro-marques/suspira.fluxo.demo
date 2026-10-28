@@ -98,7 +98,7 @@ public partial class StepTemplateEmail : IPipelineStep
 
     /// <summary>
     /// Decide (uma unica vez por entrega) se o hero vem antes do titulo. A ordem e regida
-    /// por <see cref="HeaderConfig.SortearOrdem"/> no asset do cliente.
+    /// por <see cref="HeaderConfig.SortearOrdem"/> (ou pelo override da fase) no asset do cliente.
     /// </summary>
     internal static bool ResolverLayoutInvertido(PipelineContext context, HeaderConfig? header = null)
     {
@@ -106,7 +106,8 @@ public partial class StepTemplateEmail : IPipelineStep
             return definido;
 
         header ??= context.Estrategia?.Header;
-        var sortear = header?.SortearOrdem ?? true;
+        var faseConfig = HeaderEmailBuilder.ResolverConfigFase(header, context.Estrategia?.Fase);
+        var sortear = faseConfig?.SortearOrdem ?? header?.SortearOrdem ?? true;
         var invertido = sortear && Random.Shared.Next(2) == 0;
         context.HeaderLayoutInvertido = invertido;
         return invertido;

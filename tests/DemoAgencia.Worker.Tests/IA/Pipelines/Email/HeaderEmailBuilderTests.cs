@@ -278,6 +278,114 @@ public class HeaderEmailBuilderTests
     }
 
     [Fact]
+    public void Construir_ComFundoHero_UsaFotoComoFundoDoHeader()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                PorFase = new Dictionary<string, HeaderFaseConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pos-compra"] = new() { Fundo = "hero" }
+                }
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().Contain("url('imagens/gerada_1.png')");
+        html.Should().Contain("linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45))");
+        html.Should().Contain("background-size: cover");
+        html.Should().NotContain("<img", "a foto virou fundo do header");
+        html.Should().Contain("Titulo &lt;forte&gt;");
+        html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public void Construir_ComFundoHero_UsaScrimDeclaradoNaFase()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                PorFase = new Dictionary<string, HeaderFaseConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pos-compra"] = new() { Fundo = "hero", Scrim = "rgba(0, 0, 0, 0.7)" }
+                }
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().Contain("linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7))");
+    }
+
+    [Fact]
+    public void Construir_ComFundoHeroSemHero_VoltaAoGradienteDaFase()
+    {
+        var contexto = ContextoHeader();
+        contexto.HeroSrc = null;
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                PorFase = new Dictionary<string, HeaderFaseConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pos-compra"] = new() { Fundo = "hero" }
+                }
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().NotContain("url(");
+        html.Should().Contain("background-color: #784099");
+    }
+
+    [Fact]
+    public void Construir_ComColunasPorFase_UsaOrdemDaFase()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                PorFase = new Dictionary<string, HeaderFaseConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pos-compra"] = new() { Colunas = new List<string> { "hero", "titulo" } }
+                }
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.IndexOf("<img", StringComparison.Ordinal)
+            .Should().BeLessThan(html.IndexOf("Titulo", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ResolverConfigFase_SemOverride_RetornaNull()
+    {
+        HeaderEmailBuilder.ResolverConfigFase(null, "pos-compra").Should().BeNull();
+        HeaderEmailBuilder.ResolverConfigFase(new HeaderConfig(), "pos-compra").Should().BeNull();
+        HeaderEmailBuilder.ResolverConfigFase(new HeaderConfig(), null).Should().BeNull();
+    }
+
+    [Fact]
     public void MontarColunas_ComOrdemDeTresBlocos_NaoInverte()
     {
         var blocos = new Dictionary<string, string> { ["a"] = "A", ["b"] = "B", ["c"] = "C" };

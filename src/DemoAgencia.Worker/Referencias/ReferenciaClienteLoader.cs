@@ -915,19 +915,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         var root = doc.RootElement;
         var header = new HeaderConfig();
 
-        if (root.TryGetProperty("colunas", out var colunas) && colunas.ValueKind == JsonValueKind.Array)
+        if (root.TryGetProperty("colunas", out var colunas))
         {
-            var lista = new List<string>();
-            foreach (var item in colunas.EnumerateArray())
-            {
-                if (item.ValueKind != JsonValueKind.String)
-                    continue;
-
-                var nome = item.GetString();
-                if (!string.IsNullOrWhiteSpace(nome))
-                    lista.Add(nome.Trim());
-            }
-
+            var lista = LerNomesDeBlocos(colunas);
             if (lista.Count > 0)
                 header.Colunas = lista;
         }
@@ -948,7 +938,83 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         header.ClipPathInvertido = LerTextoHeader(root, "clip_path_invertido", header.ClipPathInvertido, estrategia.Cliente, logger);
         header.GradienteAngulo = LerTextoHeader(root, "gradiente_angulo", header.GradienteAngulo, estrategia.Cliente, logger);
 
+        if (root.TryGetProperty("por_fase", out var porFaseObj) && porFaseObj.ValueKind == JsonValueKind.Object)
+            LerOverridesPorFase(estrategia, porFaseObj, header, logger);
+
         estrategia.Header = header;
+    }
+
+    private static void LerOverridesPorFase(
+        EstrategiaCliente estrategia,
+        JsonElement porFaseObj,
+        HeaderConfig header,
+        ILogger logger)
+    {
+        foreach (var faseProp in porFaseObj.EnumerateObject())
+        {
+            if (faseProp.Value.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var config = new HeaderFaseConfig();
+
+            if (faseProp.Value.TryGetProperty("fundo", out var fundo) && fundo.ValueKind == JsonValueKind.String)
+            {
+                var valor = fundo.GetString()?.Trim().ToLowerInvariant();
+                if (valor is "hero" or "gradiente")
+                {
+                    config.Fundo = valor;
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Valor invalido em por_fase.{Fase}.fundo do header de {Cliente}: {Valor}. Use \"hero\" ou \"gradiente\".",
+                        faseProp.Name, estrategia.Cliente, fundo.GetString());
+                }
+            }
+
+            if (faseProp.Value.TryGetProperty("scrim", out var scrim) && scrim.ValueKind == JsonValueKind.String)
+            {
+                var valor = scrim.GetString();
+                if (!string.IsNullOrWhiteSpace(valor))
+                    config.Scrim = valor.Trim();
+            }
+
+            if (faseProp.Value.TryGetProperty("colunas", out var colunasFase))
+            {
+                var lista = LerNomesDeBlocos(colunasFase);
+                if (lista.Count > 0)
+                    config.Colunas = lista;
+            }
+
+            if (faseProp.Value.TryGetProperty("sortear_ordem", out var sortearFase)
+                && sortearFase.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                config.SortearOrdem = sortearFase.GetBoolean();
+            }
+
+            var chave = faseProp.Name.Trim();
+            if (chave.Length > 0)
+                header.PorFase[chave] = config;
+        }
+    }
+
+    private static List<string> LerNomesDeBlocos(JsonElement valor)
+    {
+        var lista = new List<string>();
+        if (valor.ValueKind != JsonValueKind.Array)
+            return lista;
+
+        foreach (var item in valor.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+                continue;
+
+            var nome = item.GetString();
+            if (!string.IsNullOrWhiteSpace(nome))
+                lista.Add(nome.Trim());
+        }
+
+        return lista;
     }
 
     private static string LerTextoHeader(JsonElement root, string propriedade, string padrao, string cliente, ILogger logger)

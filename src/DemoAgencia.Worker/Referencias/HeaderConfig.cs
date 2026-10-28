@@ -14,6 +14,9 @@ public class HeaderConfig
 
     public const string GradienteAnguloPadrao = "135deg";
 
+    /// <summary>Scrim padrao sobre a foto quando o hero vira fundo do header.</summary>
+    public const string ScrimPadrao = "rgba(0, 0, 0, 0.45)";
+
     public static readonly IReadOnlyList<string> ColunasPadrao = new[] { "titulo", "hero" };
 
     /// <summary>Ordem dos blocos declarados em header_section.html.</summary>
@@ -28,4 +31,29 @@ public class HeaderConfig
     public string ClipPathPadrao { get; set; } = ClipPathPadraoPadrao;
     public string ClipPathInvertido { get; set; } = ClipPathInvertidoPadrao;
     public string GradienteAngulo { get; set; } = GradienteAnguloPadrao;
+
+    /// <summary>Overrides de layout/fundo por fase (chave = fase normalizada, ex.: pos-compra).</summary>
+    public Dictionary<string, HeaderFaseConfig> PorFase { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>
+/// Override do header para uma fase especifica, declarado em <c>por_fase</c>
+/// no <c>{CLIENTE}_header.json</c>.
+/// </summary>
+public class HeaderFaseConfig
+{
+    /// <summary><c>gradiente</c> (padrao) ou <c>hero</c> (a foto ocupa o fundo do header).</summary>
+    public string? Fundo { get; set; }
+
+    /// <summary>Cor sobre a foto de fundo (rgba recomendado). Ausente = scrim padrao.</summary>
+    public string? Scrim { get; set; }
+
+    /// <summary>Ordem dos blocos nesta fase. Ausente = configuracao global.</summary>
+    public List<string>? Colunas { get; set; }
+
+    /// <summary>Sorteio de ordem nesta fase. Ausente = configuracao global.</summary>
+    public bool? SortearOrdem { get; set; }
+
+    public bool UsaHeroComoFundo =>
+        string.Equals(Fundo?.Trim(), "hero", StringComparison.OrdinalIgnoreCase);
 }

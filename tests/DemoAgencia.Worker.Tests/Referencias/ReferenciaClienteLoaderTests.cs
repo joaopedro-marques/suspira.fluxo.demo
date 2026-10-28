@@ -1149,6 +1149,45 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task ObterEstrategia_ComHeaderPorFase_DeveCarregarOverrides()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra"] }, "pre-chaves": {} } }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_header.json"), """
+            {
+              "colunas": ["titulo", "hero"],
+              "por_fase": {
+                "pos-compra": {
+                  "fundo": "hero",
+                  "scrim": "rgba(0, 0, 0, 0.6)",
+                  "colunas": ["titulo"],
+                  "sortear_ordem": false
+                },
+                "pre-chaves": {
+                  "fundo": "gradiente"
+                }
+              }
+            }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var header = loader.ObterEstrategia("acme")!.Header!;
+
+        header.PorFase.Should().ContainKeys("pos-compra", "pre-chaves");
+        var posCompra = header.PorFase["pos-compra"];
+        posCompra.UsaHeroComoFundo.Should().BeTrue();
+        posCompra.Scrim.Should().Be("rgba(0, 0, 0, 0.6)");
+        posCompra.Colunas.Should().Equal("titulo");
+        posCompra.SortearOrdem.Should().BeFalse();
+        header.PorFase["pre-chaves"].UsaHeroComoFundo.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task ObterEstrategia_SemHeaderJson_UsaPadroesDoHeader()
     {
         var estrategiaDir = Path.Combine(_tempDir, "estrategia");

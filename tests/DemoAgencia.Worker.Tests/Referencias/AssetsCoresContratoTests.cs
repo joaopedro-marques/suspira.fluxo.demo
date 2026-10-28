@@ -114,6 +114,40 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
+    public async Task HeaderDaMrv_PosCompra_UsaHeroComoFundoFullBleed()
+    {
+        var loader = await CarregarLoaderAsync();
+        var estrategia = loader.ObterEstrategia("mrv")!;
+        var componente = loader.ObterHeaderSectionTemplate("mrv")!;
+
+        estrategia.Header!.PorFase["pos-compra"].UsaHeroComoFundo.Should()
+            .BeTrue("pos-compra declara fundo hero no MRV_header.json");
+
+        var contexto = new PipelineContext
+        {
+            ChatId = 1,
+            MensagemOriginal = "msg",
+            HeroSrc = "imagens/gerada_1.png",
+            Copy = new CopyEmailSlots(
+                "Assunto", "Preheader", "Titulo", "<p>corpo</p>", "CTA", "https://exemplo.com"),
+            Estrategia = new EstrategiaEmail
+            {
+                Fase = "pos-compra",
+                FaseDados = estrategia.Fases["pos-compra"],
+                Regua = estrategia.Regua,
+                Header = estrategia.Header
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(componente, contexto, invertido: false);
+
+        html.Should().Contain("url('imagens/gerada_1.png')");
+        html.Should().Contain("background-size: cover");
+        html.Should().NotContain("<img", "a foto ocupa o fundo, nao uma coluna");
+        html.Should().NotContain("{{");
+    }
+
+    [Fact]
     public async Task HeaderConfig_DeclaraOrdemEClipeNoAsset()
     {
         var estrategia = await CarregarMrvAsync();
