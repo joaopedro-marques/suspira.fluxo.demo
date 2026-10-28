@@ -15,6 +15,8 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private string? _bannerSectionTemplate;
     private string? _headerSectionTemplate;
     private readonly Dictionary<string, string> _headerSectionTemplatesPorCliente = new(StringComparer.OrdinalIgnoreCase);
+    private string? _reguaSectionTemplate;
+    private readonly Dictionary<string, string> _reguaSectionTemplatesPorCliente = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -246,6 +248,17 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return _headerSectionTemplate;
     }
 
+    public virtual string? ObterReguaSectionTemplate(string? cliente = null)
+    {
+        if (!string.IsNullOrWhiteSpace(cliente)
+            && _reguaSectionTemplatesPorCliente.TryGetValue(cliente.Trim(), out var especifico))
+        {
+            return especifico;
+        }
+
+        return _reguaSectionTemplate;
+    }
+
     private void CarregarEstrategias(string assetsPath)
     {
         var estrategiaPath = Path.Combine(assetsPath, "estrategia");
@@ -389,24 +402,53 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             _logger.LogDebug("Template banner_section.html carregado");
         }
 
-        foreach (var headerFile in Directory.GetFiles(componentsPath, "header_section*.html"))
-        {
-            var nome = Path.GetFileNameWithoutExtension(headerFile);
-            var conteudo = File.ReadAllText(headerFile);
+        CarregarTemplatesPorCliente(
+            componentsPath,
+            "header_section",
+            "header",
+            template => _headerSectionTemplate = template,
+            _headerSectionTemplatesPorCliente);
 
-            if (nome.Equals("header_section", StringComparison.OrdinalIgnoreCase))
+        CarregarTemplatesPorCliente(
+            componentsPath,
+            "regua_section",
+            "regua",
+            template => _reguaSectionTemplate = template,
+            _reguaSectionTemplatesPorCliente);
+    }
+
+    /// <summary>
+    /// Carrega componentes no padrao <c>{prefixo}.html</c> (global) e
+    /// <c>{prefixo}_{CLIENTE}.html</c> (override por cliente).
+    /// </summary>
+    private void CarregarTemplatesPorCliente(
+        string componentsPath,
+        string prefixo,
+        string descricao,
+        Action<string> definirGlobal,
+        IDictionary<string, string> porCliente)
+    {
+        foreach (var arquivo in Directory.GetFiles(componentsPath, $"{prefixo}*.html"))
+        {
+            var nome = Path.GetFileNameWithoutExtension(arquivo);
+            var conteudo = File.ReadAllText(arquivo);
+
+            if (nome.Equals(prefixo, StringComparison.OrdinalIgnoreCase))
             {
-                _headerSectionTemplate = conteudo;
-                _logger.LogDebug("Template header_section.html carregado");
+                definirGlobal(conteudo);
+                _logger.LogDebug("Template {Prefixo}.html carregado", prefixo);
                 continue;
             }
 
-            var sufixo = nome["header_section_".Length..];
+            if (!nome.StartsWith($"{prefixo}_", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var sufixo = nome[(prefixo.Length + 1)..];
             if (sufixo.Length == 0)
                 continue;
 
-            _headerSectionTemplatesPorCliente[sufixo] = conteudo;
-            _logger.LogDebug("Template de header especifico carregado: {Nome}", nome);
+            porCliente[sufixo] = conteudo;
+            _logger.LogDebug("Template de {Descricao} especifico carregado: {Nome}", descricao, nome);
         }
     }
 

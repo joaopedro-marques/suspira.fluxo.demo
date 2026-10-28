@@ -155,6 +155,24 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
+    public async Task ReguaSection_DeclaraBlocosECelulasNoAsset()
+    {
+        var loader = await CarregarLoaderAsync();
+        var componente = loader.ObterReguaSectionTemplate();
+
+        componente.Should().NotBeNull("o regua_section.html precisa existir nos assets");
+        componente.Should().Contain("{{regua_segmentos}}");
+        componente.Should().Contain("{{regua_labels}}");
+        componente.Should().Contain("<!--#bloco segmento-->");
+        componente.Should().Contain("<!--#bloco label-concluida-->");
+        componente.Should().Contain("<!--#bloco label-atual-->");
+        componente.Should().Contain("<!--#bloco label-futura-->");
+        componente.Should().Contain("{{cor}}");
+        componente.Should().Contain("{{largura}}");
+        componente.Should().Contain("{{label}}");
+    }
+
+    [Fact]
     public async Task Regua_DeclaraOverrideDeCorParaCadaFase()
     {
         var estrategia = await CarregarMrvAsync();

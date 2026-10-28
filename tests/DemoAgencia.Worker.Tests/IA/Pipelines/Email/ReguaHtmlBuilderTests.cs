@@ -225,4 +225,51 @@ public class ReguaHtmlBuilderTests
         ajustado.label.Should().Be("#FFFFFF");
         ajustado.concluida.Should().Be("#FFFFFF");
     }
+
+    [Fact]
+    public void Construir_ComComponenteDoCliente_UsaMarkupDoAsset()
+    {
+        const string componente = """
+            <div class="regua-custom">{{regua_segmentos}}</div>
+            <div class="labels-custom">{{regua_labels}}</div>
+
+            <!--#bloco segmento-->
+            <span style="background: {{cor}}; width: {{largura}}%;">seg</span>
+            <!--#/bloco-->
+
+            <!--#bloco label-concluida-->
+            <span class="ok" style="color: {{cor}};">{{label}}</span>
+            <!--#/bloco-->
+
+            <!--#bloco label-atual-->
+            <span class="agora" style="color: {{cor}};">{{label}}</span>
+            <!--#/bloco-->
+
+            <!--#bloco label-futura-->
+            <span class="depois" style="color: {{cor}};">{{label}}</span>
+            <!--#/bloco-->
+            """;
+
+        var estrategia = new EstrategiaEmail { Fase = "pos-compra", Regua = CriarRegua() };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia, componente: componente);
+
+        html.Should().Contain("class=\"regua-custom\"");
+        html.Should().Contain("class=\"labels-custom\"");
+        html.Should().Contain("class=\"agora\"");
+        html.Should().NotContain("<td", "o markup vem do asset, nao do fallback");
+        html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public void Construir_ComComponenteIncompleto_UsaFallbackPadrao()
+    {
+        var estrategia = new EstrategiaEmail { Fase = "pos-compra", Regua = CriarRegua() };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia, componente: "<div>{{regua_segmentos}}</div>");
+
+        html.Should().Contain("<table role=\"presentation\"");
+        html.Should().Contain("Assinatura do Contrato");
+        html.Should().NotContain("{{");
+    }
 }

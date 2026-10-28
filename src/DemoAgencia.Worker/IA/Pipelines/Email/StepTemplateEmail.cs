@@ -50,6 +50,7 @@ public partial class StepTemplateEmail : IPipelineStep
         var heroSectionTemplate = _referencias.ObterHeroSectionTemplate();
         var headerConfig = context.Estrategia?.Header;
         var headerSectionTemplate = _referencias.ObterHeaderSectionTemplate(context.Cliente);
+        var reguaSectionTemplate = _referencias.ObterReguaSectionTemplate(context.Cliente);
         var headerRenderizado = false;
         var requerHero = headerConfig?.RequerHero ?? true;
 
@@ -58,7 +59,7 @@ public partial class StepTemplateEmail : IPipelineStep
             if ((!requerHero || !string.IsNullOrEmpty(context.HeroSrc)) && !string.IsNullOrEmpty(headerSectionTemplate))
             {
                 var invertido = ResolverLayoutInvertido(context, headerConfig);
-                var headerHtml = HeaderEmailBuilder.Construir(headerSectionTemplate, context, invertido);
+                var headerHtml = HeaderEmailBuilder.Construir(headerSectionTemplate, context, invertido, reguaSectionTemplate);
                 html = html.Replace("{{header_section}}", headerHtml);
                 headerRenderizado = true;
             }

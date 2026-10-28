@@ -1072,6 +1072,51 @@ public class ReferenciaClienteLoaderTests : IDisposable
     }
 
     [Fact]
+    public async Task ObterReguaSectionTemplate_WhenComponentExists_ShouldLoad()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string regua = "<table><tr>{{regua_segmentos}}</tr><tr>{{regua_labels}}</tr></table>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section.html"), regua);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate().Should().Be(regua);
+    }
+
+    [Fact]
+    public async Task ObterReguaSectionTemplate_WhenComponentMissing_ShouldReturnNull()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate().Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObterReguaSectionTemplate_PorCliente_TemPrecedenciaSobreOGlobal()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string global = "<table><tr><td>global</td></tr></table>";
+        const string mrv = "<table><tr><td>mrv</td></tr></table>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section.html"), global);
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section_mrv.html"), mrv);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate("mrv").Should().Be(mrv);
+        loader.ObterReguaSectionTemplate("acme").Should().Be(global);
+        loader.ObterReguaSectionTemplate().Should().Be(global);
+    }
+
+    [Fact]
     public async Task ObterEstrategia_ComHeaderJson_DeveCarregarConfiguracaoDoHeader()
     {
         var estrategiaDir = Path.Combine(_tempDir, "estrategia");

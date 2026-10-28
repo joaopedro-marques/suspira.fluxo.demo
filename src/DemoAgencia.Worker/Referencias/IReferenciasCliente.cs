@@ -12,4 +12,5 @@ public interface IReferenciasCliente
     string? ObterHeroSectionTemplate();
     string? ObterBannerSectionTemplate();
     string? ObterHeaderSectionTemplate(string? cliente = null);
+    string? ObterReguaSectionTemplate(string? cliente = null);
 }

@@ -18,7 +18,11 @@ internal static class HeaderEmailBuilder
 
     internal const string ClipPathInvertido = HeaderConfig.ClipPathInvertidoPadrao;
 
-    internal static string Construir(string componente, PipelineContext context, bool invertido)
+    internal static string Construir(
+        string componente,
+        PipelineContext context,
+        bool invertido,
+        string? reguaComponente = null)
     {
         var fase = context.Estrategia?.FaseDados;
         var header = context.Estrategia?.Header;
@@ -44,7 +48,7 @@ internal static class HeaderEmailBuilder
             alinhamento == "right" ? "padding: 0 0 0 22px;" : "padding: 0 22px 0 0;");
         html = html.Replace("{{header_hero_src}}", WebUtility.HtmlEncode(context.HeroSrc ?? string.Empty));
         html = html.Replace("{{header_moldura_cor}}", corMoldura);
-        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia, coresFundo));
+        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia, coresFundo, reguaComponente));
         return html;
     }
 
