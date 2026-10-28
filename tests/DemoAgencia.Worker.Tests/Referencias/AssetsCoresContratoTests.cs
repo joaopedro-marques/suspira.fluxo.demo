@@ -152,8 +152,8 @@ public class AssetsCoresContratoTests
         html.Should().NotContain("#2B1B00", "o texto do header nao usa mais a cor escura do fundo amarelo");
         html.Should().NotContain("#784099", "a regua nao usa mais o roxo do fundo amarelo");
         html.Should().Contain(
-            "color: #FFFFFF; font-weight: bold;\">Entrega das chaves",
-            "a etapa atual da regua e branca");
+            "color: #FFDD02; font-weight: bold;\">Entrega das chaves",
+            "a etapa atual da regua usa o destaque amarelo");
     }
 
     [Fact]
@@ -210,15 +210,17 @@ public class AssetsCoresContratoTests
         var componente = loader.ObterReguaSectionTemplate();
 
         componente.Should().NotBeNull("o regua_section.html precisa existir nos assets");
-        componente.Should().Contain("{{regua_segmentos}}");
-        componente.Should().Contain("{{regua_labels}}");
-        componente.Should().Contain("<!--#bloco segmento-->");
-        componente.Should().Contain("<!--#bloco label-concluida-->");
-        componente.Should().Contain("<!--#bloco label-atual-->");
-        componente.Should().Contain("<!--#bloco label-futura-->");
-        componente.Should().Contain("{{cor}}");
+        componente.Should().Contain("{{regua_etapas}}");
+        componente.Should().Contain("<!--#bloco etapa-concluida-->");
+        componente.Should().Contain("<!--#bloco etapa-atual-->");
+        componente.Should().Contain("<!--#bloco etapa-futura-->");
+        componente.Should().Contain("{{cor_esquerda}}");
+        componente.Should().Contain("{{cor_direita}}");
+        componente.Should().Contain("{{cor_marcador}}");
+        componente.Should().Contain("{{cor_label}}");
         componente.Should().Contain("{{largura}}");
         componente.Should().Contain("{{label}}");
+        componente.Should().Contain("border-radius", "as etapas usam marcadores circulares");
     }
 
     [Fact]

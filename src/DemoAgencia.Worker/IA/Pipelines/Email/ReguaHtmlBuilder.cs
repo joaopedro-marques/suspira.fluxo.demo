@@ -6,7 +6,7 @@ using DemoAgencia.Worker.Referencias;
 namespace DemoAgencia.Worker.IA.Pipelines.Email;
 
 /// <summary>
-/// Desenha a regua de jornada em HTML (segmentos + labels) para o header do email.
+/// Desenha a regua de jornada em HTML (stepper com marcadores + labels) para o header do email.
 /// O markup e os estilos vivem no asset <c>components/regua_section.html</c>; aqui so
 /// entram os valores de runtime (cor por estado, largura e label de cada etapa).
 /// As cores declaradas no asset sao usadas como estao: o contraste e validado no
@@ -17,30 +17,100 @@ internal static class ReguaHtmlBuilder
     /// <summary>Componente usado quando o cliente nao declara <c>regua_section.html</c>.</summary>
     internal const string ComponentePadrao = """
         <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-            <tr>{{regua_segmentos}}</tr>
-            <tr>{{regua_labels}}</tr>
+            <tr>{{regua_etapas}}</tr>
         </table>
 
-        <!--#bloco segmento-->
-        <td width="{{largura}}%" height="6" style="height: 6px; background-color: {{cor}}; font-size: 0; line-height: 0;">&nbsp;</td>
+        <!--#bloco etapa-concluida-->
+        <td width="{{largura}}%" align="center" valign="top" style="padding: 0;">
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_esquerda}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="32" height="20" align="center" valign="middle" style="width: 32px; height: 20px; padding: 0 6px; font-size: 0; line-height: 0;">
+                        <table role="presentation" width="20" height="20" border="0" cellpadding="0" cellspacing="0" align="center">
+                            <tr><td width="20" height="20" align="center" valign="middle" style="width: 20px; height: 20px; background-color: {{cor_marcador}}; border-radius: 20px; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_direita}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td align="center" valign="top" style="padding: 10px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 14px; color: {{cor_label}};">{{label}}</td>
+                </tr>
+            </table>
+        </td>
         <!--#/bloco-->
 
-        <!--#bloco label-concluida-->
-        <td width="{{largura}}%" align="center" valign="top" style="padding: 8px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; line-height: 12px; color: {{cor}}; font-weight: normal;">{{label}}</td>
+        <!--#bloco etapa-atual-->
+        <td width="{{largura}}%" align="center" valign="top" style="padding: 0;">
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_esquerda}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="32" height="20" align="center" valign="middle" style="width: 32px; height: 20px; padding: 0 6px; font-size: 0; line-height: 0;">
+                        <table role="presentation" width="20" height="20" border="0" cellpadding="0" cellspacing="0" align="center">
+                            <tr><td width="20" height="20" align="center" valign="middle" style="width: 20px; height: 20px; background-color: {{cor_marcador}}; border-radius: 20px; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_direita}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td align="center" valign="top" style="padding: 10px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 14px; color: {{cor_label}}; font-weight: bold;">{{label}}</td>
+                </tr>
+            </table>
+        </td>
         <!--#/bloco-->
 
-        <!--#bloco label-atual-->
-        <td width="{{largura}}%" align="center" valign="top" style="padding: 8px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; line-height: 12px; color: {{cor}}; font-weight: bold;">{{label}}</td>
-        <!--#/bloco-->
-
-        <!--#bloco label-futura-->
-        <td width="{{largura}}%" align="center" valign="top" style="padding: 8px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; line-height: 12px; color: {{cor}}; font-weight: normal; opacity: 0.8;">{{label}}</td>
+        <!--#bloco etapa-futura-->
+        <td width="{{largura}}%" align="center" valign="top" style="padding: 0;">
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_esquerda}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="32" height="20" align="center" valign="middle" style="width: 32px; height: 20px; padding: 0 6px; font-size: 0; line-height: 0;">
+                        <table role="presentation" width="16" height="16" border="0" cellpadding="0" cellspacing="0" align="center">
+                            <tr><td width="16" height="16" align="center" valign="middle" style="width: 16px; height: 16px; background-color: transparent; border: 2px solid {{cor_marcador}}; border-radius: 16px; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                    <td width="50%" height="20" valign="middle" style="height: 20px;">
+                        <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                            <tr><td height="4" style="height: 4px; background-color: {{cor_direita}}; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <td align="center" valign="top" style="padding: 10px 4px 0 4px; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 14px; color: {{cor_label}}; opacity: 0.8;">{{label}}</td>
+                </tr>
+            </table>
+        </td>
         <!--#/bloco-->
         """;
 
     private static readonly string[] BlocosObrigatorios =
     {
-        "segmento", "label-concluida", "label-atual", "label-futura"
+        "etapa-concluida", "etapa-atual", "etapa-futura"
     };
 
     internal static string Construir(
@@ -62,8 +132,7 @@ internal static class ReguaHtmlBuilder
         var largura = (100.0 / regua.Etapas.Count).ToString("0.##", CultureInfo.InvariantCulture);
 
         var blocos = ExtrairBlocosDoComponente(componente, out var layout);
-        var segmentos = new StringBuilder();
-        var labels = new StringBuilder();
+        var etapas = new StringBuilder();
 
         for (var i = 0; i < regua.Etapas.Count; i++)
         {
@@ -71,7 +140,15 @@ internal static class ReguaHtmlBuilder
                 : i < indiceAtual ? "concluida"
                 : "futura";
 
-            var corSegmento = estado switch
+            // Trecho concluido ate a etapa atual; da atual para frente fica em outline.
+            var corEsquerda = i == 0 ? "transparent"
+                : i <= indiceAtual ? corConcluida
+                : corFutura;
+            var corDireita = i == regua.Etapas.Count - 1 ? "transparent"
+                : i < indiceAtual ? corConcluida
+                : corFutura;
+
+            var corMarcador = estado switch
             {
                 "atual" => corAtual,
                 "concluida" => corConcluida,
@@ -80,19 +157,16 @@ internal static class ReguaHtmlBuilder
 
             var corLabelEtapa = estado == "atual" ? corLabelAtual : corLabel;
 
-            segmentos.Append(blocos["segmento"]
+            etapas.Append(blocos[$"etapa-{estado}"]
                 .Replace("{{largura}}", largura)
-                .Replace("{{cor}}", corSegmento));
-
-            labels.Append(blocos[$"label-{estado}"]
-                .Replace("{{largura}}", largura)
-                .Replace("{{cor}}", corLabelEtapa)
+                .Replace("{{cor_esquerda}}", corEsquerda)
+                .Replace("{{cor_direita}}", corDireita)
+                .Replace("{{cor_marcador}}", corMarcador)
+                .Replace("{{cor_label}}", corLabelEtapa)
                 .Replace("{{label}}", WebUtility.HtmlEncode(regua.Etapas[i])));
         }
 
-        return layout
-            .Replace("{{regua_segmentos}}", segmentos.ToString())
-            .Replace("{{regua_labels}}", labels.ToString());
+        return layout.Replace("{{regua_etapas}}", etapas.ToString());
     }
 
     /// <summary>

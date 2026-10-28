@@ -46,10 +46,10 @@
       },
       "pos-chaves": {
         "cor_concluida": "#FFFFFF",
-        "cor_atual": "#FFFFFF",
+        "cor_atual": "#FFDD02",
         "cor_futura": "rgba(255, 255, 255, 0.35)",
         "cor_label": "#FFFFFF",
-        "cor_label_atual": "#FFFFFF"
+        "cor_label_atual": "#FFDD02"
       }
     }
   }
