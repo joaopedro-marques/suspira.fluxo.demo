@@ -9,9 +9,9 @@ using Moq;
 namespace DemoAgencia.Worker.Tests.Referencias;
 
 /// <summary>
-/// Contrato dos assets reais: toda fase precisa declarar cores de texto/moldura e a regua
-/// precisa ter override por fase. Falhar aqui significa que uma alteracao de asset deixaria
-/// texto ou elementos invisiveis no header.
+/// Contrato dos assets reais: toda fase precisa declarar cor de texto e a regua
+/// precisa ter override por fase. Falhar aqui significa que uma alteracao de asset
+/// deixaria texto ou elementos invisiveis no header.
 /// </summary>
 public class AssetsCoresContratoTests
 {

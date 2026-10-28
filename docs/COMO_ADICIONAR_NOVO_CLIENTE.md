@@ -255,8 +255,23 @@ markup e estilos são seus.
   Para adicionar um elemento, crie um bloco novo e liste-o em `colunas`.
 - Slots disponíveis: `{{header_bg}}` (gradiente), `{{header_clip}}` (margem triangular),
   `{{regua_html}}` (régua), `{{header_titulo}}`, `{{header_titulo_cor}}`,
-  `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}`,
-  `{{header_moldura_cor}}` e `{{header_colunas}}`.
+  `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}`
+  e `{{header_colunas}}`.
+
+### Régua de jornada (componente editável)
+
+O markup e os estilos da régua vivem em `Assets/referencias/components/regua_section.html`
+(com override por cliente em `regua_section_{CLIENTE}.html`). O código apenas injeta
+`{{cor}}`, `{{largura}}` e `{{label}}`:
+
+- `{{regua_segmentos}}` — linha dos segmentos (um `<td>` por etapa).
+- `{{regua_labels}}` — linha dos rótulos (um `<td>` por etapa).
+- Blocos: `<!--#bloco segmento-->`, `<!--#bloco label-concluida-->`,
+  `<!--#bloco label-atual-->` e `<!--#bloco label-futura-->`.
+  Altura, fonte, espaçamento, opacidade e negrito são definidos no asset.
+
+As cores continuam vindo de `{CLIENTE}_regua_jornada.json` (`estilo_html` e
+`estilo_html_por_fase`) e são aplicadas como estão, sem ajuste automático.
 
 Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
 
@@ -273,13 +288,12 @@ Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
 | Arquivo | Campo | Função |
 |---|---|---|
 | `{CLIENTE}_paleta_de_cores.json` | `cor_texto_header` | Cor do título sobre o gradiente da fase |
-| `{CLIENTE}_paleta_de_cores.json` | `cor_moldura_header` | Cor da moldura atrás do hero |
 | `{CLIENTE}_regua_jornada.json` | `estilo_html` | Cores da régua (fallback) |
 | `{CLIENTE}_regua_jornada.json` | `estilo_html_por_fase` | Cores da régua por fase (obrigatório quando a fase muda o fundo) |
 
-O renderer valida contraste (`CorHex`): cor declarada abaixo de 2.5:1 é substituída
-automaticamente e o build loga warning. O teste de contrato dos assets
-(`AssetsCoresContratoTests`) falha se uma fase ficar sem `cor_texto_header`/`cor_moldura_header`,
+O renderer usa a cor declarada exatamente como está — não há substituição automática.
+O loader loga warning quando o contraste fica abaixo de 2.5:1 e o teste de contrato dos
+assets (`AssetsCoresContratoTests`) falha se uma fase ficar sem `cor_texto_header`,
 se a régua não tiver override para todas as fases ou se o contraste cair abaixo do piso.
 
 ## Validação
