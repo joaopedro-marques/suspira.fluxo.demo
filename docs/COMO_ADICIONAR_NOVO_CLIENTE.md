@@ -309,6 +309,37 @@ Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
 | `requer_hero` | `false` renderiza o header mesmo sem hero (sem o bloco `hero`) |
 | `clip_path_padrao` / `clip_path_invertido` | Margem inferior triangular |
 | `gradiente_angulo` | Ângulo do gradiente (ex.: `135deg`) |
+| `por_fase` | Overrides por fase: `fundo`, `scrim`, `colunas`, `sortear_ordem` (ver receita abaixo) |
+
+### Receita: hero como fundo do header (full-bleed)
+
+Para uma fase em que a foto do hero deve ocupar o fundo inteiro do header (em vez de
+uma coluna ao lado do título), declare o override `por_fase`:
+
+```json
+{
+  "colunas": ["titulo", "hero"],
+  "sortear_ordem": true,
+  "requer_hero": true,
+  "por_fase": {
+    "pos-compra": {
+      "fundo": "hero",
+      "scrim": "rgba(0, 0, 0, 0.45)"
+    }
+  }
+}
+```
+
+- `fundo: "hero"` usa a foto como `background-image` do header inteiro; a coluna `hero`
+  é omitida automaticamente (a foto *é* o fundo).
+- `scrim` é a camada de cor sobre a foto para garantir contraste do título e da régua.
+  Omitido = `rgba(0, 0, 0, 0.45)`. A foto muda a cada entrega, por isso não dá para
+  confiar no contraste dela.
+- O `background-color`/gradiente da fase continua por baixo: **Outlook desktop ignora
+  `background-image`** e mostra o gradiente sólido da fase (mesma degradação do
+  `clip-path`).
+- Use `colunas` dentro de `por_fase` para trocar a ordem só naquela fase e
+  `sortear_ordem` para desligar o sorteio só nela.
 
 Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
 
