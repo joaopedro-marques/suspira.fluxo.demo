@@ -105,17 +105,22 @@ public partial class StepDiagramacaoEmail : IPipelineStep
             prompt += $"\n## Paleta e contraste (OBRIGATORIO)\n";
             if (coresFase.Count > 0)
             {
-                prompt += $"- Cores permitidas nesta fase: {string.Join(", ", coresFase)}\n";
-                prompt += $"- Use SOMENTE as cores permitidas acima em background-color, bgcolor, bordas, badges, divisores e color dos textos. NUNCA use qualquer outra cor (hex, rgb ou nome), mesmo que apareca nos exemplos do catalogo\n";
+                var paresContraste = coresFase
+                    .Select(cor => $"{cor} (texto {CorHex.EscolherTexto(new[] { cor })})")
+                    .ToList();
+
+                prompt += $"- Cores da etapa da jornada: {string.Join(", ", coresFase)}\n";
+                prompt += $"- Use SOMENTE as cores da etapa acima em background-color, bgcolor, bordas, badges, divisores e color dos textos. NUNCA use qualquer outra cor (hex, rgb ou nome), mesmo que apareca nos exemplos do catalogo\n";
+                prompt += $"- O corpo NAO pode ficar todo branco/cinza: use a cor da etapa como fundo de pelo menos um bloco de destaque (badge, faixa ou secao) e em divisores/bordas\n";
+                prompt += $"- Contraste recomendado (cor de fundo -> cor do texto): {string.Join("; ", paresContraste)}\n";
                 if (coresFase.Count > 1)
-                    prompt += $"- Se usar gradiente, monte-o apenas com as cores permitidas (ex.: linear-gradient(135deg, {coresFase[0]}, {coresFase[1]})\n";
+                    prompt += $"- Se usar gradiente, monte-o apenas com as cores da etapa (ex.: linear-gradient(135deg, {coresFase[0]}, {coresFase[1]})\n";
             }
             else
             {
                 prompt += $"- Nenhuma cor de identidade foi declarada para esta fase: use apenas neutros e as cores ja presentes no contexto\n";
             }
-            prompt += $"- Cores neutras (#FFFFFF, #1A1A1A e cinzas) sao permitidas apenas para texto/estrutura quando nenhuma cor da paleta garantir contraste\n";
-            prompt += $"- Aplique as cores da paleta da fase em background-color de secoes/badges/divisores E em color dos textos\n";
+            prompt += $"- Cores neutras (#FFFFFF, #1A1A1A e cinzas) sao permitidas apenas para texto/estrutura quando nenhuma cor da etapa garantir contraste; NUNCA use branco/cinza como fundo de secao quando a paleta da etapa existir\n";
             prompt += $"- Todo texto DEVE ter color inline explicito com contraste contra o fundo da propria secao\n";
             prompt += $"- O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta\n";
             prompt += $"- Assuma que TODOS os icones sao BRANCOS. Use-os APENAS sobre fundos escuros ou coloridos da paleta (nunca sobre fundo branco/claro). Se um icone estiver invisivel, NUNCA o remova — troque o background-color da secao para um tom escuro/colorido da paleta\n";

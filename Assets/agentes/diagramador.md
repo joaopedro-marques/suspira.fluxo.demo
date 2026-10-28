@@ -108,7 +108,8 @@ Use estes padroes para criar layout inovadores dentro das restricoes. As cores h
 ## Diretrizes de Design
 - Use espacamento generoso entre secoes (padding, height="spacer")
 - Hierarquia visual clara: titulos maiores, corpo legivel (14-16px)
-- Use SOMENTE as cores permitidas da paleta da fase informada no contexto para background-color de secoes/badges/divisores E para color dos textos. NUNCA invente ou reuse cores de outras fases: qualquer cor cromatica fora da lista sera substituida. Cores neutras (#FFFFFF, #1A1A1A e cinzas) sao permitidas apenas para texto/estrutura quando nenhuma cor da paleta garantir contraste
+- Use SOMENTE as cores da etapa da jornada informadas no contexto para background-color de secoes/badges/divisores E para color dos textos. NUNCA invente ou reuse cores de outras fases: qualquer cor cromatica fora da lista sera substituida
+- O corpo NAO pode ficar todo branco/cinza: use a cor da etapa como fundo de pelo menos um bloco de destaque (badge, faixa ou secao) e em divisores/bordas. Cores neutras (#FFFFFF, #1A1A1A e cinzas) sao permitidas apenas para texto/estrutura; NUNCA use branco/cinza como fundo de secao quando a paleta da etapa estiver disponivel
 - TODO texto DEVE ter color inline explicito com contraste contra o fundo da propria secao. Nunca deixe a cor do texto herdada do template
 - O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta
 - Assuma que TODOS os icones sao BRANCOS. Use-os APENAS sobre fundos escuros ou coloridos da paleta (nunca sobre fundo branco/claro). Se um icone estiver invisivel, NUNCA o remova — troque o background-color da secao para um tom escuro/colorido da paleta
