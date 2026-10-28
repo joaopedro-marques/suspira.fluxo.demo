@@ -246,8 +246,8 @@ Arquivos:
 ## Header do email (componente editável)
 
 O header é montado por **um asset por cliente**: `Assets/referencias/components/header_section_{CLIENTE}.html`
-(com fallback para `header_section.html`, usado por todos). O código apenas injeta valores;
-markup e estilos são seus.
+(com fallback para `header_section.html`, usado por todos). A MRV usa
+`header_section_mrv.html`. O código apenas injeta valores; markup e estilos são seus.
 
 - O layout principal usa `{{header_colunas}}` no `<tr>` das colunas.
 - Cada coluna é um bloco: `<!--#bloco titulo--> ... <!--#/bloco-->` e `<!--#bloco hero--> ... <!--#/bloco-->`.
@@ -272,6 +272,33 @@ O markup e os estilos da régua vivem em `Assets/referencias/components/regua_se
 
 As cores continuam vindo de `{CLIENTE}_regua_jornada.json` (`estilo_html` e
 `estilo_html_por_fase`) e são aplicadas como estão, sem ajuste automático.
+
+### Receitas (editar o HTML do bloco)
+
+**Contorno sem preenchimento atrás da foto** — quadrado/retângulo só com borda,
+deslocado alguns pixels acima e à esquerda da imagem (é o que a MRV usa em
+`header_section_mrv.html`):
+
+```html
+<!--#bloco hero-->
+<td width="43%" valign="middle" align="center" style="padding: 0;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+            <td style="border: 2px solid #FFFFFF; padding: 12px 0 0 12px;">
+                <img src="{{header_hero_src}}" alt="Hero" width="208" border="0"
+                     style="display: block; width: 100%; max-width: 208px; height: auto;">
+            </td>
+        </tr>
+    </table>
+</td>
+<!--#/bloco-->
+```
+
+Ajuste `2px` (espessura) e `12px` (deslocamento) direto no asset — sem tocar em código.
+Não use `position: absolute` nem margens negativas: o Outlook desktop ignora ambos.
+
+Cada cliente tem o seu ficheiro (`header_section_{CLIENTE}.html`); o `header_section.html`
+global é apenas fallback genérico. Personalize sempre no ficheiro do cliente.
 
 Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
 

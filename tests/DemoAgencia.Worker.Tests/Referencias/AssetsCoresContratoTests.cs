@@ -68,11 +68,23 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
+    public async Task HeaderSectionMrv_TemContornoBrancoSemPreenchimento()
+    {
+        var loader = await CarregarLoaderAsync();
+        var componente = loader.ObterHeaderSectionTemplate("mrv");
+
+        componente.Should().NotBeNull("a MRV tem header proprio (header_section_mrv.html)");
+        componente.Should().Contain("border: 2px solid #FFFFFF", "o contorno e um quadrado sem preenchimento");
+        componente.Should().Contain("padding: 12px 0 0 12px", "o contorno fica deslocado acima/esquerda da foto");
+        componente.Should().NotContain("bgcolor=", "nao ha preenchimento atras do hero");
+    }
+
+    [Fact]
     public async Task HeaderDaMrv_RenderizaComCoresLegiveis()
     {
         var loader = await CarregarLoaderAsync();
         var estrategia = loader.ObterEstrategia("mrv")!;
-        var componente = loader.ObterHeaderSectionTemplate()!;
+        var componente = loader.ObterHeaderSectionTemplate("mrv")!;
         var fase = estrategia.Fases["pos-chaves"];
 
         var contexto = new PipelineContext
@@ -95,9 +107,10 @@ public class AssetsCoresContratoTests
         html.Should().NotContain("{{", "todo slot do asset precisa ser resolvido");
         html.Should().NotContain("<!--#bloco", "os blocos sao extraidos do layout");
         html.Should().NotContain("bgcolor=", "o hero nao tem moldura");
+        html.Should().Contain("border: 2px solid #FFFFFF", "o hero tem contorno sem preenchimento");
         html.Should().Contain("color: #2B1B00", "o titulo do amarelo precisa ser escuro");
         html.Should().Contain("Titulo do header");
-        html.Should().Contain("width=\"220\"");
+        html.Should().Contain("width=\"208\"");
     }
 
     [Fact]
