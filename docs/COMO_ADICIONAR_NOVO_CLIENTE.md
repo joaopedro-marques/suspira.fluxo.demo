@@ -261,14 +261,26 @@ O header é montado por **um asset por cliente**: `Assets/referencias/components
 ### Régua de jornada (componente editável)
 
 O markup e os estilos da régua vivem em `Assets/referencias/components/regua_section.html`
-(com override por cliente em `regua_section_{CLIENTE}.html`). O código apenas injeta
-`{{cor}}`, `{{largura}}` e `{{label}}`:
+(com override por cliente em `regua_section_{CLIENTE}.html`). A régua é um stepper:
+linha fina conectando marcadores circulares por etapa. O código apenas injeta valores:
 
-- `{{regua_segmentos}}` — linha dos segmentos (um `<td>` por etapa).
-- `{{regua_labels}}` — linha dos rótulos (um `<td>` por etapa).
-- Blocos: `<!--#bloco segmento-->`, `<!--#bloco label-concluida-->`,
-  `<!--#bloco label-atual-->` e `<!--#bloco label-futura-->`.
-  Altura, fonte, espaçamento, opacidade e negrito são definidos no asset.
+- `{{regua_etapas}}` — uma célula por etapa, com marcador circular + rótulo.
+- Blocos: `<!--#bloco etapa-concluida-->`, `<!--#bloco etapa-atual-->` e
+  `<!--#bloco etapa-futura-->`.
+- Placeholders dentro dos blocos: `{{cor_esquerda}}` / `{{cor_direita}}` (trechos da
+  linha antes/depois do marcador), `{{cor_marcador}}`, `{{cor_label}}`, `{{largura}}` e
+  `{{label}}`.
+
+Tamanho do marcador, espessura da linha, fonte, espaçamento e opacidade são definidos no
+asset — mexa aí para deixar a régua maior/menor, sem tocar em código.
+
+### Banner do topo
+
+O banner vem de `components/banner_section.html` (imagem `{{banner_src}}`). A altura de
+exibição (hoje `420px`) e o corte (`object-fit: cover`) ficam nesse asset: aumente ou
+diminua o `height` para dar mais/menos presença ao banner. Em clientes que ignoram
+`object-fit` (ex.: Outlook desktop), a imagem é esticada até a altura definida — se isso
+for um problema, remova o `height` fixo e deixe a proporção natural da arte.
 
 As cores continuam vindo de `{CLIENTE}_regua_jornada.json` (`estilo_html` e
 `estilo_html_por_fase`) e são aplicadas como estão, sem ajuste automático.
