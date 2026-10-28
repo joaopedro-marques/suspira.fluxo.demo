@@ -50,6 +50,14 @@ public partial class StepDiagramacaoEmail : IPipelineStep
         var raw = LimparResposta(resposta);
         var semSaudacao = StripPrimeiraSaudacao(raw);
         var html = StripCtaDuplicado(semSaudacao, context.Copy!.CtaTexto);
+        html = PaletaHtmlGuard.Aplicar(html, context.Estrategia?.FaseDados, out var coresForaDaPaleta);
+
+        if (coresForaDaPaleta.Count > 0)
+        {
+            _logger.LogWarning(
+                "Diagramacao usou cores fora da paleta da fase. Substituicoes: {Substituicoes}",
+                string.Join(", ", coresForaDaPaleta.Select(troca => $"{troca.Key} -> {troca.Value}")));
+        }
 
         if (IsValidHtml(html))
         {
@@ -92,30 +100,21 @@ public partial class StepDiagramacaoEmail : IPipelineStep
                 prompt += $"Cor principal: {context.Estrategia.FaseDados.CorPrincipal}\n";
             if (!string.IsNullOrEmpty(context.Estrategia.FaseDados.DescricaoCor))
                 prompt += $"Sentimento da cor: {context.Estrategia.FaseDados.DescricaoCor}\n";
-            if (context.Estrategia.FaseDados.CoresHex.Count > 0)
-            {
-                var hexList = context.Estrategia.FaseDados.CoresHex
-                    .SelectMany(h => h)
-                    .Where(c => c.StartsWith("#", StringComparison.Ordinal));
-                if (hexList.Any())
-                    prompt += $"Cores hex da fase: {string.Join(", ", hexList)}\n";
-
-                var gradientes = context.Estrategia.FaseDados.CoresHex
-                    .Where(r => r.Count > 1 && r[0].Equals("gradiente", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                if (gradientes.Count > 0)
-                {
-                    var formatados = gradientes.Select(g =>
-                    {
-                        var stops = g.Where(s => s.StartsWith("#", StringComparison.Ordinal));
-                        var direcao = string.Join(" ", g.Skip(1).Where(s => !s.StartsWith("#", StringComparison.Ordinal)));
-                        return $"{direcao} {string.Join(", ", stops)}".Trim();
-                    });
-                    prompt += $"Gradientes da fase: {string.Join(" | ", formatados)}\n";
-                }
-            }
+            var coresFase = CoresFase.Identidade(context.Estrategia.FaseDados);
 
             prompt += $"\n## Paleta e contraste (OBRIGATORIO)\n";
+            if (coresFase.Count > 0)
+            {
+                prompt += $"- Cores permitidas nesta fase: {string.Join(", ", coresFase)}\n";
+                prompt += $"- Use SOMENTE as cores permitidas acima em background-color, bgcolor, bordas, badges, divisores e color dos textos. NUNCA use qualquer outra cor (hex, rgb ou nome), mesmo que apareca nos exemplos do catalogo\n";
+                if (coresFase.Count > 1)
+                    prompt += $"- Se usar gradiente, monte-o apenas com as cores permitidas (ex.: linear-gradient(135deg, {coresFase[0]}, {coresFase[1]})\n";
+            }
+            else
+            {
+                prompt += $"- Nenhuma cor de identidade foi declarada para esta fase: use apenas neutros e as cores ja presentes no contexto\n";
+            }
+            prompt += $"- Cores neutras (#FFFFFF, #1A1A1A e cinzas) sao permitidas apenas para texto/estrutura quando nenhuma cor da paleta garantir contraste\n";
             prompt += $"- Aplique as cores da paleta da fase em background-color de secoes/badges/divisores E em color dos textos\n";
             prompt += $"- Todo texto DEVE ter color inline explicito com contraste contra o fundo da propria secao\n";
             prompt += $"- O corpo do email renderiza sobre um card BRANCO (background: #fff). Secoes com texto claro/branco DEVEM ter seu proprio background-color escuro ou colorido da paleta\n";
