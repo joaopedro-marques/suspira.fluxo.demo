@@ -486,6 +486,11 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             estrategia.ConfiguracaoFases = CriarConfiguracaoFasesPadrao(tipos);
         }
 
+        // O header e lido antes da paleta para a validacao de contraste dos assets
+        // considerar overrides por fase (ex.: fundo hero com cor de fallback).
+        if (tipos.TryGetValue("header", out var headerJson))
+            ProcessarHeader(estrategia, headerJson, logger);
+
         if (tipos.TryGetValue("paleta", out var paletaJson))
             ProcessarPaleta(estrategia, paletaJson, logger);
 
@@ -500,9 +505,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         if (tipos.TryGetValue("regua", out var reguaJson))
             ProcessarRegua(estrategia, reguaJson, logger);
-
-        if (tipos.TryGetValue("header", out var headerJson))
-            ProcessarHeader(estrategia, headerJson, logger);
 
         return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Regua != null || estrategia.ConfiguracaoFases != null
             ? estrategia
@@ -630,7 +632,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 }
             }
 
-            ValidarCoresHeader(estrategia.Cliente, faseEstrategia, logger);
+            ValidarCoresHeader(estrategia, faseEstrategia, logger);
         }
     }
 
@@ -656,14 +658,28 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     /// Avisa quando uma cor declarada para o header fica ilegivel sobre o fundo do gradiente.
     /// O build nao falha e o renderer nao altera a cor: o teste de contrato dos assets acusa.
     /// </summary>
-    private static void ValidarCoresHeader(string cliente, FaseEstrategia fase, ILogger logger)
+    private static void ValidarCoresHeader(EstrategiaCliente estrategia, FaseEstrategia fase, ILogger logger)
     {
-        var fundos = CoresFase.Gradiente(fase);
+        var fundos = FundosEfetivosHeader(estrategia, fase);
         if (fundos.Count == 0)
             return;
 
         if (fase.CorTextoHeader != null)
-            ValidarContraste(cliente, fase, "cor_texto_header", fase.CorTextoHeader, fundos, logger);
+            ValidarContraste(estrategia.Cliente, fase, "cor_texto_header", fase.CorTextoHeader, fundos, logger);
+    }
+
+    /// <summary>
+    /// Fundos usados na validacao. Fases com fundo hero sao validadas contra a cor solida
+    /// de fallback: a foto + scrim e o fundo real, mas quem ignora background-image
+    /// (Outlook desktop) ve essa cor.
+    /// </summary>
+    private static IReadOnlyCollection<string> FundosEfetivosHeader(EstrategiaCliente estrategia, FaseEstrategia fase)
+    {
+        var faseHeader = estrategia.Header?.ObterFase(fase.Fase);
+        if (faseHeader?.UsaHeroComoFundo == true && faseHeader.CorFundo is { } corFundo)
+            return new[] { corFundo };
+
+        return CoresFase.Gradiente(fase);
     }
 
     private static void ValidarContraste(
@@ -977,6 +993,21 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                 var valor = scrim.GetString();
                 if (!string.IsNullOrWhiteSpace(valor))
                     config.Scrim = valor.Trim();
+            }
+
+            if (faseProp.Value.TryGetProperty("cor_fundo", out var corFundo) && corFundo.ValueKind == JsonValueKind.String)
+            {
+                var bruto = corFundo.GetString();
+                if (CorHex.TryNormalizar(bruto, out var normalizada))
+                {
+                    config.CorFundo = normalizada;
+                }
+                else if (!string.IsNullOrWhiteSpace(bruto))
+                {
+                    logger.LogWarning(
+                        "Cor invalida em por_fase.{Fase}.cor_fundo do header de {Cliente}: {Cor}. Use #RGB ou #RRGGBB.",
+                        faseProp.Name, estrategia.Cliente, bruto);
+                }
             }
 
             if (faseProp.Value.TryGetProperty("colunas", out var colunasFase))

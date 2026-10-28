@@ -1163,6 +1163,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
                 "pos-compra": {
                   "fundo": "hero",
                   "scrim": "rgba(0, 0, 0, 0.6)",
+                  "cor_fundo": "#1A1A1A",
                   "colunas": ["titulo"],
                   "sortear_ordem": false
                 },
@@ -1182,6 +1183,7 @@ public class ReferenciaClienteLoaderTests : IDisposable
         var posCompra = header.PorFase["pos-compra"];
         posCompra.UsaHeroComoFundo.Should().BeTrue();
         posCompra.Scrim.Should().Be("rgba(0, 0, 0, 0.6)");
+        posCompra.CorFundo.Should().Be("#1A1A1A");
         posCompra.Colunas.Should().Equal("titulo");
         posCompra.SortearOrdem.Should().BeFalse();
         header.PorFase["pre-chaves"].UsaHeroComoFundo.Should().BeFalse();

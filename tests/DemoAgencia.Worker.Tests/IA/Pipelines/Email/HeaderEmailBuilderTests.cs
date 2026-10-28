@@ -329,6 +329,30 @@ public class HeaderEmailBuilderTests
     }
 
     [Fact]
+    public void Construir_ComFundoHero_UsaCorDeFundoDeFallback()
+    {
+        var contexto = ContextoHeader();
+        contexto.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = FaseRoxa(),
+            Regua = contexto.Estrategia!.Regua,
+            Header = new HeaderConfig
+            {
+                PorFase = new Dictionary<string, HeaderFaseConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["pos-compra"] = new() { Fundo = "hero", CorFundo = "#1a1a1a" }
+                }
+            }
+        };
+
+        var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
+
+        html.Should().Contain("background-color: #1A1A1A;", "e a cor vista sem background-image (Outlook)");
+        html.Should().NotContain("background-color: #784099");
+    }
+
+    [Fact]
     public void Construir_ComFundoHeroSemHero_VoltaAoGradienteDaFase()
     {
         var contexto = ContextoHeader();

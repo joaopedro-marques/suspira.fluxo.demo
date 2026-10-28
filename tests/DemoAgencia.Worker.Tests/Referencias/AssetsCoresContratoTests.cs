@@ -85,7 +85,7 @@ public class AssetsCoresContratoTests
         var loader = await CarregarLoaderAsync();
         var estrategia = loader.ObterEstrategia("mrv")!;
         var componente = loader.ObterHeaderSectionTemplate("mrv")!;
-        var fase = estrategia.Fases["pos-chaves"];
+        var fase = estrategia.Fases["pos-compra"];
 
         var contexto = new PipelineContext
         {
@@ -96,7 +96,7 @@ public class AssetsCoresContratoTests
                 "Assunto", "Preheader", "Titulo do header", "<p>corpo</p>", "CTA", "https://exemplo.com"),
             Estrategia = new EstrategiaEmail
             {
-                Fase = "pos-chaves",
+                Fase = "pos-compra",
                 FaseDados = fase,
                 Regua = estrategia.Regua
             }
@@ -108,20 +108,23 @@ public class AssetsCoresContratoTests
         html.Should().NotContain("<!--#bloco", "os blocos sao extraidos do layout");
         html.Should().NotContain("bgcolor=", "o hero nao tem moldura");
         html.Should().Contain("border: 2px solid #FFFFFF", "o hero tem contorno sem preenchimento");
-        html.Should().Contain("color: #2B1B00", "o titulo do amarelo precisa ser escuro");
+        html.Should().Contain("color: #FFFFFF", "o titulo do roxo e branco (asset)");
         html.Should().Contain("Titulo do header");
         html.Should().Contain("width=\"208\"");
     }
 
     [Fact]
-    public async Task HeaderDaMrv_PosCompra_UsaHeroComoFundoFullBleed()
+    public async Task HeaderDaMrv_PosChaves_UsaHeroComoFundoFullBleed()
     {
         var loader = await CarregarLoaderAsync();
         var estrategia = loader.ObterEstrategia("mrv")!;
         var componente = loader.ObterHeaderSectionTemplate("mrv")!;
+        var faseConfig = estrategia.Header!.PorFase["pos-chaves"];
 
-        estrategia.Header!.PorFase["pos-compra"].UsaHeroComoFundo.Should()
-            .BeTrue("pos-compra declara fundo hero no MRV_header.json");
+        faseConfig.UsaHeroComoFundo.Should()
+            .BeTrue("pos-chaves declara fundo hero no MRV_header.json");
+        faseConfig.CorFundo.Should().Be("#1A1A1A", "sem background-image o header cai nessa cor");
+        estrategia.Header.PorFase.Should().NotContainKey("pos-compra", "pos-compra segue com hero em coluna");
 
         var contexto = new PipelineContext
         {
@@ -132,8 +135,8 @@ public class AssetsCoresContratoTests
                 "Assunto", "Preheader", "Titulo", "<p>corpo</p>", "CTA", "https://exemplo.com"),
             Estrategia = new EstrategiaEmail
             {
-                Fase = "pos-compra",
-                FaseDados = estrategia.Fases["pos-compra"],
+                Fase = "pos-chaves",
+                FaseDados = estrategia.Fases["pos-chaves"],
                 Regua = estrategia.Regua,
                 Header = estrategia.Header
             }
@@ -142,9 +145,15 @@ public class AssetsCoresContratoTests
         var html = HeaderEmailBuilder.Construir(componente, contexto, invertido: false);
 
         html.Should().Contain("url('imagens/gerada_1.png')");
+        html.Should().Contain("background-color: #1A1A1A;");
         html.Should().Contain("background-size: cover");
         html.Should().NotContain("<img", "a foto ocupa o fundo, nao uma coluna");
         html.Should().NotContain("{{");
+        html.Should().NotContain("#2B1B00", "o texto do header nao usa mais a cor escura do fundo amarelo");
+        html.Should().NotContain("#784099", "a regua nao usa mais o roxo do fundo amarelo");
+        html.Should().Contain(
+            "color: #FFFFFF; font-weight: bold;\">Entrega das chaves",
+            "a etapa atual da regua e branca");
     }
 
     [Fact]
@@ -177,13 +186,13 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
-    public async Task Paleta_TextoTemContrasteMinimoSobreOGradiente()
+    public async Task Paleta_TextoTemContrasteMinimoSobreOFundoEfetivo()
     {
         var estrategia = await CarregarMrvAsync();
 
         foreach (var fase in estrategia.Fases.Values.Where(f => f.CoresHex.Count > 0))
         {
-            var fundos = HeaderEmailBuilder.CoresGradiente(fase);
+            var fundos = FundosEfetivos(estrategia, fase);
             if (fundos.Count == 0)
                 continue;
 
@@ -226,7 +235,7 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
-    public async Task Regua_CoresPorFaseSaoLegiveisSobreOGradiente()
+    public async Task Regua_CoresPorFaseSaoLegiveisSobreOFundoEfetivo()
     {
         var estrategia = await CarregarMrvAsync();
         var regua = estrategia.Regua!;
@@ -234,7 +243,7 @@ public class AssetsCoresContratoTests
         foreach (var (fase, estilo) in regua.EstiloHtmlPorFase)
         {
             estrategia.Fases.Should().ContainKey(fase);
-            var fundos = HeaderEmailBuilder.CoresGradiente(estrategia.Fases[fase]);
+            var fundos = FundosEfetivos(estrategia, estrategia.Fases[fase]);
             if (fundos.Count == 0)
                 continue;
 
@@ -247,5 +256,18 @@ public class AssetsCoresContratoTests
             CorHex.ContrasteMinimo(fundos, estilo.CorAtual).Should()
                 .BeGreaterThanOrEqualTo(CorHex.ContrasteMinimoDecorativo, $"{fase}: cor_atual");
         }
+    }
+
+    /// <summary>
+    /// Fundos efetivos do header para validar contraste: fases com fundo hero usam a cor
+    /// solida de fallback (o que aparece sem background-image); as demais usam o gradiente.
+    /// </summary>
+    private static IReadOnlyCollection<string> FundosEfetivos(EstrategiaCliente estrategia, FaseEstrategia fase)
+    {
+        var faseHeader = estrategia.Header?.ObterFase(fase.Fase);
+        if (faseHeader?.UsaHeroComoFundo == true && faseHeader.CorFundo is { } corFundo)
+            return new[] { corFundo };
+
+        return HeaderEmailBuilder.CoresGradiente(fase);
     }
 }

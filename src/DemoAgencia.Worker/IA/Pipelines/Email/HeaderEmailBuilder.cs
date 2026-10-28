@@ -46,7 +46,7 @@ internal static class HeaderEmailBuilder
             invertido,
             temHero: !usaFundoHero && !string.IsNullOrEmpty(context.HeroSrc)));
         html = html.Replace("{{header_bg}}", usaFundoHero
-            ? ConstruirFundoComHero(fase, header?.GradienteAngulo, context.HeroSrc!, faseConfig?.Scrim)
+            ? ConstruirFundoComHero(fase, header?.GradienteAngulo, context.HeroSrc!, faseConfig?.Scrim, faseConfig?.CorFundo)
             : ConstruirFundo(fase, header?.GradienteAngulo));
         html = html.Replace("{{header_clip}}", invertido
             ? header?.ClipPathInvertido ?? ClipPathInvertido
@@ -169,13 +169,18 @@ internal static class HeaderEmailBuilder
         FaseEstrategia? fase,
         string? angulo,
         string heroSrc,
-        string? scrim = null)
+        string? scrim = null,
+        string? corFundo = null)
     {
         var cores = CoresGradiente(fase);
         var camada = string.IsNullOrWhiteSpace(scrim) ? HeaderConfig.ScrimPadrao : scrim.Trim();
         var url = $"url('{heroSrc.Replace("'", "%27").Replace("\"", "%22")}')";
 
-        var css = cores.Count > 0 ? $"background-color: {cores[0]}; " : string.Empty;
+        var corBase = CorHex.TryNormalizar(corFundo, out var fallback)
+            ? fallback
+            : cores.Count > 0 ? cores[0] : null;
+
+        var css = corBase != null ? $"background-color: {corBase}; " : string.Empty;
         return css
             + $"background-image: linear-gradient({camada}, {camada}), {url};"
             + " background-size: cover; background-position: center;";
@@ -183,12 +188,7 @@ internal static class HeaderEmailBuilder
 
     /// <summary>Override do header para a fase atual (chave normalizada, ex.: pos-compra).</summary>
     internal static HeaderFaseConfig? ResolverConfigFase(HeaderConfig? header, string? fase)
-    {
-        if (header?.PorFase is not { Count: > 0 } porFase || string.IsNullOrWhiteSpace(fase))
-            return null;
-
-        return porFase.TryGetValue(fase.Trim(), out var config) ? config : null;
-    }
+        => header?.ObterFase(fase);
 
     /// <summary>Cores efetivamente usadas no gradiente (no maximo os dois primeiros stops).</summary>
     internal static IReadOnlyList<string> CoresGradiente(FaseEstrategia? fase) => CoresFase.Gradiente(fase);

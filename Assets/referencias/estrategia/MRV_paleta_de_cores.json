@@ -29,7 +29,7 @@
     {
       "cor_principal": "Amarelo",
       "etapa": "jornada pós-chaves",
-      "cor_texto_header": "#2B1B00",
+      "cor_texto_header": "#FFFFFF",
       "descricao": "O amarelo representa clareza, leveza e otimismo e luz — tudo o que o cliente precisa ao finalmente morar no novo lar. É o momento de entusiasmo do cliente em morar em um novo lar, mas também quando surgem novas dúvidas e desafios práticos na vivência na nova moradia. A comunicação deve continuar transmitindo energia positiva, praticidade e presença da marca, ajudando o cliente a se adaptar com confiança.",
       "cores_hex_aproximadas": [
         ["gradiente", "linear","diagonal","#006B40","#039E56", "#006B40"],

@@ -6,8 +6,9 @@
   "clip_path_invertido": "clip-path: polygon(0 0, 100% 0, 100% calc(100% - 34px), 7px 100%, 0 calc(100% - 8px));",
   "gradiente_angulo": "135deg",
   "por_fase": {
-    "pos-compra": {
-      "fundo": "hero"
+    "pos-chaves": {
+      "fundo": "hero",
+      "cor_fundo": "#1A1A1A"
     }
   }
 }

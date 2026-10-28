@@ -34,6 +34,14 @@ public class HeaderConfig
 
     /// <summary>Overrides de layout/fundo por fase (chave = fase normalizada, ex.: pos-compra).</summary>
     public Dictionary<string, HeaderFaseConfig> PorFase { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Override da fase, ou null quando a fase usa a configuracao global.</summary>
+    public HeaderFaseConfig? ObterFase(string? fase)
+    {
+        return !string.IsNullOrWhiteSpace(fase) && PorFase.TryGetValue(fase.Trim(), out var config)
+            ? config
+            : null;
+    }
 }
 
 /// <summary>
@@ -47,6 +55,12 @@ public class HeaderFaseConfig
 
     /// <summary>Cor sobre a foto de fundo (rgba recomendado). Ausente = scrim padrao.</summary>
     public string? Scrim { get; set; }
+
+    /// <summary>
+    /// Cor solida de fallback para clientes que ignoram background-image (Outlook desktop).
+    /// Ausente = primeira cor do gradiente da fase.
+    /// </summary>
+    public string? CorFundo { get; set; }
 
     /// <summary>Ordem dos blocos nesta fase. Ausente = configuracao global.</summary>
     public List<string>? Colunas { get; set; }

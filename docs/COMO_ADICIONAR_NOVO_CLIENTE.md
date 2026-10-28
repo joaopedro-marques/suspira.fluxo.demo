@@ -309,7 +309,7 @@ Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
 | `requer_hero` | `false` renderiza o header mesmo sem hero (sem o bloco `hero`) |
 | `clip_path_padrao` / `clip_path_invertido` | Margem inferior triangular |
 | `gradiente_angulo` | Ângulo do gradiente (ex.: `135deg`) |
-| `por_fase` | Overrides por fase: `fundo`, `scrim`, `colunas`, `sortear_ordem` (ver receita abaixo) |
+| `por_fase` | Overrides por fase: `fundo`, `scrim`, `cor_fundo`, `colunas`, `sortear_ordem` (ver receita abaixo) |
 
 ### Receita: hero como fundo do header (full-bleed)
 
@@ -322,9 +322,10 @@ uma coluna ao lado do título), declare o override `por_fase`:
   "sortear_ordem": true,
   "requer_hero": true,
   "por_fase": {
-    "pos-compra": {
+    "pos-chaves": {
       "fundo": "hero",
-      "scrim": "rgba(0, 0, 0, 0.45)"
+      "scrim": "rgba(0, 0, 0, 0.45)",
+      "cor_fundo": "#1A1A1A"
     }
   }
 }
@@ -334,12 +335,14 @@ uma coluna ao lado do título), declare o override `por_fase`:
   é omitida automaticamente (a foto *é* o fundo).
 - `scrim` é a camada de cor sobre a foto para garantir contraste do título e da régua.
   Omitido = `rgba(0, 0, 0, 0.45)`. A foto muda a cada entrega, por isso não dá para
-  confiar no contraste dela.
-- O `background-color`/gradiente da fase continua por baixo: **Outlook desktop ignora
-  `background-image`** e mostra o gradiente sólido da fase (mesma degradação do
-  `clip-path`).
+  confiar no contraste dela: use título/régua claros (ex.: branco).
+- `cor_fundo` é o fallback sólido para clientes que ignoram `background-image`
+  (**Outlook desktop**). Omitido = a primeira cor do gradiente da fase. Sem ele, uma
+  fase de foto com texto branco pode cair num fundo claro no Outlook.
 - Use `colunas` dentro de `por_fase` para trocar a ordem só naquela fase e
   `sortear_ordem` para desligar o sorteio só nela.
+- A validação de contraste dos assets usa `cor_fundo` nas fases full-bleed (é o que
+  realmente aparece sem a imagem).
 
 Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
 
