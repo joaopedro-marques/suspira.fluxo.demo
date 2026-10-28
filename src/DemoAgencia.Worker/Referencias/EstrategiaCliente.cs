@@ -46,8 +46,6 @@ public class FaseEstrategia
     /// <summary>Cor do titulo sobre o header desta fase. Ausente = escolhida por contraste.</summary>
     public string? CorTextoHeader { get; set; }
 
-    /// <summary>Cor da moldura atras do hero. Ausente = branco, ajustado por contraste.</summary>
-    public string? CorMolduraHeader { get; set; }
     public List<string> Temas { get; set; } = new();
     public Dictionary<string, List<string>> SubJornadas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

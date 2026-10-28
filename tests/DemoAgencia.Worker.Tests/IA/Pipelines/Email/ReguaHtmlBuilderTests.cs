@@ -190,40 +190,15 @@ public class ReguaHtmlBuilderTests
     }
 
     [Fact]
-    public void Construir_ComFundoClaro_SubstituiCoresQueSumiriam()
+    public void Construir_ComFundoClaro_MantemCoresDeclaradasNoAsset()
     {
         var estrategia = new EstrategiaEmail { Fase = "pos-chaves", Regua = CriarRegua() };
 
-        var html = ReguaHtmlBuilder.Construir(estrategia, new[] { "#FFB719", "#FFDD02" });
+        var html = ReguaHtmlBuilder.Construir(estrategia);
 
-        html.Should().Contain("color: #1A1A1A", "labels brancos somem no fundo amarelo");
-        html.Should().NotContain("color: #FFFFFF");
-        html.Should().Contain("background-color: #1A1A1A", "segmentos claros somem no fundo amarelo");
-    }
-
-    [Fact]
-    public void AjustarCores_SemFundos_MantemCoresDeclaradas()
-    {
-        var estilo = new EstiloReguaHtml();
-
-        var ajustado = ReguaHtmlBuilder.AjustarCores(estilo, null);
-
-        ajustado.label.Should().Be(estilo.CorLabel);
-        ajustado.labelAtual.Should().Be(estilo.CorLabelAtual);
-        ajustado.concluida.Should().Be(estilo.CorConcluida);
-        ajustado.atual.Should().Be(estilo.CorAtual);
-        ajustado.futura.Should().Be(estilo.CorFutura);
-    }
-
-    [Fact]
-    public void AjustarCores_ComFundoEscuro_MantemBranco()
-    {
-        var estilo = new EstiloReguaHtml();
-
-        var ajustado = ReguaHtmlBuilder.AjustarCores(estilo, new[] { "#784099", "#AB40D9" });
-
-        ajustado.label.Should().Be("#FFFFFF");
-        ajustado.concluida.Should().Be("#FFFFFF");
+        html.Should().Contain("color: #FFFFFF", "as cores declaradas no asset sao usadas como estao");
+        html.Should().Contain("background-color: #FFFFFF");
+        html.Should().NotContain("#1A1A1A", "nao existe troca automatica para cor legivel");
     }
 
     [Fact]

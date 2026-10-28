@@ -48,49 +48,21 @@ public class CorHexTests
     }
 
     [Fact]
-    public void EscolherTexto_FundoClaroSemPreferida_UsaEscuro()
+    public void EscolherTexto_FundoClaro_UsaEscuro()
     {
         CorHex.EscolherTexto(new[] { "#FFB719", "#FFDD02" }).Should().Be(CorHex.TextoEscuroPadrao);
     }
 
     [Fact]
-    public void EscolherTexto_FundoEscuroSemPreferida_UsaClaro()
+    public void EscolherTexto_FundoEscuro_UsaClaro()
     {
         CorHex.EscolherTexto(new[] { "#784099", "#AB40D9" }).Should().Be(CorHex.TextoClaroPadrao);
-    }
-
-    [Fact]
-    public void EscolherTexto_PreferidaLegivel_MantemCorDeclarada()
-    {
-        CorHex.EscolherTexto(new[] { "#784099", "#AB40D9" }, "#FFFFFF")
-            .Should().Be(CorHex.TextoClaroPadrao);
-    }
-
-    [Fact]
-    public void EscolherTexto_PreferidaIlegivel_TrocaPelaCorLegivel()
-    {
-        CorHex.EscolherTexto(new[] { "#FFB719", "#FFDD02" }, "#FFFFFF")
-            .Should().Be(CorHex.TextoEscuroPadrao);
     }
 
     [Fact]
     public void EscolherTexto_SemFundos_UsaClaro()
     {
         CorHex.EscolherTexto(Array.Empty<string>()).Should().Be(CorHex.TextoClaroPadrao);
-    }
-
-    [Fact]
-    public void EscolherVisivel_PreferidaQueSomeNoFundo_UsaCorLegivel()
-    {
-        CorHex.EscolherVisivel(new[] { "#FFB719", "#FFDD02" }, "#FFFFFF")
-            .Should().Be(CorHex.TextoEscuroPadrao);
-    }
-
-    [Fact]
-    public void EscolherVisivel_PreferidaVisivel_Mantem()
-    {
-        CorHex.EscolherVisivel(new[] { "#784099", "#AB40D9" }, "#FFFFFF")
-            .Should().Be(CorHex.TextoClaroPadrao);
     }
 
     [Fact]

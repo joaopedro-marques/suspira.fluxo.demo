@@ -14,7 +14,7 @@ public class HeaderEmailBuilderTests
         <td width="57%" align="{{header_titulo_align}}" style="{{header_titulo_padding}}"><p style="color: {{header_titulo_cor}};">{{header_titulo}}</p></td>
         <!--#/bloco-->
         <!--#bloco hero-->
-        <td width="43%"><table><tr><td bgcolor="{{header_moldura_cor}}" style="padding: 10px 10px 22px 10px;"><img src="{{header_hero_src}}" alt="Hero" width="220" style="border-radius: 12px;"></td></tr></table></td>
+        <td width="43%"><img src="{{header_hero_src}}" alt="Hero" width="220"></td>
         <!--#/bloco-->
         """;
 
@@ -37,7 +37,6 @@ public class HeaderEmailBuilderTests
         Fase = "pos-chaves",
         CorPrincipal = "Amarelo",
         CorTextoHeader = "#2B1B00",
-        CorMolduraHeader = "#2B1B00",
         CoresHex = new List<List<string>>
         {
             new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56", "#006B40" },
@@ -174,6 +173,15 @@ public class HeaderEmailBuilderTests
     }
 
     [Fact]
+    public void CorTitulo_ComCorDeclaradaIlegivel_MantemCorDoAsset()
+    {
+        var fase = FaseAmarela();
+        fase.CorTextoHeader = "#FFFFFF";
+
+        HeaderEmailBuilder.CorTitulo(fase).Should().Be("#FFFFFF", "a cor declarada no asset e usada como esta");
+    }
+
+    [Fact]
     public void CorTitulo_ComFaseAmarela_UsaCorEscuraDeclarada()
     {
         HeaderEmailBuilder.CorTitulo(FaseAmarela()).Should().Be("#2B1B00");
@@ -198,21 +206,6 @@ public class HeaderEmailBuilderTests
     }
 
     [Fact]
-    public void CorMoldura_ComFundoAmarelo_NaoUsaBrancoInvisivel()
-    {
-        HeaderEmailBuilder.CorMoldura(FaseAmarela()).Should().Be("#2B1B00");
-    }
-
-    [Fact]
-    public void CorMoldura_SemCorDeclaradaEmFundoEscuro_UsaBranco()
-    {
-        var fase = FaseRoxa();
-        fase.CorMolduraHeader = null;
-
-        HeaderEmailBuilder.CorMoldura(fase).Should().Be(CorHex.MolduraPadrao);
-    }
-
-    [Fact]
     public void Construir_ComFaseAmarela_NaoUsaTituloBranco()
     {
         var contexto = ContextoHeader();
@@ -225,19 +218,8 @@ public class HeaderEmailBuilderTests
 
         var html = HeaderEmailBuilder.Construir(Componente, contexto, invertido: false);
 
-        html.Should().Contain("color: #2B1B00");
-        html.Should().NotContain("color: #FFFFFF");
-    }
-
-    [Fact]
-    public void Construir_RenderizaMolduraAtrasDoHero()
-    {
-
-        var html = HeaderEmailBuilder.Construir(Componente, ContextoHeader(), invertido: false);
-
-        html.Should().Contain("bgcolor=\"#FFFFFF\"", "a moldura usa a cor declarada para a fase");
-        html.Should().Contain("padding: 10px 10px 22px 10px", "a moldura fica deslocada para cima do hero");
-        html.Should().Contain("border-radius: 12px", "a imagem tem raio menor que a moldura");
+        html.Should().Contain("<p style=\"color: #2B1B00;\"", "o titulo usa a cor declarada do asset");
+        html.Should().NotContain("<p style=\"color: #FFFFFF;\"", "o titulo nao pode ficar branco no fundo amarelo");
     }
 
     [Fact]

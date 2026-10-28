@@ -28,7 +28,6 @@ internal static class HeaderEmailBuilder
         var header = context.Estrategia?.Header;
         var coresFundo = CoresGradiente(fase);
         var corTitulo = CorTitulo(fase, coresFundo);
-        var corMoldura = CorMoldura(fase, coresFundo);
         var alinhamento = invertido ? "right" : "left";
 
         var blocos = ExtrairBlocos(componente, out var layout);
@@ -47,9 +46,7 @@ internal static class HeaderEmailBuilder
         html = html.Replace("{{header_titulo_padding}}",
             alinhamento == "right" ? "padding: 0 0 0 22px;" : "padding: 0 22px 0 0;");
         html = html.Replace("{{header_hero_src}}", WebUtility.HtmlEncode(context.HeroSrc ?? string.Empty));
-        html = html.Replace("{{header_moldura_cor}}", corMoldura);
-        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia, coresFundo, reguaComponente));
-        return html;
+        html = html.Replace("{{regua_html}}", ReguaHtmlBuilder.Construir(context.Estrategia, reguaComponente));        return html;
     }
 
     /// <summary>
@@ -124,18 +121,16 @@ internal static class HeaderEmailBuilder
         return sb.ToString();
     }
 
-    /// <summary>Cor do titulo do header: declarada na fase ou escolhida por contraste.</summary>
+    /// <summary>
+    /// Cor do titulo do header: usa exatamente a cor declarada no asset da fase
+    /// (<c>cor_texto_header</c>). Sem declaracao, cai no fallback legivel por contraste.
+    /// </summary>
     internal static string CorTitulo(FaseEstrategia? fase, IReadOnlyCollection<string>? coresFundo = null)
     {
-        return CorHex.EscolherTexto(coresFundo ?? CoresGradiente(fase), fase?.CorTextoHeader);
-    }
+        if (CorHex.TryNormalizar(fase?.CorTextoHeader, out var declarada))
+            return declarada;
 
-    /// <summary>Cor da moldura atras do hero: declarada na fase ou branco validado por contraste.</summary>
-    internal static string CorMoldura(FaseEstrategia? fase, IReadOnlyCollection<string>? coresFundo = null)
-    {
-        return CorHex.EscolherVisivel(
-            coresFundo ?? CoresGradiente(fase),
-            fase?.CorMolduraHeader ?? CorHex.MolduraPadrao);
+        return CorHex.EscolherTexto(coresFundo ?? CoresGradiente(fase));
     }
 
     internal static string ConstruirFundo(FaseEstrategia? fase, string? angulo = null)

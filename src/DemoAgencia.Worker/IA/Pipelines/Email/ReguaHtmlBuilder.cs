@@ -9,6 +9,8 @@ namespace DemoAgencia.Worker.IA.Pipelines.Email;
 /// Desenha a regua de jornada em HTML (segmentos + labels) para o header do email.
 /// O markup e os estilos vivem no asset <c>components/regua_section.html</c>; aqui so
 /// entram os valores de runtime (cor por estado, largura e label de cada etapa).
+/// As cores declaradas no asset sao usadas como estao: o contraste e validado no
+/// contrato dos assets, nao corrigido em runtime.
 /// </summary>
 internal static class ReguaHtmlBuilder
 {
@@ -43,7 +45,6 @@ internal static class ReguaHtmlBuilder
 
     internal static string Construir(
         EstrategiaEmail? estrategia,
-        IReadOnlyCollection<string>? fundosHeader = null,
         string? componente = null)
     {
         if (estrategia?.Regua is not { } regua || regua.Etapas.Count == 0 || string.IsNullOrEmpty(estrategia.Fase))
@@ -53,7 +54,11 @@ internal static class ReguaHtmlBuilder
         var indiceAtual = regua.Etapas.FindIndex(
             etapa => string.Equals(etapa, etapaAtual, StringComparison.OrdinalIgnoreCase));
         var estilo = ResolverEstilo(estrategia, regua);
-        var (corConcluida, corAtual, corFutura, corLabel, corLabelAtual) = AjustarCores(estilo, fundosHeader);
+        var corConcluida = estilo.CorConcluida;
+        var corAtual = estilo.CorAtual;
+        var corFutura = estilo.CorFutura;
+        var corLabel = estilo.CorLabel;
+        var corLabelAtual = estilo.CorLabelAtual;
         var largura = (100.0 / regua.Etapas.Count).ToString("0.##", CultureInfo.InvariantCulture);
 
         var blocos = ExtrairBlocosDoComponente(componente, out var layout);
@@ -110,7 +115,8 @@ internal static class ReguaHtmlBuilder
 
     /// <summary>
     /// Estilo da regua para a fase atual. A regua fica sobre o fundo do header, que muda
-    /// a cada fase, entao o asset pode declarar overrides em <c>estilo_html_por_fase</c>.
+    /// a cada fase, entao as cores vem declaradas no asset em <c>estilo_html</c> e, por fase,
+    /// em <c>estilo_html_por_fase</c>. O renderer nao altera a cor declarada.
     /// </summary>
     internal static EstiloReguaHtml ResolverEstilo(EstrategiaEmail estrategia, ReguaJornada regua)
     {
@@ -121,25 +127,6 @@ internal static class ReguaHtmlBuilder
         }
 
         return regua.EstiloHtml;
-    }
-
-    /// <summary>
-    /// Garante que as cores da regua nao sumam no fundo do header: substitui apenas o que
-    /// ficar abaixo do piso de legibilidade (as cores declaradas que passam sao mantidas).
-    /// </summary>
-    internal static (string concluida, string atual, string futura, string label, string labelAtual) AjustarCores(
-        EstiloReguaHtml estilo,
-        IReadOnlyCollection<string>? fundosHeader)
-    {
-        if (fundosHeader == null || fundosHeader.Count == 0)
-            return (estilo.CorConcluida, estilo.CorAtual, estilo.CorFutura, estilo.CorLabel, estilo.CorLabelAtual);
-
-        return (
-            CorHex.EscolherVisivel(fundosHeader, estilo.CorConcluida),
-            CorHex.EscolherVisivel(fundosHeader, estilo.CorAtual),
-            estilo.CorFutura,
-            CorHex.EscolherTexto(fundosHeader, estilo.CorLabel),
-            CorHex.EscolherTexto(fundosHeader, estilo.CorLabelAtual));
     }
 
     internal static string DeterminarEtapaDestacada(EstrategiaEmail estrategia, ReguaJornada regua)

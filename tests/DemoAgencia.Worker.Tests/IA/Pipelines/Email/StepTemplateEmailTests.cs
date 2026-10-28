@@ -106,7 +106,7 @@ public class StepTemplateEmailTests
         <td width="57%" align="{{header_titulo_align}}" style="{{header_titulo_padding}}"><p style="color: {{header_titulo_cor}};">{{header_titulo}}</p></td>
         <!--#/bloco-->
         <!--#bloco hero-->
-        <td width="43%"><table><tr><td bgcolor="{{header_moldura_cor}}" style="padding: 10px 10px 22px 10px;"><img src="{{header_hero_src}}" alt="Hero" width="220"></td></tr></table></td>
+        <td width="43%"><img src="{{header_hero_src}}" alt="Hero" width="220"></td>
         <!--#/bloco-->
         """;
 

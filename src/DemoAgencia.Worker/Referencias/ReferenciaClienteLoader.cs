@@ -598,7 +598,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             faseEstrategia.CorPrincipal = corPrincipal;
             faseEstrategia.DescricaoCor = descricao;
             faseEstrategia.CorTextoHeader = LerCorHexDoJson(item, "cor_texto_header", estrategia.Cliente, fase, logger);
-            faseEstrategia.CorMolduraHeader = LerCorHexDoJson(item, "cor_moldura_header", estrategia.Cliente, fase, logger);
 
             if (item.TryGetProperty("cores_hex_aproximadas", out var hexArr) && hexArr.ValueKind == JsonValueKind.Array)
             {
@@ -655,7 +654,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
     /// <summary>
     /// Avisa quando uma cor declarada para o header fica ilegivel sobre o fundo do gradiente.
-    /// O build nao falha: o renderer aplica o fallback e o teste de contrato dos assets acusa.
+    /// O build nao falha e o renderer nao altera a cor: o teste de contrato dos assets acusa.
     /// </summary>
     private static void ValidarCoresHeader(string cliente, FaseEstrategia fase, ILogger logger)
     {
@@ -665,9 +664,6 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         if (fase.CorTextoHeader != null)
             ValidarContraste(cliente, fase, "cor_texto_header", fase.CorTextoHeader, fundos, logger);
-
-        if (fase.CorMolduraHeader != null)
-            ValidarContraste(cliente, fase, "cor_moldura_header", fase.CorMolduraHeader, fundos, logger);
     }
 
     private static void ValidarContraste(
@@ -683,7 +679,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             return;
 
         logger.LogWarning(
-            "{Propriedade} de {Cliente}/{Fase} ({Cor}) tem contraste {Contraste:0.00}:1 sobre o fundo do header. Minimo {Minimo:0.0}:1; o renderer vai substituir a cor.",
+            "{Propriedade} de {Cliente}/{Fase} ({Cor}) tem contraste {Contraste:0.00}:1 sobre o fundo do header. Minimo {Minimo:0.0}:1; a cor declarada sera usada como esta.",
             propriedade, cliente, fase.Fase, cor, contraste, CorHex.ContrasteMinimoAbsoluto);
     }
 

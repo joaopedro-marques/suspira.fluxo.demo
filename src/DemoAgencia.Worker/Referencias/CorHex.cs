@@ -5,7 +5,7 @@ namespace DemoAgencia.Worker.Referencias;
 
 /// <summary>
 /// Utilitarios de cor para o HTML do email: normaliza hex, calcula contraste (WCAG)
-/// e escolhe cores legiveis para texto, moldura e regua sobre o fundo do header.
+/// e escolhe a cor de texto de fallback sobre o fundo do header.
 /// </summary>
 public static partial class CorHex
 {
@@ -18,12 +18,11 @@ public static partial class CorHex
     /// </summary>
     public const double ContrasteMinimoAbsoluto = 2.5;
 
-    /// <summary>Contraste minimo para elementos decorativos (segmentos da regua e molduras).</summary>
+    /// <summary>Contraste minimo para elementos decorativos (segmentos da regua).</summary>
     public const double ContrasteMinimoDecorativo = 1.5;
 
     public const string TextoClaroPadrao = "#FFFFFF";
     public const string TextoEscuroPadrao = "#1A1A1A";
-    public const string MolduraPadrao = "#FFFFFF";
 
     /// <summary>Normaliza um hex (#RGB ou #RRGGBB) e rejeita qualquer outro formato.</summary>
     public static bool TryNormalizar(string? valor, out string cor)
@@ -74,41 +73,17 @@ public static partial class CorHex
     }
 
     /// <summary>
-    /// Cor de texto legivel sobre o fundo informado. Respeita a cor declarada no asset
-    /// enquanto ela passar do piso absoluto; caso contrario escolhe entre claro e escuro.
+    /// Cor de texto legivel sobre o fundo informado. Usada apenas como fallback quando o
+    /// asset nao declara a cor do elemento; cores declaradas sao usadas como estao.
     /// </summary>
-    public static string EscolherTexto(IReadOnlyCollection<string> fundos, string? preferida = null)
+    public static string EscolherTexto(IReadOnlyCollection<string> fundos)
     {
         if (fundos.Count == 0)
             return TextoClaroPadrao;
 
-        if (TryNormalizar(preferida, out var preferidaNormalizada)
-            && ContrasteMinimo(fundos, preferidaNormalizada) >= ContrasteMinimoAbsoluto)
-        {
-            return preferidaNormalizada;
-        }
-
         return ContrasteMinimo(fundos, TextoClaroPadrao) >= ContrasteMinimo(fundos, TextoEscuroPadrao)
             ? TextoClaroPadrao
             : TextoEscuroPadrao;
-    }
-
-    /// <summary>
-    /// Cor visivel (moldura, segmento) sobre o fundo. Se a cor declarada sumir no fundo,
-    /// troca pela cor de texto legivel.
-    /// </summary>
-    public static string EscolherVisivel(
-        IReadOnlyCollection<string> fundos,
-        string? preferida,
-        double minimo = ContrasteMinimoDecorativo)
-    {
-        if (TryNormalizar(preferida, out var preferidaNormalizada)
-            && (fundos.Count == 0 || ContrasteMinimo(fundos, preferidaNormalizada) >= minimo))
-        {
-            return preferidaNormalizada;
-        }
-
-        return EscolherTexto(fundos);
     }
 
     private static double Componente(string hex, int inicio)

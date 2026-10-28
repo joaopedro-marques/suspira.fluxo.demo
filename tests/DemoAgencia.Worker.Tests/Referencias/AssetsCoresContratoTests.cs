@@ -52,7 +52,7 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
-    public async Task HeaderSection_DeclaraBlocosEMolduraDeslocada()
+    public async Task HeaderSection_DeclaraBlocosELayout()
     {
         var loader = await CarregarLoaderAsync();
         var componente = loader.ObterHeaderSectionTemplate();
@@ -61,14 +61,14 @@ public class AssetsCoresContratoTests
         componente.Should().Contain("{{header_colunas}}", "as colunas sao injetadas na ordem sorteada");
         componente.Should().Contain("<!--#bloco titulo-->");
         componente.Should().Contain("<!--#bloco hero-->");
-        componente.Should().Contain("bgcolor=\"{{header_moldura_cor}}\"", "a moldura precisa ser visivel no Outlook");
-        componente.Should().Contain("padding: 10px 10px 22px 10px", "a moldura fica deslocada para cima do hero");
+        componente.Should().Contain("{{header_hero_src}}");
         componente.Should().Contain("{{header_titulo_cor}}");
-        componente.Should().NotContain("{{header_coluna_1}}");
+        componente.Should().NotContain("{{header_moldura_cor}}", "a moldura do hero foi removida");
+        componente.Should().NotContain("<!--#bloco coluna_1-->");
     }
 
     [Fact]
-    public async Task HeaderDaMrv_RenderizaComMolduraECoresLegiveis()
+    public async Task HeaderDaMrv_RenderizaComCoresLegiveis()
     {
         var loader = await CarregarLoaderAsync();
         var estrategia = loader.ObterEstrategia("mrv")!;
@@ -94,7 +94,7 @@ public class AssetsCoresContratoTests
 
         html.Should().NotContain("{{", "todo slot do asset precisa ser resolvido");
         html.Should().NotContain("<!--#bloco", "os blocos sao extraidos do layout");
-        html.Should().Contain("bgcolor=\"#2B1B00\"", "a moldura do amarelo nao pode ser branca");
+        html.Should().NotContain("bgcolor=", "o hero nao tem moldura");
         html.Should().Contain("color: #2B1B00", "o titulo do amarelo precisa ser escuro");
         html.Should().Contain("Titulo do header");
         html.Should().Contain("width=\"220\"");
@@ -116,7 +116,7 @@ public class AssetsCoresContratoTests
     }
 
     [Fact]
-    public async Task Paleta_DeclaraCorDeTextoEMolduraEmTodasAsFases()
+    public async Task Paleta_DeclaraCorDeTextoEmTodasAsFases()
     {
         var estrategia = await CarregarMrvAsync();
         var fasesComCor = estrategia.Fases.Values.Where(f => f.CoresHex.Count > 0).ToList();
@@ -125,14 +125,12 @@ public class AssetsCoresContratoTests
         foreach (var fase in fasesComCor)
         {
             fase.CorTextoHeader.Should().NotBeNullOrWhiteSpace($"{fase.Fase} precisa declarar cor_texto_header");
-            fase.CorMolduraHeader.Should().NotBeNullOrWhiteSpace($"{fase.Fase} precisa declarar cor_moldura_header");
             CorHex.EhHexValido(fase.CorTextoHeader).Should().BeTrue($"{fase.Fase}: cor_texto_header invalida");
-            CorHex.EhHexValido(fase.CorMolduraHeader).Should().BeTrue($"{fase.Fase}: cor_moldura_header invalida");
         }
     }
 
     [Fact]
-    public async Task Paleta_TextoEMolduraTemContrasteMinimoSobreOGradiente()
+    public async Task Paleta_TextoTemContrasteMinimoSobreOGradiente()
     {
         var estrategia = await CarregarMrvAsync();
 
@@ -146,11 +144,6 @@ public class AssetsCoresContratoTests
             contrasteTexto.Should().BeGreaterThanOrEqualTo(
                 CorHex.ContrasteMinimoAbsoluto,
                 $"{fase.Fase}: titulo em {fase.CorTextoHeader} sobre {string.Join(", ", fundos)}");
-
-            var contrasteMoldura = CorHex.ContrasteMinimo(fundos, fase.CorMolduraHeader!);
-            contrasteMoldura.Should().BeGreaterThanOrEqualTo(
-                CorHex.ContrasteMinimoDecorativo,
-                $"{fase.Fase}: moldura em {fase.CorMolduraHeader} sobre {string.Join(", ", fundos)}");
         }
     }
 
