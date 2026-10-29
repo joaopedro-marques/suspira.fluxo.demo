@@ -243,6 +243,132 @@ Arquivos:
 - `ACME_footer.html`
 - `ACME_html_default.html` + `.json`
 
+## Header do email (componente editável)
+
+O header é montado por **um asset por cliente**: `Assets/referencias/components/header_section_{CLIENTE}.html`
+(com fallback para `header_section.html`, usado por todos). A MRV usa
+`header_section_mrv.html`. O código apenas injeta valores; markup e estilos são seus.
+
+- O layout principal usa `{{header_colunas}}` no `<tr>` das colunas.
+- Cada coluna é um bloco: `<!--#bloco titulo--> ... <!--#/bloco-->` e `<!--#bloco hero--> ... <!--#/bloco-->`.
+  A ordem vem de `colunas` no JSON e, se `sortear_ordem` for `true`, é sorteada por entrega.
+  Para adicionar um elemento, crie um bloco novo e liste-o em `colunas`.
+- Slots disponíveis: `{{header_bg}}` (gradiente), `{{header_clip}}` (margem triangular),
+  `{{regua_html}}` (régua), `{{header_titulo}}`, `{{header_titulo_cor}}`,
+  `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}`
+  e `{{header_colunas}}`.
+
+### Régua de jornada (componente editável)
+
+O markup e os estilos da régua vivem em `Assets/referencias/components/regua_section.html`
+(com override por cliente em `regua_section_{CLIENTE}.html`). A régua é um stepper:
+linha fina conectando marcadores circulares por etapa. O código apenas injeta valores:
+
+- `{{regua_etapas}}` — uma célula por etapa, com marcador circular + rótulo.
+- Blocos: `<!--#bloco etapa-concluida-->`, `<!--#bloco etapa-atual-->` e
+  `<!--#bloco etapa-futura-->`.
+- Placeholders dentro dos blocos: `{{cor_esquerda}}` / `{{cor_direita}}` (trechos da
+  linha antes/depois do marcador), `{{cor_marcador}}`, `{{cor_label}}`, `{{largura}}` e
+  `{{label}}`.
+
+Tamanho do marcador, espessura da linha, fonte, espaçamento e opacidade são definidos no
+asset — mexa aí para deixar a régua maior/menor, sem tocar em código.
+
+### Banner do topo
+
+O banner vem de `components/banner_section.html` (imagem `{{banner_src}}`). A altura de
+exibição (hoje `420px`) e o corte (`object-fit: cover`) ficam nesse asset: aumente ou
+diminua o `height` para dar mais/menos presença ao banner. Em clientes que ignoram
+`object-fit` (ex.: Outlook desktop), a imagem é esticada até a altura definida — se isso
+for um problema, remova o `height` fixo e deixe a proporção natural da arte.
+
+As cores continuam vindo de `{CLIENTE}_regua_jornada.json` (`estilo_html` e
+`estilo_html_por_fase`) e são aplicadas como estão, sem ajuste automático.
+
+### Receitas (editar o HTML do bloco)
+
+**Contorno sem preenchimento atrás da foto** — quadrado/retângulo só com borda,
+deslocado alguns pixels acima e à esquerda da imagem (é o que a MRV usa em
+`header_section_mrv.html`):
+
+```html
+<!--#bloco hero-->
+<td width="43%" valign="middle" align="center" style="padding: 0;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+        <tr>
+            <td style="border: 2px solid #FFFFFF; padding: 12px 0 0 12px;">
+                <img src="{{header_hero_src}}" alt="Hero" width="208" border="0"
+                     style="display: block; width: 100%; max-width: 208px; height: auto;">
+            </td>
+        </tr>
+    </table>
+</td>
+<!--#/bloco-->
+```
+
+Ajuste `2px` (espessura) e `12px` (deslocamento) direto no asset — sem tocar em código.
+Não use `position: absolute` nem margens negativas: o Outlook desktop ignora ambos.
+
+Cada cliente tem o seu ficheiro (`header_section_{CLIENTE}.html`); o `header_section.html`
+global é apenas fallback genérico. Personalize sempre no ficheiro do cliente.
+
+Configuração em `Assets/referencias/estrategia/{CLIENTE}_header.json`:
+
+| Campo | Efeito |
+|---|---|
+| `colunas` | Ordem dos blocos (ex.: `["titulo","hero"]`) |
+| `sortear_ordem` | Sorteia a ordem a cada entrega (`false` = determinístico) |
+| `requer_hero` | `false` renderiza o header mesmo sem hero (sem o bloco `hero`) |
+| `clip_path_padrao` / `clip_path_invertido` | Margem inferior triangular |
+| `gradiente_angulo` | Ângulo do gradiente (ex.: `135deg`) |
+| `por_fase` | Overrides por fase: `fundo`, `scrim`, `cor_fundo`, `colunas`, `sortear_ordem` (ver receita abaixo) |
+
+### Receita: hero como fundo do header (full-bleed)
+
+Para uma fase em que a foto do hero deve ocupar o fundo inteiro do header (em vez de
+uma coluna ao lado do título), declare o override `por_fase`:
+
+```json
+{
+  "colunas": ["titulo", "hero"],
+  "sortear_ordem": true,
+  "requer_hero": true,
+  "por_fase": {
+    "pos-chaves": {
+      "fundo": "hero",
+      "scrim": "rgba(0, 0, 0, 0.45)",
+      "cor_fundo": "#1A1A1A"
+    }
+  }
+}
+```
+
+- `fundo: "hero"` usa a foto como `background-image` do header inteiro; a coluna `hero`
+  é omitida automaticamente (a foto *é* o fundo).
+- `scrim` é a camada de cor sobre a foto para garantir contraste do título e da régua.
+  Omitido = `rgba(0, 0, 0, 0.45)`. A foto muda a cada entrega, por isso não dá para
+  confiar no contraste dela: use título/régua claros (ex.: branco).
+- `cor_fundo` é o fallback sólido para clientes que ignoram `background-image`
+  (**Outlook desktop**). Omitido = a primeira cor do gradiente da fase. Sem ele, uma
+  fase de foto com texto branco pode cair num fundo claro no Outlook.
+- Use `colunas` dentro de `por_fase` para trocar a ordem só naquela fase e
+  `sortear_ordem` para desligar o sorteio só nela.
+- A validação de contraste dos assets usa `cor_fundo` nas fases full-bleed (é o que
+  realmente aparece sem a imagem).
+
+Cores por fase (nunca hardcode branco: no amarelo ele fica ilegível):
+
+| Arquivo | Campo | Função |
+|---|---|---|
+| `{CLIENTE}_paleta_de_cores.json` | `cor_texto_header` | Cor do título sobre o gradiente da fase |
+| `{CLIENTE}_regua_jornada.json` | `estilo_html` | Cores da régua (fallback) |
+| `{CLIENTE}_regua_jornada.json` | `estilo_html_por_fase` | Cores da régua por fase (obrigatório quando a fase muda o fundo) |
+
+O renderer usa a cor declarada exatamente como está — não há substituição automática.
+O loader loga warning quando o contraste fica abaixo de 2.5:1 e o teste de contrato dos
+assets (`AssetsCoresContratoTests`) falha se uma fase ficar sem `cor_texto_header`,
+se a régua não tiver override para todas as fases ou se o contraste cair abaixo do piso.
+
 ## Validação
 
 Após adicionar todos os arquivos:

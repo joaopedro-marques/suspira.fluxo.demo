@@ -67,7 +67,8 @@ public static class PipelineContextCloner
             TemaSelecionado = estrategia.TemaSelecionado,
             EtapaMapaEmocional = estrategia.EtapaMapaEmocional,
             FatorDecisao = estrategia.FatorDecisao,
-            Regua = estrategia.Regua
+            Regua = estrategia.Regua,
+            Header = estrategia.Header
         };
     }
 }

@@ -1051,4 +1051,159 @@ public class ReferenciaClienteLoaderTests : IDisposable
 
         loader.ObterHeaderSectionTemplate().Should().BeNull();
     }
+
+    [Fact]
+    public async Task ObterHeaderSectionTemplate_PorCliente_TemPrecedenciaSobreOGlobal()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string global = "<tr><td>global</td></tr>";
+        const string mrv = "<tr><td>mrv</td></tr>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "header_section.html"), global);
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "header_section_mrv.html"), mrv);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterHeaderSectionTemplate("mrv").Should().Be(mrv);
+        loader.ObterHeaderSectionTemplate("acme").Should().Be(global);
+        loader.ObterHeaderSectionTemplate().Should().Be(global);
+    }
+
+    [Fact]
+    public async Task ObterReguaSectionTemplate_WhenComponentExists_ShouldLoad()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string regua = "<table><tr>{{regua_segmentos}}</tr><tr>{{regua_labels}}</tr></table>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section.html"), regua);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate().Should().Be(regua);
+    }
+
+    [Fact]
+    public async Task ObterReguaSectionTemplate_WhenComponentMissing_ShouldReturnNull()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "acme_marca.json"), "{}");
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate().Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ObterReguaSectionTemplate_PorCliente_TemPrecedenciaSobreOGlobal()
+    {
+        var componentsDir = Path.Combine(_tempDir, "components");
+        Directory.CreateDirectory(componentsDir);
+
+        const string global = "<table><tr><td>global</td></tr></table>";
+        const string mrv = "<table><tr><td>mrv</td></tr></table>";
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section.html"), global);
+        await File.WriteAllTextAsync(Path.Combine(componentsDir, "regua_section_mrv.html"), mrv);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        loader.ObterReguaSectionTemplate("mrv").Should().Be(mrv);
+        loader.ObterReguaSectionTemplate("acme").Should().Be(global);
+        loader.ObterReguaSectionTemplate().Should().Be(global);
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_ComHeaderJson_DeveCarregarConfiguracaoDoHeader()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra", "pos-compra"] } } }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_header.json"), """
+            {
+              "colunas": ["hero", "titulo"],
+              "sortear_ordem": false,
+              "requer_hero": false,
+              "clip_path_padrao": "clip-path: polygon(0 0, 1px 0);",
+              "gradiente_angulo": "90deg"
+            }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme");
+
+        estrategia.Should().NotBeNull();
+        estrategia!.Header.Should().NotBeNull();
+        estrategia.Header!.Colunas.Should().Equal("hero", "titulo");
+        estrategia.Header.SortearOrdem.Should().BeFalse();
+        estrategia.Header.RequerHero.Should().BeFalse();
+        estrategia.Header.ClipPathPadrao.Should().Be("clip-path: polygon(0 0, 1px 0);");
+        estrategia.Header.GradienteAngulo.Should().Be("90deg");
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_ComHeaderPorFase_DeveCarregarOverrides()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra"] }, "pre-chaves": {} } }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_header.json"), """
+            {
+              "colunas": ["titulo", "hero"],
+              "por_fase": {
+                "pos-compra": {
+                  "fundo": "hero",
+                  "scrim": "rgba(0, 0, 0, 0.6)",
+                  "cor_fundo": "#1A1A1A",
+                  "colunas": ["titulo"],
+                  "sortear_ordem": false
+                },
+                "pre-chaves": {
+                  "fundo": "gradiente"
+                }
+              }
+            }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var header = loader.ObterEstrategia("acme")!.Header!;
+
+        header.PorFase.Should().ContainKeys("pos-compra", "pre-chaves");
+        var posCompra = header.PorFase["pos-compra"];
+        posCompra.UsaHeroComoFundo.Should().BeTrue();
+        posCompra.Scrim.Should().Be("rgba(0, 0, 0, 0.6)");
+        posCompra.CorFundo.Should().Be("#1A1A1A");
+        posCompra.Colunas.Should().Equal("titulo");
+        posCompra.SortearOrdem.Should().BeFalse();
+        header.PorFase["pre-chaves"].UsaHeroComoFundo.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ObterEstrategia_SemHeaderJson_UsaPadroesDoHeader()
+    {
+        var estrategiaDir = Path.Combine(_tempDir, "estrategia");
+        Directory.CreateDirectory(estrategiaDir);
+        await File.WriteAllTextAsync(Path.Combine(estrategiaDir, "acme_fases.json"), """
+            { "fases": { "pos-compra": { "sinonimos": ["pos compra", "pos-compra"] } } }
+            """);
+
+        var loader = new ReferenciaClienteLoader(_loggerMock.Object, _configuration, _tempDir);
+        await loader.StartAsync(CancellationToken.None);
+
+        var estrategia = loader.ObterEstrategia("acme")!;
+
+        estrategia.Header.Should().BeNull();
+        HeaderConfig.ColunasPadrao.Should().Equal("titulo", "hero");
+    }
 }

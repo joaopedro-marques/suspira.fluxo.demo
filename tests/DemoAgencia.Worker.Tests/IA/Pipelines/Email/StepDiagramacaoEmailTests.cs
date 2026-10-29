@@ -63,6 +63,118 @@ public class StepDiagramacaoEmailTests
         context.Copy!.Corpo.Should().Be(diagrammed);
     }
 
+    private static PipelineContext CriarContextoComPaleta(params string[] cores)
+    {
+        var context = CriarContexto();
+        context.Estrategia = new EstrategiaEmail
+        {
+            Fase = "pos-compra",
+            FaseDados = new FaseEstrategia
+            {
+                Fase = "pos-compra",
+                CoresHex = cores.Select(cor => new List<string> { cor }).ToList()
+            }
+        };
+        return context;
+    }
+
+    private static PipelineContext CriarContextoComPaletaECorTexto(string corTextoHeader, params string[] cores)
+    {
+        var context = CriarContextoComPaleta(cores);
+        context.Estrategia!.FaseDados!.CorTextoHeader = corTextoHeader;
+        return context;
+    }
+
+    private void ConfigurarResposta(string html)
+    {
+        _chatMock.Setup(c => c.ChamarAgenteAsync(
+            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<double>(),
+            It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(html);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithColorOutsidePalette_ShouldReplaceWithNearestPaletteColor()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td style="background-color: #FF0000;"><p style="color: #333333;">Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContextoComPaleta("#784099", "#AB40D9");
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().NotContain("#FF0000");
+        context.Copy.Corpo.Should().Contain("#784099");
+        context.Copy.Corpo.Should().Contain("#333333", "cinzas estruturais sao permitidos");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithBgcolorOutsidePalette_ShouldReplaceWithPaletteColor()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td bgcolor="#FF0000"><p>Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContextoComPaleta("#784099", "#AB40D9");
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().NotContain("#FF0000");
+        context.Copy.Corpo.Should().Contain("bgcolor=\"#784099\"");
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithPaletteColors_ShouldPreserveThemExactly()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td style="background-color: #ab40d9; color: #784099;"><p>Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContextoComPaleta("#784099", "#AB40D9");
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().Be(diagrammed);
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithLightTintOutsidePalette_ShouldUseTintOfPhaseColorNotWhite()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td bgcolor="#FFF0F5" style="background-color: #FFF0F5;"><p style="color: #333333;">Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContextoComPaletaECorTexto("#FFFFFF", "#784099", "#AB40D9");
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().NotContain("#FFF0F5", "a cor fora da etapa e substituida");
+        context.Copy.Corpo.Should().NotContain("#FFFFFF", "a cor de texto do header nunca e destino da substituicao");
+        CorHex.EhHexValido(ExtrairCorDoPrimeiroBg(context.Copy.Corpo)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ExecutarAsync_WithLightTint_ShouldPreserveContrastToneOfPhaseColor()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td style="background-color: #FFF0F5;"><p style="color: #333333;">Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContextoComPaletaECorTexto("#FFFFFF", "#784099", "#AB40D9");
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        var cor = ExtrairCorDoPrimeiroBg(context.Copy!.Corpo);
+        CorHex.Luminancia(cor).Should().BeGreaterThan(0.5, "o tom claro da etapa preserva o peso visual do fundo");
+    }
+
+    private static string ExtrairCorDoPrimeiroBg(string html)
+        => System.Text.RegularExpressions.Regex.Match(html, @"background-color:\s*(#[0-9a-fA-F]{6})").Groups[1].Value;
+
+    [Fact]
+    public async Task ExecutarAsync_WithoutPalette_ShouldNotRewriteColors()
+    {
+        var diagrammed = """<table width="600" border="0"><tr><td style="background-color: #FF0000;"><p>Conteudo</p></td></tr></table>""";
+        ConfigurarResposta(diagrammed);
+
+        var context = CriarContexto();
+        context = await _step.ExecutarAsync(context, CancellationToken.None);
+
+        context.Copy!.Corpo.Should().Be(diagrammed);
+    }
+
     [Fact]
     public async Task ExecutarAsync_WithDivTag_ShouldKeepOriginalCorpo()
     {
@@ -367,7 +479,7 @@ public class StepDiagramacaoEmailTests
     }
 
     [Fact]
-    public async Task MontarPromptAsync_WithCoresHex_ShouldIncludeHexColors()
+    public async Task MontarPromptAsync_WithCoresHex_ShouldIncludeOnlyPhaseIdentityColors()
     {
         var context = new PipelineContext
         {
@@ -385,8 +497,7 @@ public class StepDiagramacaoEmailTests
                     CoresHex = new List<List<string>>
                     {
                         new() { "#784099" },
-                        new() { "#AB40D9" },
-                        new() { "#006B40" }
+                        new() { "#AB40D9" }
                     }
                 }
             }
@@ -394,14 +505,36 @@ public class StepDiagramacaoEmailTests
 
         var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
 
-        prompt.Should().Contain("Cores hex da fase:");
+        prompt.Should().Contain("Cores da etapa da jornada:");
         prompt.Should().Contain("#784099");
         prompt.Should().Contain("#AB40D9");
-        prompt.Should().Contain("#006B40");
+        prompt.Should().Contain("NUNCA use qualquer outra cor");
     }
 
     [Fact]
-    public async Task MontarPromptAsync_WithGradientes_ShouldIncludeGradientInfo()
+    public async Task MontarPromptAsync_WithPalette_ShouldRequirePhaseColorsInTheBody()
+    {
+        var context = CriarContextoComPaleta("#784099", "#AB40D9");
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("O corpo NAO pode ficar todo branco/cinza");
+        prompt.Should().Contain("pelo menos um bloco de destaque");
+        prompt.Should().Contain("#784099 (texto #FFFFFF", "o prompt informa o par de contraste da cor da etapa");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithLightPhaseColor_ShouldRecommendDarkText()
+    {
+        var context = CriarContextoComPaleta("#FFDD02");
+
+        var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
+
+        prompt.Should().Contain("#FFDD02 (texto #1A1A1A", "amarelo precisa de texto escuro");
+    }
+
+    [Fact]
+    public async Task MontarPromptAsync_WithGradientesDaMarca_ShouldNotOfferThemAsPhaseColors()
     {
         var context = new PipelineContext
         {
@@ -419,7 +552,8 @@ public class StepDiagramacaoEmailTests
                     CoresHex = new List<List<string>>
                     {
                         new() { "gradiente", "linear", "diagonal", "#006B40", "#039E56", "#006B40" },
-                        new() { "#784099" }
+                        new() { "#784099" },
+                        new() { "#AB40D9" }
                     }
                 }
             }
@@ -427,8 +561,9 @@ public class StepDiagramacaoEmailTests
 
         var prompt = await StepDiagramacaoEmail.MontarPromptAsync(context, _refsMock.Object, _iconCacheMock.Object);
 
-        prompt.Should().Contain("Gradientes da fase:");
-        prompt.Should().Contain("linear diagonal #006B40, #039E56, #006B40");
+        prompt.Should().Contain("Cores da etapa da jornada: #784099, #AB40D9");
+        prompt.Should().NotContain("#006B40");
+        prompt.Should().NotContain("#039E56");
     }
 
     [Fact]

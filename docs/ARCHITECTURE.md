@@ -232,9 +232,9 @@ sequenceDiagram
 | `StepMapaEmocionalEmail` | LLM (classificador) | `deepseek/deepseek-v3.2` | Associa o email a uma etapa do mapa emocional (LLM escolhe entre as etapas existentes; fator E/R lido do mapa). Degradação graciosa se parse falhar |
 | `StepMarcaEmail` | Retrieval determinístico | N/A | Carrega logo do cliente |
 | `StepCopyEmail` | LLM (few-shot) | `qwen/qwen3.7-plus` | Gera assunto, preheader, título, saudação, corpo, CTA, rodapé. Prompt inclui Tom do brief (extraído pelo router) e hex codes da fase da paleta JSON |
-| `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis (nomes exatos) e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido. Prompt reforçado: usa APENAS nomes exatos de ícones listados, nunca inventa |
+| `StepDiagramacaoEmail` | LLM + guarda determinística | `qwen/qwen3.7-plus` | Recebe copy + estratégia (cores/temas) + ícones disponíveis (nomes exatos) e gera seções HTML diagramadas (table-based, inline CSS). Guarda rejeita `<div>`/`<style>`/`<script>` e exige `<table>`. Fallback para corpo original se inválido. Guarda de paleta: usa apenas as cores de identidade da etapa da jornada (ignora os gradientes fixos da marca) e reescreve qualquer cor cromática fora da paleta para a cor da etapa mais próxima; tons claros viram tons claros da cor da etapa (a cor de texto do header, normalmente branca, nunca é destino da substituição) e neutros (branco/preto/cinza) permanecem para texto e estrutura. Prompt reforçado: usa APENAS nomes exatos de ícones listados e as cores da etapa como fundo de destaque, nunca inventa e nunca deixa o corpo todo cinza |
 | `StepImagemHero` | Retrieval + LLM (curador) + API | `qwen/qwen3.7-plus` (hero) + `deepseek/deepseek-v3.2` (curador) | Seleciona banners por scoring: prioriza match no nome do tema, depois fallback para score por sub-jornada/fase/texto; descreve candidatos com visão (BannerDescricaoCache) e valida compatibilidade via curador (fail-open); primeiro compatível é anexado; nenhum compatível ou sem candidatos mas há oferta → gera hero via IA com imagem limpa, sem nenhum texto e sem régua desenhada (a régua de jornada é renderizada em HTML no header), com diretriz de composição para uso ao lado do título no header e direção de arte das referências (paleta da fase, tom emocional, identidade visual do cliente); extensão da imagem detectada por magic bytes (PNG/JPEG/GIF/WebP) para consistência HTML/zip; em refação QA → pula seleção e regenera direto |
-| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots; quando o template tem `{{header_section}}` e há hero, monta o header MRV (fundo gradiente na cor da etapa, régua de jornada em HTML no topo, título branco ao lado do hero menor que o background e margem inferior triangular arredondada) com o lado sorteado uma única vez por entrega (`PipelineContext.HeaderLayoutInvertido`) |
+| `StepTemplateEmail` | Template + slots | N/A | Resolve template via ITemplateCatalogo (context.TemplateId ou default); preenche HTML table-based com slots; quando o template tem `{{header_section}}` e há hero, monta o header (fundo gradiente na cor da etapa ou foto full-bleed com scrim em fases com `por_fase.fundo: hero`, régua de jornada em HTML no topo, título na cor declarada pela fase ao lado do hero e margem inferior triangular arredondada) com o lado sorteado uma única vez por entrega (`PipelineContext.HeaderLayoutInvertido`); markup/estilo vêm dos assets `components/header_section_{CLIENTE}.html` (blocos `titulo`/`hero`) e `components/regua_section.html` (blocos `segmento`/`label-*`); cores de `cor_texto_header` e `estilo_html_por_fase` são usadas como declaradas e validadas por contraste no contrato dos assets |
 | `StepAssetsEmail` | Retrieval determinístico + sanitização | N/A | Resolve referências `assets/...` no HTML final contra o banco de assets do cliente e as empacota; **remove tags `<img>` com referências não resolvidas** (sanitização determinística contra alucinações do LLM) |
 | `StepQaEmail` | LLM (branch explícito) | `deepseek/deepseek-r1-0528` | Avalia entregável; retorna `step_alvo` se reprovar |
 
@@ -266,7 +266,7 @@ Cada template tem uma estrutura fixa (banner, saudação, despedida, rodapé) co
 <!-- Estrutura principal -->
 <table width="600">
   <tr><td>{{banner_section}}</td></tr>  <!-- Condicional: banner de referência da etapa ou vazio -->
-  {{header_section}}  <!-- Condicional: header MRV (gradiente da etapa + régua + título + hero) -->
+  {{header_section}}  <!-- Condicional: header (gradiente da etapa + régua + título + hero) -->
   <tr><td>Olá, %%NOME%%!</td></tr>  <!-- Saudação fixa, placeholder do cliente -->
   <tr><td>{{corpo}}</td></tr>        <!-- Conteúdo dinâmico gerado pela IA -->
   <tr><td><a href="{{cta_link}}">{{cta_texto}}</a></td></tr>
@@ -299,7 +299,8 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 ### Placeholders
 
 - **Pipeline**: `{{assunto}}`, `{{preheader}}`, `{{titulo}}`, `{{saudacao}}`, `{{corpo}}` (HTML cru), `{{cta_link}}`, `{{cta_texto}}`, `{{logo_src}}`, `{{rodape}}`, `{{banner_section}}`, `{{banner_src}}`, `{{hero_section}}`, `{{hero_src}}`, `{{header_section}}`
-- **Componente header_section** (preenchidos por `HeaderEmailBuilder`/`ReguaHtmlBuilder`): `{{header_bg}}` (gradiente da fase), `{{header_clip}}` (margem inferior triangular), `{{regua_html}}` (régua em HTML), `{{header_coluna_1}}` e `{{header_coluna_2}}` (título branco e imagem hero, na ordem do layout sorteado)
+- **Componente header_section** (preenchidos por `HeaderEmailBuilder`/`ReguaHtmlBuilder`): `{{header_bg}}` (gradiente da fase), `{{header_clip}}` (margem inferior triangular), `{{regua_html}}` (régua em HTML), `{{header_titulo}}`, `{{header_titulo_cor}}`, `{{header_titulo_align}}`, `{{header_titulo_padding}}`, `{{header_hero_src}}` e `{{header_colunas}}` (blocos `titulo` e `hero` na ordem do layout sorteado). O markup e os estilos vivem no asset `components/header_section.html`; o código só injeta valores.
+- **Componente regua_section** (`components/regua_section.html`, override por cliente em `regua_section_{CLIENTE}.html`): stepper com `{{regua_etapas}}` e blocos `etapa-concluida`, `etapa-atual` e `etapa-futura`, preenchidos com `{{cor_esquerda}}`, `{{cor_direita}}`, `{{cor_marcador}}`, `{{cor_label}}`, `{{largura}}` e `{{label}}`. Tamanho dos marcadores, espessura da linha, fonte e opacidade vivem no asset.
 - **Cliente (passam direto)**: `%%NOME%%`, `%%Protocolo%%`, `%%Imovel%%`, `%%Pedido%%`, `%%tempo%%` — preenchidos pelo ESP do cliente
 
 ### Características do Template
@@ -311,7 +312,7 @@ O `TemplateCatalogo` carrega todos os templates e sidecars. A seleção é deter
 - **Max-width 600px**: Padrão de email marketing
 - **CTA bulletproof**: Botão como tabela, não `<a>` com background
 - **Hero section**: Condicional (`{{hero_section}}` preenchido ou vazio)
-- **Header section**: Condicional (`{{header_section}}` montado quando há hero e o template declara o slot; inclui gradiente da etapa, régua em HTML, título branco e hero menor que o background; `clip-path`/gradiente degradam para retângulo com a cor sólida da fase em clientes sem suporte, como Outlook desktop)
+- **Header section**: Condicional (`{{header_section}}` montado quando há hero e o template declara o slot, salvo `requer_hero: false`; inclui gradiente da etapa, régua em HTML, título na cor declarada pela fase e hero; `clip-path`/gradiente degradam para retângulo com a cor sólida da fase em clientes sem suporte, como Outlook desktop). O markup vem de `components/header_section_{CLIENTE}.html` e `components/regua_section_{CLIENTE}.html` (fallback global); ordem das colunas, `clip_path` e ângulo do gradiente vêm de `estrategia/{CLIENTE}_header.json`; a cor do título vem de `cor_texto_header` e as da régua de `estilo_html`/`estilo_html_por_fase`, usadas como declaradas e validadas por contraste (`CorHex`) no contrato dos assets. `por_fase` permite overrides por fase: `fundo: hero` usa a foto como fundo full-bleed do header (com `scrim` configurável e `cor_fundo` de fallback para quem ignora `background-image`) e omite a coluna hero; `colunas`/`sortear_ordem` podem variar por fase.
 - **Banner section**: Condicional (`{{banner_section}}` preenchido com banner da etapa ou vazio; quando presente, hero é suprimido)
 - **Empacotamento de assets**: `StepAssetsEmail` resolve referências `assets/...` no HTML contra o banco de referências e as inclui no zip final
 - **HTML escaping**: Slots de texto escapados via `WebUtility.HtmlEncode`
@@ -328,7 +329,7 @@ O `StepTemplateEmail` tem testes unitários cobrindo:
 6. **Max-width**: `max-width: 600px`
 7. **CTA bulletproof**: Tabela ao redor do link
 8. **Hero condicional**: Presente quando `hero_src` definido, ausente quando nulo
-9. **Header section condicional**: header montado com gradiente da fase, régua em HTML, título branco e hero; slot removido quando não há hero
+9. **Header section condicional**: header montado com gradiente da fase, régua em HTML, título na cor declarada pela fase e hero; slot removido quando não há hero
 10. **HTML escaping**: Caracteres especiais escapados (`&lt;`, `&amp;`, `&quot;`)
 11. **Resultado final**: `ResultadoPipeline.RespostaFinal` = HTML completo
 12. **Logo**: `logo_src` preenchido corretamente

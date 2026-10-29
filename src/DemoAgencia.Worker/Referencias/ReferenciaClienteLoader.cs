@@ -14,6 +14,9 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
     private string? _heroSectionTemplate;
     private string? _bannerSectionTemplate;
     private string? _headerSectionTemplate;
+    private readonly Dictionary<string, string> _headerSectionTemplatesPorCliente = new(StringComparer.OrdinalIgnoreCase);
+    private string? _reguaSectionTemplate;
+    private readonly Dictionary<string, string> _reguaSectionTemplatesPorCliente = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _maxCharsPorArquivo;
 
     private static readonly HashSet<string> ExtencoesImagem = new(StringComparer.OrdinalIgnoreCase)
@@ -234,9 +237,26 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return _bannerSectionTemplate;
     }
 
-    public virtual string? ObterHeaderSectionTemplate()
+    public virtual string? ObterHeaderSectionTemplate(string? cliente = null)
     {
+        if (!string.IsNullOrWhiteSpace(cliente)
+            && _headerSectionTemplatesPorCliente.TryGetValue(cliente.Trim(), out var especifico))
+        {
+            return especifico;
+        }
+
         return _headerSectionTemplate;
+    }
+
+    public virtual string? ObterReguaSectionTemplate(string? cliente = null)
+    {
+        if (!string.IsNullOrWhiteSpace(cliente)
+            && _reguaSectionTemplatesPorCliente.TryGetValue(cliente.Trim(), out var especifico))
+        {
+            return especifico;
+        }
+
+        return _reguaSectionTemplate;
     }
 
     private void CarregarEstrategias(string assetsPath)
@@ -283,7 +303,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         {
             try
             {
-                var estrategia = MontarEstrategia(cliente, tipos);
+                var estrategia = MontarEstrategia(cliente, tipos, _logger);
                 if (estrategia != null)
                 {
                     _estrategiaPorCliente[cliente] = estrategia;
@@ -382,17 +402,61 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             _logger.LogDebug("Template banner_section.html carregado");
         }
 
-        var headerFile = Path.Combine(componentsPath, "header_section.html");
-        if (File.Exists(headerFile))
+        CarregarTemplatesPorCliente(
+            componentsPath,
+            "header_section",
+            "header",
+            template => _headerSectionTemplate = template,
+            _headerSectionTemplatesPorCliente);
+
+        CarregarTemplatesPorCliente(
+            componentsPath,
+            "regua_section",
+            "regua",
+            template => _reguaSectionTemplate = template,
+            _reguaSectionTemplatesPorCliente);
+    }
+
+    /// <summary>
+    /// Carrega componentes no padrao <c>{prefixo}.html</c> (global) e
+    /// <c>{prefixo}_{CLIENTE}.html</c> (override por cliente).
+    /// </summary>
+    private void CarregarTemplatesPorCliente(
+        string componentsPath,
+        string prefixo,
+        string descricao,
+        Action<string> definirGlobal,
+        IDictionary<string, string> porCliente)
+    {
+        foreach (var arquivo in Directory.GetFiles(componentsPath, $"{prefixo}*.html"))
         {
-            _headerSectionTemplate = File.ReadAllText(headerFile);
-            _logger.LogDebug("Template header_section.html carregado");
+            var nome = Path.GetFileNameWithoutExtension(arquivo);
+            var conteudo = File.ReadAllText(arquivo);
+
+            if (nome.Equals(prefixo, StringComparison.OrdinalIgnoreCase))
+            {
+                definirGlobal(conteudo);
+                _logger.LogDebug("Template {Prefixo}.html carregado", prefixo);
+                continue;
+            }
+
+            if (!nome.StartsWith($"{prefixo}_", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var sufixo = nome[(prefixo.Length + 1)..];
+            if (sufixo.Length == 0)
+                continue;
+
+            porCliente[sufixo] = conteudo;
+            _logger.LogDebug("Template de {Descricao} especifico carregado: {Nome}", descricao, nome);
         }
     }
 
     private static string NormalizarTipoEstrategia(string nomeArquivo)
     {
         var lower = nomeArquivo.ToLowerInvariant();
+        if (lower == "header")
+            return "header";
         if (lower.Contains("fases"))
             return "fases";
         if (lower.Contains("regua"))
@@ -408,7 +472,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return "";
     }
 
-    private static EstrategiaCliente? MontarEstrategia(string cliente, Dictionary<string, string> tipos)
+    private static EstrategiaCliente? MontarEstrategia(string cliente, Dictionary<string, string> tipos, ILogger logger)
     {
         var estrategia = new EstrategiaCliente { Cliente = cliente };
 
@@ -422,8 +486,13 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             estrategia.ConfiguracaoFases = CriarConfiguracaoFasesPadrao(tipos);
         }
 
+        // O header e lido antes da paleta para a validacao de contraste dos assets
+        // considerar overrides por fase (ex.: fundo hero com cor de fallback).
+        if (tipos.TryGetValue("header", out var headerJson))
+            ProcessarHeader(estrategia, headerJson, logger);
+
         if (tipos.TryGetValue("paleta", out var paletaJson))
-            ProcessarPaleta(estrategia, paletaJson);
+            ProcessarPaleta(estrategia, paletaJson, logger);
 
         if (tipos.TryGetValue("temas", out var temasJson))
             ProcessarTemas(estrategia, temasJson);
@@ -435,7 +504,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             ProcessarMapa(estrategia, mapaJson);
 
         if (tipos.TryGetValue("regua", out var reguaJson))
-            ProcessarRegua(estrategia, reguaJson);
+            ProcessarRegua(estrategia, reguaJson, logger);
 
         return estrategia.Fases.Count > 0 || estrategia.MapaEmocional.Count > 0 || estrategia.Regua != null || estrategia.ConfiguracaoFases != null
             ? estrategia
@@ -510,7 +579,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         return config.Fases.Count > 0 ? config : new FasesConfig();
     }
 
-    private static void ProcessarPaleta(EstrategiaCliente estrategia, string json)
+    private static void ProcessarPaleta(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -530,6 +599,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
             var faseEstrategia = ObterOuCriarFase(estrategia, fase);
             faseEstrategia.CorPrincipal = corPrincipal;
             faseEstrategia.DescricaoCor = descricao;
+            faseEstrategia.CorTextoHeader = LerCorHexDoJson(item, "cor_texto_header", estrategia.Cliente, fase, logger);
 
             if (item.TryGetProperty("cores_hex_aproximadas", out var hexArr) && hexArr.ValueKind == JsonValueKind.Array)
             {
@@ -541,13 +611,92 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
                         foreach (var hex in hexItem.EnumerateArray())
                         {
                             var s = hex.GetString();
-                            if (!string.IsNullOrEmpty(s)) linha.Add(s);
+                            if (string.IsNullOrEmpty(s))
+                                continue;
+
+                            if (!s.StartsWith('#'))
+                            {
+                                linha.Add(s);
+                                continue;
+                            }
+
+                            if (CorHex.TryNormalizar(s, out var normalizada))
+                                linha.Add(normalizada);
+                            else
+                                logger.LogWarning(
+                                    "Cor hex invalida descartada na paleta de {Cliente}/{Fase}: {Cor}",
+                                    estrategia.Cliente, fase, s);
                         }
                         faseEstrategia.CoresHex.Add(linha);
                     }
                 }
             }
+
+            ValidarCoresHeader(estrategia, faseEstrategia, logger);
         }
+    }
+
+    private static string? LerCorHexDoJson(JsonElement item, string propriedade, string cliente, string fase, ILogger logger)
+    {
+        if (!item.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return null;
+
+        var bruto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(bruto))
+            return null;
+
+        if (CorHex.TryNormalizar(bruto, out var cor))
+            return cor;
+
+        logger.LogWarning(
+            "Cor invalida em {Propriedade} da paleta de {Cliente}/{Fase}: {Cor}. Use #RGB ou #RRGGBB.",
+            propriedade, cliente, fase, bruto);
+        return null;
+    }
+
+    /// <summary>
+    /// Avisa quando uma cor declarada para o header fica ilegivel sobre o fundo do gradiente.
+    /// O build nao falha e o renderer nao altera a cor: o teste de contrato dos assets acusa.
+    /// </summary>
+    private static void ValidarCoresHeader(EstrategiaCliente estrategia, FaseEstrategia fase, ILogger logger)
+    {
+        var fundos = FundosEfetivosHeader(estrategia, fase);
+        if (fundos.Count == 0)
+            return;
+
+        if (fase.CorTextoHeader != null)
+            ValidarContraste(estrategia.Cliente, fase, "cor_texto_header", fase.CorTextoHeader, fundos, logger);
+    }
+
+    /// <summary>
+    /// Fundos usados na validacao. Fases com fundo hero sao validadas contra a cor solida
+    /// de fallback: a foto + scrim e o fundo real, mas quem ignora background-image
+    /// (Outlook desktop) ve essa cor.
+    /// </summary>
+    private static IReadOnlyCollection<string> FundosEfetivosHeader(EstrategiaCliente estrategia, FaseEstrategia fase)
+    {
+        var faseHeader = estrategia.Header?.ObterFase(fase.Fase);
+        if (faseHeader?.UsaHeroComoFundo == true && faseHeader.CorFundo is { } corFundo)
+            return new[] { corFundo };
+
+        return CoresFase.Gradiente(fase);
+    }
+
+    private static void ValidarContraste(
+        string cliente,
+        FaseEstrategia fase,
+        string propriedade,
+        string cor,
+        IReadOnlyCollection<string> fundos,
+        ILogger logger)
+    {
+        var contraste = CorHex.ContrasteMinimo(fundos, cor);
+        if (contraste >= CorHex.ContrasteMinimoAbsoluto)
+            return;
+
+        logger.LogWarning(
+            "{Propriedade} de {Cliente}/{Fase} ({Cor}) tem contraste {Contraste:0.00}:1 sobre o fundo do header. Minimo {Minimo:0.0}:1; a cor declarada sera usada como esta.",
+            propriedade, cliente, fase.Fase, cor, contraste, CorHex.ContrasteMinimoAbsoluto);
     }
 
     private static void ProcessarTemas(EstrategiaCliente estrategia, string json)
@@ -653,7 +802,7 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
         }
     }
 
-    private static void ProcessarRegua(EstrategiaCliente estrategia, string json)
+    private static void ProcessarRegua(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -714,33 +863,214 @@ public class ReferenciaClienteLoader : IHostedService, IReferenciasCliente
 
         // Extrair cores da regua renderizada em HTML no header do email
         if (reguaObj.TryGetProperty("estilo_html", out var estiloHtmlObj))
+            regua.EstiloHtml = LerEstiloHtml(estrategia.Cliente, "estilo_html", estiloHtmlObj, logger);
+
+        // Overrides por fase: a regua fica sobre o fundo do header, que muda a cada fase
+        if (reguaObj.TryGetProperty("estilo_html_por_fase", out var estiloPorFaseObj)
+            && estiloPorFaseObj.ValueKind == JsonValueKind.Object)
         {
-            var estiloHtml = new EstiloReguaHtml();
-
-            if (estiloHtmlObj.TryGetProperty("cor_concluida", out var corConcluida))
-                estiloHtml.CorConcluida = corConcluida.GetString() ?? estiloHtml.CorConcluida;
-
-            if (estiloHtmlObj.TryGetProperty("cor_atual", out var corAtual))
-                estiloHtml.CorAtual = corAtual.GetString() ?? estiloHtml.CorAtual;
-
-            if (estiloHtmlObj.TryGetProperty("cor_futura", out var corFutura))
-                estiloHtml.CorFutura = corFutura.GetString() ?? estiloHtml.CorFutura;
-
-            if (estiloHtmlObj.TryGetProperty("cor_label", out var corLabel))
-                estiloHtml.CorLabel = corLabel.GetString() ?? estiloHtml.CorLabel;
-
-            if (estiloHtmlObj.TryGetProperty("cor_label_atual", out var corLabelAtual))
-                estiloHtml.CorLabelAtual = corLabelAtual.GetString() ?? estiloHtml.CorLabelAtual;
-
-            regua.EstiloHtml = estiloHtml;
+            foreach (var faseProp in estiloPorFaseObj.EnumerateObject())
+            {
+                regua.EstiloHtmlPorFase[faseProp.Name] =
+                    LerEstiloHtml(estrategia.Cliente, $"estilo_html_por_fase.{faseProp.Name}", faseProp.Value, logger);
+            }
         }
 
         estrategia.Regua = regua;
     }
 
-    private static void ProcessarFases(EstrategiaCliente estrategia, string json)
+    private static EstiloReguaHtml LerEstiloHtml(string cliente, string contexto, JsonElement obj, ILogger logger)
+    {
+        var padrao = new EstiloReguaHtml();
+        var estilo = new EstiloReguaHtml
+        {
+            CorConcluida = LerCorRegua(obj, "cor_concluida", cliente, contexto, padrao.CorConcluida, logger),
+            CorAtual = LerCorRegua(obj, "cor_atual", cliente, contexto, padrao.CorAtual, logger),
+            CorLabel = LerCorRegua(obj, "cor_label", cliente, contexto, padrao.CorLabel, logger),
+            CorLabelAtual = LerCorRegua(obj, "cor_label_atual", cliente, contexto, padrao.CorLabelAtual, logger)
+        };
+
+        // cor_futura pode ser rgba()/transparent (translucida por design); aceita como veio
+        if (obj.TryGetProperty("cor_futura", out var futura) && futura.ValueKind == JsonValueKind.String)
+        {
+            var valor = futura.GetString();
+            if (!string.IsNullOrWhiteSpace(valor))
+                estilo.CorFutura = valor;
+        }
+
+        return estilo;
+    }
+
+    private static string LerCorRegua(
+        JsonElement obj,
+        string propriedade,
+        string cliente,
+        string contexto,
+        string valorPadrao,
+        ILogger logger)
+    {
+        if (!obj.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return valorPadrao;
+
+        var bruto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(bruto))
+            return valorPadrao;
+
+        if (CorHex.TryNormalizar(bruto, out var cor))
+            return cor;
+
+        logger.LogWarning(
+            "Cor invalida em {Contexto}.{Propriedade} de {Cliente}: {Cor}. Mantendo {Padrao}.",
+            contexto, propriedade, cliente, bruto, valorPadrao);
+        return valorPadrao;
+    }
+
+    private static void ProcessarHeader(EstrategiaCliente estrategia, string json, ILogger logger)
     {
         using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        var header = new HeaderConfig();
+
+        if (root.TryGetProperty("colunas", out var colunas))
+        {
+            var lista = LerNomesDeBlocos(colunas);
+            if (lista.Count > 0)
+                header.Colunas = lista;
+        }
+
+        if (root.TryGetProperty("sortear_ordem", out var sortear)
+            && sortear.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            header.SortearOrdem = sortear.GetBoolean();
+        }
+
+        if (root.TryGetProperty("requer_hero", out var requer)
+            && requer.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            header.RequerHero = requer.GetBoolean();
+        }
+
+        header.ClipPathPadrao = LerTextoHeader(root, "clip_path_padrao", header.ClipPathPadrao, estrategia.Cliente, logger);
+        header.ClipPathInvertido = LerTextoHeader(root, "clip_path_invertido", header.ClipPathInvertido, estrategia.Cliente, logger);
+        header.GradienteAngulo = LerTextoHeader(root, "gradiente_angulo", header.GradienteAngulo, estrategia.Cliente, logger);
+
+        if (root.TryGetProperty("por_fase", out var porFaseObj) && porFaseObj.ValueKind == JsonValueKind.Object)
+            LerOverridesPorFase(estrategia, porFaseObj, header, logger);
+
+        estrategia.Header = header;
+    }
+
+    private static void LerOverridesPorFase(
+        EstrategiaCliente estrategia,
+        JsonElement porFaseObj,
+        HeaderConfig header,
+        ILogger logger)
+    {
+        foreach (var faseProp in porFaseObj.EnumerateObject())
+        {
+            if (faseProp.Value.ValueKind != JsonValueKind.Object)
+                continue;
+
+            var config = new HeaderFaseConfig();
+
+            if (faseProp.Value.TryGetProperty("fundo", out var fundo) && fundo.ValueKind == JsonValueKind.String)
+            {
+                var valor = fundo.GetString()?.Trim().ToLowerInvariant();
+                if (valor is "hero" or "gradiente")
+                {
+                    config.Fundo = valor;
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Valor invalido em por_fase.{Fase}.fundo do header de {Cliente}: {Valor}. Use \"hero\" ou \"gradiente\".",
+                        faseProp.Name, estrategia.Cliente, fundo.GetString());
+                }
+            }
+
+            if (faseProp.Value.TryGetProperty("scrim", out var scrim) && scrim.ValueKind == JsonValueKind.String)
+            {
+                var valor = scrim.GetString();
+                if (!string.IsNullOrWhiteSpace(valor))
+                    config.Scrim = valor.Trim();
+            }
+
+            if (faseProp.Value.TryGetProperty("cor_fundo", out var corFundo) && corFundo.ValueKind == JsonValueKind.String)
+            {
+                var bruto = corFundo.GetString();
+                if (CorHex.TryNormalizar(bruto, out var normalizada))
+                {
+                    config.CorFundo = normalizada;
+                }
+                else if (!string.IsNullOrWhiteSpace(bruto))
+                {
+                    logger.LogWarning(
+                        "Cor invalida em por_fase.{Fase}.cor_fundo do header de {Cliente}: {Cor}. Use #RGB ou #RRGGBB.",
+                        faseProp.Name, estrategia.Cliente, bruto);
+                }
+            }
+
+            if (faseProp.Value.TryGetProperty("colunas", out var colunasFase))
+            {
+                var lista = LerNomesDeBlocos(colunasFase);
+                if (lista.Count > 0)
+                    config.Colunas = lista;
+            }
+
+            if (faseProp.Value.TryGetProperty("sortear_ordem", out var sortearFase)
+                && sortearFase.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            {
+                config.SortearOrdem = sortearFase.GetBoolean();
+            }
+
+            var chave = faseProp.Name.Trim();
+            if (chave.Length > 0)
+                header.PorFase[chave] = config;
+        }
+    }
+
+    private static List<string> LerNomesDeBlocos(JsonElement valor)
+    {
+        var lista = new List<string>();
+        if (valor.ValueKind != JsonValueKind.Array)
+            return lista;
+
+        foreach (var item in valor.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+                continue;
+
+            var nome = item.GetString();
+            if (!string.IsNullOrWhiteSpace(nome))
+                lista.Add(nome.Trim());
+        }
+
+        return lista;
+    }
+
+    private static string LerTextoHeader(JsonElement root, string propriedade, string padrao, string cliente, ILogger logger)
+    {
+        if (!root.TryGetProperty(propriedade, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return padrao;
+
+        var texto = valor.GetString();
+        if (string.IsNullOrWhiteSpace(texto))
+            return padrao;
+
+        var limpo = texto.Trim();
+        if (limpo.Contains('<') || limpo.Contains('>') || limpo.Contains('\n') || limpo.Contains('\r'))
+        {
+            logger.LogWarning(
+                "Valor invalido em {Propriedade} do header de {Cliente}; mantendo o padrao.",
+                propriedade, cliente);
+            return padrao;
+        }
+
+        return limpo;
+    }
+
+    private static void ProcessarFases(EstrategiaCliente estrategia, string json)
+    {        using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
         if (!root.TryGetProperty("fases", out var fasesObj) || fasesObj.ValueKind != JsonValueKind.Object)

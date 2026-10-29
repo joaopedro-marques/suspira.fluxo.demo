@@ -131,4 +131,114 @@ public class ReguaHtmlBuilderTests
 
         etapa.Should().Be("Assinatura do Contrato");
     }
+
+    [Fact]
+    public void Construir_ComEstiloPorFase_UsaOverrideDaFase()
+    {
+        var regua = CriarRegua();
+        regua.EstiloHtml = new EstiloReguaHtml
+        {
+            CorConcluida = "#444444",
+            CorAtual = "#555555",
+            CorFutura = "#666666",
+            CorLabel = "#777777",
+            CorLabelAtual = "#888888"
+        };
+        regua.EstiloHtmlPorFase["pos-chaves"] = new EstiloReguaHtml
+        {
+            CorConcluida = "#2B1B00",
+            CorAtual = "#784099",
+            CorFutura = "rgba(0, 0, 0, 0.25)",
+            CorLabel = "#2B1B00",
+            CorLabelAtual = "#784099"
+        };
+        var estrategia = new EstrategiaEmail { Fase = "pos-chaves", Regua = regua };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia);
+
+        html.Should().Contain("background-color: #2B1B00");
+        html.Should().Contain("background-color: #784099");
+        html.Should().Contain("color: #2B1B00");
+        html.Should().Contain("color: #784099");
+        html.Should().NotContain("#444444");
+    }
+
+    [Fact]
+    public void Construir_SemOverrideDaFaseAtual_UsaEstiloGlobal()
+    {
+        var regua = CriarRegua();
+        regua.EstiloHtml = new EstiloReguaHtml
+        {
+            CorConcluida = "#444444",
+            CorAtual = "#555555",
+            CorFutura = "#666666",
+            CorLabel = "#777777",
+            CorLabelAtual = "#888888"
+        };
+        regua.EstiloHtmlPorFase["pos-chaves"] = new EstiloReguaHtml
+        {
+            CorConcluida = "#2B1B00",
+            CorLabel = "#2B1B00"
+        };
+        var estrategia = new EstrategiaEmail { Fase = "pos-compra", Regua = regua };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia);
+
+        html.Should().Contain("#444444");
+        html.Should().Contain("#777777");
+        html.Should().NotContain("#2B1B00");
+    }
+
+    [Fact]
+    public void Construir_ComFundoClaro_MantemCoresDeclaradasNoAsset()
+    {
+        var estrategia = new EstrategiaEmail { Fase = "pos-chaves", Regua = CriarRegua() };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia);
+
+        html.Should().Contain("color: #FFFFFF", "as cores declaradas no asset sao usadas como estao");
+        html.Should().Contain("background-color: #FFFFFF");
+        html.Should().NotContain("#1A1A1A", "nao existe troca automatica para cor legivel");
+    }
+
+    [Fact]
+    public void Construir_ComComponenteDoCliente_UsaMarkupDoAsset()
+    {
+        const string componente = """
+            <div class="regua-custom">{{regua_etapas}}</div>
+
+            <!--#bloco etapa-concluida-->
+            <span class="ok" style="color: {{cor_label}};">{{label}}</span>
+            <!--#/bloco-->
+
+            <!--#bloco etapa-atual-->
+            <span class="agora" style="color: {{cor_label}};">{{label}}</span>
+            <!--#/bloco-->
+
+            <!--#bloco etapa-futura-->
+            <span class="depois" style="color: {{cor_label}};">{{label}}</span>
+            <!--#/bloco-->
+            """;
+
+        var estrategia = new EstrategiaEmail { Fase = "pos-compra", Regua = CriarRegua() };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia, componente);
+
+        html.Should().Contain("class=\"regua-custom\"");
+        html.Should().Contain("class=\"agora\"");
+        html.Should().NotContain("<td", "o markup vem do asset, nao do fallback");
+        html.Should().NotContain("{{");
+    }
+
+    [Fact]
+    public void Construir_ComComponenteIncompleto_UsaFallbackPadrao()
+    {
+        var estrategia = new EstrategiaEmail { Fase = "pos-compra", Regua = CriarRegua() };
+
+        var html = ReguaHtmlBuilder.Construir(estrategia, "<div>{{regua_etapas}}</div>");
+
+        html.Should().Contain("<table role=\"presentation\"");
+        html.Should().Contain("Assinatura do Contrato");
+        html.Should().NotContain("{{");
+    }
 }

@@ -12,4 +12,5 @@ public class EstrategiaEmail
     public string? EtapaMapaEmocional { get; set; }
     public string? FatorDecisao { get; set; }
     public ReguaJornada? Regua { get; init; }
+    public HeaderConfig? Header { get; init; }
 }

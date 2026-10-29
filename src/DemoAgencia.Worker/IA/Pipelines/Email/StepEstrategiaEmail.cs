@@ -52,7 +52,8 @@ public class StepEstrategiaEmail : IPipelineStep
             MapaEmocional = new List<EtapaEmocional>(estrategia.MapaEmocional),
             SubJornada = context.Brief.SubJornada,
             TemaSelecionado = context.Brief.Tema,
-            Regua = estrategia.Regua
+            Regua = estrategia.Regua,
+            Header = estrategia.Header
         };
 
         return Task.FromResult(context);

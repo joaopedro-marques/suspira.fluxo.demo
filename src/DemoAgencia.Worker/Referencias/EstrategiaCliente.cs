@@ -10,6 +10,9 @@ public class EstrategiaCliente
     public List<EtapaEmocional> MapaEmocional { get; init; } = new();
     public ReguaJornada? Regua { get; set; }
     public FasesConfig? ConfiguracaoFases { get; set; }
+
+    /// <summary>Configuracao do header declarada em {CLIENTE}_header.json.</summary>
+    public HeaderConfig? Header { get; set; }
     
     public string? NormalizarFase(string? input)
     {
@@ -39,6 +42,10 @@ public class FaseEstrategia
     public string? CorPrincipal { get; set; }
     public string? DescricaoCor { get; set; }
     public List<List<string>> CoresHex { get; set; } = new();
+
+    /// <summary>Cor do titulo sobre o header desta fase. Ausente = escolhida por contraste.</summary>
+    public string? CorTextoHeader { get; set; }
+
     public List<string> Temas { get; set; } = new();
     public Dictionary<string, List<string>> SubJornadas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
